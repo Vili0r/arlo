@@ -25,6 +25,8 @@ import {
   Zap,
   X,
 } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -58,6 +60,8 @@ const navItems: NavItem[] = [
 ];
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const {user} = useUser();
+
   return (
     <>
       {/* Mobile overlay */}
@@ -79,13 +83,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 h-14 border-b border-white/[0.08]">
-          <button className="flex items-center gap-2 group">
-            <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
-              <span className="text-[10px] font-bold text-white">V</span>
-            </div>
-            <span className="text-sm font-semibold text-white truncate">Vili0r&apos;s projects</span>
-            <span className="text-[10px] font-bold bg-blue-600 text-white px-1.5 py-0.5 rounded-full">Pro</span>
-            <ChevronDown size={14} className="text-white/50" />
+          <button className="flex items-center gap-2 group overflow-hidden">
+            <span className="text-sm font-semibold text-white truncate">
+              {user?.firstName}&apos;s projects
+            </span>
+            <span className="text-[10px] font-bold bg-blue-600 text-white px-1.5 py-0.5 rounded-full flex-shrink-0">Pro</span>
+            <ChevronDown size={14} className="text-white/50 flex-shrink-0" />
           </button>
           <button
             className="lg:hidden p-1 rounded hover:bg-white/10 text-white/50"
@@ -129,8 +132,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Footer */}
         <div className="border-t border-white/[0.08] px-3 py-3">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex-shrink-0" />
-            <span className="text-xs text-white/70 truncate flex-1">viliorcuni-9198</span>
+            <UserButton />
+            <span className="text-xs text-white/70 truncate flex-1">
+              {user?.firstName}
+            </span>
             <button className="p-1 rounded hover:bg-white/10">
               <MoreHorizontal size={14} className="text-white/40" />
             </button>

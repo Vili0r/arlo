@@ -24,8 +24,6 @@ export function Navbar() {
         <Show when="signed-in">
           <div className="flex items-center gap-2">
             <Link href="/dashboard" className={buttonVariants({ variant: "default", className: "rounded-full px-6 transition-transform hover:scale-105 active:scale-95 shadow-soft hover:shadow-soft-md" })}>Dashboard</Link>
-            <UserButton />
-            {user?.firstName && <p>{user.firstName}</p>}
           </div>
         </Show>
       </div>

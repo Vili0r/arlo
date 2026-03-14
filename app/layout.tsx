@@ -27,7 +27,7 @@ export default function RootLayout({
         className={`${jakarta.variable} antialiased min-h-screen flex flex-col`}
       >
         <ClerkProvider>
-          <main className="flex-1 flex flex-col">
+          <main className="">
             {children}
           </main>
         </ClerkProvider>
