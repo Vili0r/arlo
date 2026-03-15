@@ -13,24 +13,16 @@ datasource db {
   provider = "postgresql"
 }
 
-// ============================================
-// PROJECTS
-// Like RevenueCat, each app gets its own project.
-// A user can have multiple projects.
-// Auth is handled by Clerk — we just store
-// the Clerk user ID as a plain string.
-// ============================================
-
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  platform    Platform @default(REACT_NATIVE)
-  iconUrl     String?
-  userId String   // from Clerk auth, e.g. "user_2x7..."
-  apiKeys     ApiKey[]
-  flows       Flow[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  platform  Platform @default(REACT_NATIVE)
+  iconUrl   String?
+  userId    String // from Clerk auth, e.g. "user_2x7..."
+  apiKeys   ApiKey[]
+  flows     Flow[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@map("projects")
@@ -45,9 +37,9 @@ model ApiKey {
   id          String      @id @default(cuid())
   projectId   String
   project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String      // e.g. "Production", "Development"
+  name        String // e.g. "Production", "Development"
   hashedKey   String      @unique
-  prefix      String      // visible prefix e.g. "ob_live_abc1" or "ob_test_xyz9"
+  prefix      String // visible prefix e.g. "ob_live_abc1" or "ob_test_xyz9"
   environment Environment
   lastUsedAt  DateTime?
   createdAt   DateTime    @default(now())
@@ -66,8 +58,8 @@ model Flow {
   id                 String        @id @default(cuid())
   projectId          String
   project            Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name               String        // display name in dashboard
-  slug               String        // SDK identifier, e.g. "welcome", "upgrade-prompt"
+  name               String // display name in dashboard
+  slug               String // SDK identifier, e.g. "welcome", "upgrade-prompt"
   status             FlowStatus    @default(DRAFT)
   publishedVersionId String?       @unique
   publishedVersion   FlowVersion?  @relation("PublishedVersion", fields: [publishedVersionId], references: [id])
@@ -86,14 +78,13 @@ enum FlowStatus {
   ARCHIVED
 }
 
-
 model FlowVersion {
   id            String    @id @default(cuid())
   flowId        String
   flow          Flow      @relation("FlowVersions", fields: [flowId], references: [id], onDelete: Cascade)
-  version       Int       // auto-incremented per flow: v1, v2, v3...
-  config        Json      // full screen/component tree (see structure above)
-  changelog     String?   // optional note: "Added new welcome screen"
+  version       Int // auto-incremented per flow: v1, v2, v3...
+  config        Json // full screen/component tree (see structure above)
+  changelog     String? // optional note: "Added new welcome screen"
   publishedFlow Flow?     @relation("PublishedVersion")
   publishedAt   DateTime?
   createdAt     DateTime  @default(now())

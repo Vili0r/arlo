@@ -27,6 +27,7 @@ export const componentTypeEnum = z.enum([
   "LOTTIE",
   "VIDEO",
   "ICON",
+  "ICON_LIBRARY",
   // Interactive
   "BUTTON",
   "TEXT_INPUT",
@@ -108,6 +109,20 @@ export const iconPropsSchema = z.object({
   name: z.string().min(1, "Icon name is required"),
   size: z.number().min(8).max(128).optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color").optional(),
+});
+
+export const iconLibraryPropsSchema = z.object({
+  iconName: z.string().min(1, "Icon name is required"),
+  size: z.number().min(8).max(128).optional(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color").optional(),
+  width: z.number().min(8).max(512).optional(),
+  height: z.number().min(8).max(512).optional(),
+  opacity: z.number().min(0).max(1).optional(),
+  paddingVertical: z.number().min(0).max(100).optional(),
+  paddingHorizontal: z.number().min(0).max(100).optional(),
+  marginVertical: z.number().min(0).max(100).optional(),
+  marginHorizontal: z.number().min(0).max(100).optional(),
+  backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
 });
 
 export const buttonStyleSchema = z.object({
@@ -220,6 +235,18 @@ export const componentSchema = z.discriminatedUnion("type", [
     type: z.literal("ICON"),
     order: z.number().int().min(0),
     props: iconPropsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("ICON"),
+    order: z.number().int().min(0),
+    props: iconPropsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("ICON_LIBRARY"),
+    order: z.number().int().min(0),
+    props: iconLibraryPropsSchema,
   }),
   z.object({
     id: z.string().min(1),

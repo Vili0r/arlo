@@ -141,13 +141,21 @@ export type ComponentType =
   | "LOTTIE"
   | "VIDEO"
   | "ICON"
+  | "ICON_LIBRARY"
   | "BUTTON"
   | "TEXT_INPUT"
   | "MULTI_SELECT"
   | "SINGLE_SELECT"
   | "SLIDER"
   | "PROGRESS_BAR"
-  | "PAGE_INDICATOR";
+  | "PAGE_INDICATOR"
+  | "STACK"
+  | "FOOTER"
+  | "TAB_BUTTON"
+  | "CAROUSEL"
+  | "SOCIAL_PROOF"
+  | "FEATURE_LIST"
+  | "AWARD";
 
 export type ButtonAction =
   | "NEXT_SCREEN"
@@ -277,6 +285,103 @@ export interface PageIndicatorProps {
   size?: number;
 }
 
+export interface IconLibraryProps {
+  iconName: string;
+  size?: number;
+  color?: string;
+  width?: number;
+  height?: number;
+  opacity?: number;
+  paddingVertical?: number;
+  paddingHorizontal?: number;
+  marginVertical?: number;
+  marginHorizontal?: number;
+  backgroundColor?: string;
+}
+
+export interface StackProps {
+  direction?: "vertical" | "horizontal";
+  gap?: number;
+  padding?: number;
+  backgroundColor?: string;
+  borderRadius?: number;
+}
+
+export interface FooterProps {
+  text: string;
+  textColor?: string;
+  fontSize?: number;
+  backgroundColor?: string;
+  showDivider?: boolean;
+}
+
+export interface TabButtonTab {
+  id: string;
+  label: string;
+  active?: boolean;
+}
+
+export interface TabButtonProps {
+  tabs: TabButtonTab[];
+  activeColor?: string;
+  inactiveColor?: string;
+}
+
+export interface CarouselItem {
+  id: string;
+  imageSrc?: string;
+  title?: string;
+  subtitle?: string;
+}
+
+export interface CarouselProps {
+  variant?: "image" | "card";
+  items: CarouselItem[];
+  height?: number;
+  borderRadius?: number;
+  showDots?: boolean;
+}
+
+export interface SocialProofReview {
+  id: string;
+  author: string;
+  rating: number;
+  text?: string;
+  avatar?: string;
+}
+
+export interface SocialProofProps {
+  rating?: number;
+  totalReviews?: number;
+  reviews?: SocialProofReview[];
+  showStars?: boolean;
+  compact?: boolean;
+}
+
+export interface FeatureItem {
+  id: string;
+  icon?: string;
+  label: string;
+}
+
+export interface FeatureListProps {
+  title?: string;
+  features: FeatureItem[];
+  iconColor?: string;
+  textColor?: string;
+}
+
+export interface AwardProps {
+  variant?: "badge" | "laurel" | "minimal";
+  title: string;
+  subtitle?: string;
+  issuer?: string;
+  iconSrc?: string;
+  showLaurels?: boolean;
+  backgroundColor?: string;
+  textColor?: string;
+}
+
 // Component union — discriminated by type
 
 export type FlowComponent =
@@ -285,13 +390,21 @@ export type FlowComponent =
   | { id: string; type: "LOTTIE"; order: number; props: LottieProps }
   | { id: string; type: "VIDEO"; order: number; props: VideoProps }
   | { id: string; type: "ICON"; order: number; props: IconProps }
+  | { id: string; type: "ICON_LIBRARY"; order: number; props: IconLibraryProps }
   | { id: string; type: "BUTTON"; order: number; props: ButtonProps }
   | { id: string; type: "TEXT_INPUT"; order: number; props: TextInputProps }
   | { id: string; type: "MULTI_SELECT"; order: number; props: MultiSelectProps }
   | { id: string; type: "SINGLE_SELECT"; order: number; props: SingleSelectProps }
   | { id: string; type: "SLIDER"; order: number; props: SliderProps }
   | { id: string; type: "PROGRESS_BAR"; order: number; props: ProgressBarProps }
-  | { id: string; type: "PAGE_INDICATOR"; order: number; props: PageIndicatorProps };
+  | { id: string; type: "PAGE_INDICATOR"; order: number; props: PageIndicatorProps }
+  | { id: string; type: "STACK"; order: number; props: StackProps }
+  | { id: string; type: "FOOTER"; order: number; props: FooterProps }
+  | { id: string; type: "TAB_BUTTON"; order: number; props: TabButtonProps }
+  | { id: string; type: "CAROUSEL"; order: number; props: CarouselProps }
+  | { id: string; type: "SOCIAL_PROOF"; order: number; props: SocialProofProps }
+  | { id: string; type: "FEATURE_LIST"; order: number; props: FeatureListProps }
+  | { id: string; type: "AWARD"; order: number; props: AwardProps };
 
 // Screen and config
 
