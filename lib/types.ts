@@ -427,6 +427,13 @@ export interface Screen {
   components: FlowComponent[];
 }
 
+export interface ComponentConfig {
+  id: string;
+  type: string;
+  order: number;
+  props: any;
+}
+
 export interface FlowSettings {
   dismissible?: boolean;
   showProgressBar?: boolean;

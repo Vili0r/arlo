@@ -7,7 +7,7 @@ type DragMode = "none" | "pan" | "phone";
 export function useCanvas() {
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  const [zoom, setZoom] = useState(0.85);
+  const [zoom, setZoom] = useState(0.55);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0 });
@@ -79,9 +79,9 @@ export function useCanvas() {
 
   const zoomIn = useCallback(() => setZoom((z) => clampZoom(z + 0.1)), []);
   const zoomOut = useCallback(() => setZoom((z) => clampZoom(z - 0.1)), []);
-  const resetZoom = useCallback(() => setZoom(0.85), []);
+  const resetZoom = useCallback(() => setZoom(0.55), []);
   const resetView = useCallback(() => {
-    setZoom(0.85);
+    setZoom(0.55);
     setPanOffset({ x: 0, y: 0 });
     setPhonePosition({ x: 0, y: 0 });
   }, []);

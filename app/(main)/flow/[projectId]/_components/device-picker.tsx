@@ -1,7 +1,16 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Check, Smartphone, Tablet, Monitor, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {
   MOBILE_DEVICES,
   TABLET_DEVICES,
@@ -36,38 +45,6 @@ function ResponsiveIcon({ active }: { active?: boolean }) {
   );
 }
 
-/* ── Device row ──────────────────────────────────────────── */
-function DeviceRow({
-  device,
-  isActive,
-  onSelect,
-}: {
-  device: DevicePreset;
-  isActive: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      onClick={onSelect}
-      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
-        isActive
-          ? "bg-white/[0.08] text-white"
-          : "text-white/60 hover:text-white hover:bg-white/[0.06]"
-      }`}
-    >
-      <span className={`text-sm ${isActive ? "font-semibold" : ""}`}>
-        {device.name}
-      </span>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-white/30 tabular-nums">
-          {device.width}×{device.height}
-        </span>
-        {isActive && <Check size={14} className="text-white/70" />}
-      </div>
-    </button>
-  );
-}
-
 /* ── Device Picker ─────────────────────────────────────── */
 export function DevicePicker({
   selectedDevice,
@@ -76,70 +53,51 @@ export function DevicePicker({
   onSelectDevice,
   onSelectOrientation,
   onToggleFullScreen,
+  compact = false,
 }: {
   selectedDevice: DevicePreset;
   orientation: Orientation;
   fullScreenView: boolean;
   onSelectDevice: (device: DevicePreset) => void;
   onSelectOrientation: (orientation: Orientation) => void;
-  onToggleFullScreen: () => void;
+  onToggleFullScreen: () => void; 
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<DeviceCategory>(selectedDevice.category);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   /* Synchronize category when selectedDevice changes externally */
   useEffect(() => {
     setActiveCategory(selectedDevice.category);
   }, [selectedDevice.category]);
 
-  /* Close on outside click */
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  /* Close on Escape */
-  useEffect(() => {
-    if (!open) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open]);
-
-  const handleSelectDevice = (device: DevicePreset) => {
-    onSelectDevice(device);
-    setOpen(false);
-  };
+  const devices = activeCategory === "mobile" ? MOBILE_DEVICES : TABLET_DEVICES;
 
   return (
-    <div ref={containerRef} className="relative" onMouseDown={(e) => e.stopPropagation()}>
-      {/* Trigger */}
-      <button
-        onClick={() => setOpen((p) => !p)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer focus:outline-none"
-      >
-        {selectedDevice.category === "mobile" ? (
-          <Smartphone size={13} />
-        ) : (
-          <Tablet size={13} />
-        )}
-        {selectedDevice.name}
-        <ChevronDown size={11} className={`text-white/40 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
+    <div onMouseDown={(e) => e.stopPropagation()}>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        {/* Trigger */}
+        <DropdownMenuTrigger
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer focus:outline-none"
+        >
+          {selectedDevice.category === "mobile" ? (
+            <Smartphone size={14} />
+          ) : (
+            <Tablet size={14} />
+          )}
+          {!compact && (
+            <>
+              {selectedDevice.name}
+              <ChevronDown size={11} className={`text-white/40 transition-transform ${open ? "rotate-180" : ""}`} />
+            </>
+          )}
+        </DropdownMenuTrigger>
 
-      {/* Dropdown panel */}
-      {open && (
-        <div
-          className="absolute top-full left-0 mt-2 w-[280px] bg-[#1a1a1e] border border-white/[0.1] rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+        <DropdownMenuContent
+          align="center"
+          side="bottom"
+          sideOffset={8}
+          className="w-[280px] bg-[#1a1a1e] border-white/[0.1] rounded-xl shadow-2xl p-0 overflow-hidden"
         >
           {/* ── Orientation & Category toggles ── */}
           <div className="flex items-center justify-between px-3 pt-3 pb-2 gap-2">
@@ -194,58 +152,58 @@ export function DevicePicker({
             </div>
           </div>
 
-          <div className="h-px bg-white/[0.06]" />
+          <DropdownMenuSeparator className="bg-white/[0.06]" />
 
           {/* ── Device list ── */}
-          <div className="max-h-[380px] overflow-y-auto py-1 px-1">
-            {activeCategory === "mobile" ? (
-              <>
-                <p className="text-[11px] uppercase tracking-wider text-white/40 font-semibold px-2 pt-2 pb-1">
-                  Mobile
-                </p>
-                {MOBILE_DEVICES.map((device) => (
-                  <DeviceRow
-                    key={device.id}
-                    device={device}
-                    isActive={selectedDevice.id === device.id}
-                    onSelect={() => handleSelectDevice(device)}
-                  />
-                ))}
-              </>
-            ) : (
-              <>
-                <p className="text-[11px] uppercase tracking-wider text-white/40 font-semibold px-2 pt-2 pb-1">
-                  Tablet
-                </p>
-                {TABLET_DEVICES.map((device) => (
-                  <DeviceRow
-                    key={device.id}
-                    device={device}
-                    isActive={selectedDevice.id === device.id}
-                    onSelect={() => handleSelectDevice(device)}
-                  />
-                ))}
-              </>
-            )}
-          </div>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-white/40 font-semibold px-3 pt-2 pb-1">
+              {activeCategory === "mobile" ? "Mobile" : "Tablet"}
+            </DropdownMenuLabel>
+            <div className="max-h-[380px] overflow-y-auto px-1 pb-1">
+              {devices.map((device) => (
+                <DropdownMenuItem
+                  key={device.id}
+                  onClick={() => {
+                    onSelectDevice(device);
+                    setOpen(false);
+                  }}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
+                    selectedDevice.id === device.id
+                      ? "bg-white/[0.08] text-white"
+                      : "text-white/60 focus:text-white focus:bg-white/[0.06]"
+                  }`}
+                >
+                  <span className={`text-sm ${selectedDevice.id === device.id ? "font-semibold" : ""}`}>
+                    {device.name}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/30 tabular-nums">
+                      {device.width}×{device.height}
+                    </span>
+                    {selectedDevice.id === device.id && <Check size={14} className="text-white/70" />}
+                  </div>
+                </DropdownMenuItem>
+              ))}
+            </div>
+          </DropdownMenuGroup>
 
-          <div className="h-px bg-white/[0.06]" />
+          <DropdownMenuSeparator className="bg-white/[0.06]" />
 
           {/* ── Full screen view ── */}
           <div className="px-3 py-2.5">
-            <button
+            <DropdownMenuItem
               onClick={() => {
                 onToggleFullScreen();
                 setOpen(false);
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] transition-all"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] focus:bg-white/[0.06] transition-all"
             >
               <Monitor size={14} className="text-white/40" />
               <span className="text-sm text-white/60">Full screen view</span>
-            </button>
+            </DropdownMenuItem>
           </div>
-        </div>
-      )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
