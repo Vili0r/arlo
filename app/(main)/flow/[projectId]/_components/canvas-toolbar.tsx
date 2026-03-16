@@ -1,4 +1,6 @@
-import { Search, Smartphone, ChevronDown, Globe, Eye, Minus, Plus, Maximize2, Save, Upload, ChevronLeft } from "lucide-react";
+import { Search, ChevronDown, Globe, Eye, Minus, Plus, Maximize2, Save, Upload, ChevronLeft } from "lucide-react";
+import { DevicePicker } from "./device-picker";
+import type { DevicePreset, Orientation } from "../_lib/device-presets";
 
 export function CanvasToolbar({
   zoom,
@@ -10,6 +12,12 @@ export function CanvasToolbar({
   onResetZoom,
   onResetView,
   onBack,
+  selectedDevice,
+  orientation,
+  fullScreenView,
+  onSelectDevice,
+  onSelectOrientation,
+  onToggleFullScreen,
 }: {
   zoom: number;
   screenName: string;
@@ -20,6 +28,12 @@ export function CanvasToolbar({
   onResetZoom: () => void;
   onResetView: () => void;
   onBack: () => void;
+  selectedDevice: DevicePreset;
+  orientation: Orientation;
+  fullScreenView: boolean;
+  onSelectDevice: (device: DevicePreset) => void;
+  onSelectOrientation: (orientation: Orientation) => void;
+  onToggleFullScreen: () => void;
 }) {
   return (
     <>
@@ -29,9 +43,15 @@ export function CanvasToolbar({
           <button className="p-2 text-white/50 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer">
             <Search size={14} />
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer">
-            <Smartphone size={13} /> iPhone 16 Pro
-          </button>
+          {/* ── Device Picker (replaces static iPhone button) ── */}
+          <DevicePicker
+            selectedDevice={selectedDevice}
+            orientation={orientation}
+            fullScreenView={fullScreenView}
+            onSelectDevice={onSelectDevice}
+            onSelectOrientation={onSelectOrientation}
+            onToggleFullScreen={onToggleFullScreen}
+          />
         </div>
         <div className="flex items-center bg-white/[0.08] backdrop-blur-md border border-white/[0.1] rounded-xl px-1 py-1">
           <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer">
