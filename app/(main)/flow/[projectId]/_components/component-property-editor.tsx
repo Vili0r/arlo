@@ -15,16 +15,60 @@ import {
   PropFileUpload,
   PropVideoUpload,
   PropSpacingInput,
+  PropIconCombobox,
   AddVariableLink,
   CollapsibleSection,
   PropField,
   SectionLabel,
 } from "./property-fields";
+import type { SpacingValues } from "./property-fields";
 import { icons, X, Plus } from "lucide-react";
 
 /* ────────────────────────────────────────────────────────────
+   Helper: read spacing values from props (supports both old
+   vertical/horizontal format and new top/right/bottom/left)
+   ──────────────────────────────────────────────────────────── */
+function getSpacingValues(
+  p: Record<string, any>,
+  prefix: "padding" | "margin"
+): SpacingValues {
+  // New individual format takes priority
+  if (
+    p[`${prefix}Top`] !== undefined ||
+    p[`${prefix}Right`] !== undefined ||
+    p[`${prefix}Bottom`] !== undefined ||
+    p[`${prefix}Left`] !== undefined
+  ) {
+    return {
+      top: p[`${prefix}Top`] ?? 0,
+      right: p[`${prefix}Right`] ?? 0,
+      bottom: p[`${prefix}Bottom`] ?? 0,
+      left: p[`${prefix}Left`] ?? 0,
+    };
+  }
+  // Fall back to old vertical/horizontal format
+  const v = p[`${prefix}Vertical`] ?? 0;
+  const h = p[`${prefix}Horizontal`] ?? 0;
+  return { top: v, right: h, bottom: v, left: h };
+}
+
+function makeSpacingOnChange(
+  onUpdateProp: (key: string, value: unknown) => void,
+  prefix: "padding" | "margin"
+) {
+  return (vals: SpacingValues) => {
+    onUpdateProp(`${prefix}Top`, vals.top);
+    onUpdateProp(`${prefix}Right`, vals.right);
+    onUpdateProp(`${prefix}Bottom`, vals.bottom);
+    onUpdateProp(`${prefix}Left`, vals.left);
+    // Also sync the old vertical/horizontal props for backward compat
+    onUpdateProp(`${prefix}Vertical`, vals.top);
+    onUpdateProp(`${prefix}Horizontal`, vals.left);
+  };
+}
+
+/* ────────────────────────────────────────────────────────────
    Axis Toggle  (→  ↓  ⬇)
-   A small inline 3-button group for Stack axis selection.
    ──────────────────────────────────────────────────────────── */
 function PropAxisToggle({
   value,
@@ -285,17 +329,13 @@ export function ComponentPropertyEditor({
         <Section title="Layout">
           <PropSpacingInput
             label="Padding"
-            vertical={p.paddingVertical ?? 0}
-            horizontal={p.paddingHorizontal ?? 0}
-            onChangeVertical={(v) => onUpdateProp("paddingVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("paddingHorizontal", v)}
+            values={getSpacingValues(p, "padding")}
+            onChange={makeSpacingOnChange(onUpdateProp, "padding")}
           />
           <PropSpacingInput
             label="Margin"
-            vertical={p.marginVertical ?? 0}
-            horizontal={p.marginHorizontal ?? 0}
-            onChangeVertical={(v) => onUpdateProp("marginVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("marginHorizontal", v)}
+            values={getSpacingValues(p, "margin")}
+            onChange={makeSpacingOnChange(onUpdateProp, "margin")}
           />
         </Section>
 
@@ -331,7 +371,6 @@ export function ComponentPropertyEditor({
             />
           </PropRow>
 
-          {/* Color fill */}
           {(p.backgroundType || "color") === "color" && (
             <PropRow label="Color" fullWidth>
               <PropColorInput
@@ -342,7 +381,6 @@ export function ComponentPropertyEditor({
             </PropRow>
           )}
 
-          {/* Image fill */}
           {p.backgroundType === "image" && (
             <>
               <PropFileUpload label="Image" accept="image/*" />
@@ -368,7 +406,6 @@ export function ComponentPropertyEditor({
             </>
           )}
 
-          {/* Video fill */}
           {p.backgroundType === "video" && (
             <>
               <PropVideoUpload />
@@ -441,7 +478,6 @@ export function ComponentPropertyEditor({
 
         {/* ── Badge ── */}
         <CollapsibleSection title="Badge">
-          {/* Badge text */}
           <PropRow label="" fullWidth>
             <PropTextarea
               value={p.badgeText || "Badge"}
@@ -451,16 +487,12 @@ export function ComponentPropertyEditor({
             />
             <AddVariableLink />
           </PropRow>
-
-          {/* Badge alignment */}
           <PropRow label="Alignment">
             <PropAlignmentToggle
               value={p.badgeAlignment || "center"}
               onChange={(v) => onUpdateProp("badgeAlignment", v)}
             />
           </PropRow>
-
-          {/* Badge font family */}
           <PropRow label="Font family">
             <PropSelect
               value={p.badgeFontFamily || "system"}
@@ -473,8 +505,6 @@ export function ComponentPropertyEditor({
               ]}
             />
           </PropRow>
-
-          {/* Badge font weight */}
           <PropRow label="Font weight">
             <PropSelect
               value={p.badgeFontWeight || "normal"}
@@ -488,8 +518,6 @@ export function ComponentPropertyEditor({
               ]}
             />
           </PropRow>
-
-          {/* Badge font size */}
           <PropRow label="Font size">
             <PropSelect
               value={p.badgeFontSize || "14"}
@@ -505,8 +533,6 @@ export function ComponentPropertyEditor({
               ]}
             />
           </PropRow>
-
-          {/* Badge text color */}
           <PropRow label="Color" fullWidth>
             <PropColorInput
               value={p.badgeColor || "#000000"}
@@ -514,39 +540,11 @@ export function ComponentPropertyEditor({
               showOpacity
             />
           </PropRow>
-
-          {/* Badge background */}
           <PropRow label="Background" fullWidth>
             <PropColorInput
               value={p.badgeBackgroundColor || "transparent"}
               onChange={(v) => onUpdateProp("badgeBackgroundColor", v)}
             />
-          </PropRow>
-        </CollapsibleSection>
-
-        {/* ── Badge Intro Offer Text ── */}
-        <CollapsibleSection title="Badge intro offer text">
-          <PropRow label="" fullWidth>
-            <PropTextarea
-              value={p.badgeIntroOfferText || ""}
-              onChange={(v) => onUpdateProp("badgeIntroOfferText", v)}
-              rows={2}
-              showToolbar
-            />
-            <AddVariableLink />
-          </PropRow>
-        </CollapsibleSection>
-
-        {/* ── Badge Multi-phase Offers Text ── */}
-        <CollapsibleSection title="Badge multi-phase offers text">
-          <PropRow label="" fullWidth>
-            <PropTextarea
-              value={p.badgeMultiPhaseText || ""}
-              onChange={(v) => onUpdateProp("badgeMultiPhaseText", v)}
-              rows={2}
-              showToolbar
-            />
-            <AddVariableLink />
           </PropRow>
         </CollapsibleSection>
 
@@ -571,6 +569,123 @@ export function ComponentPropertyEditor({
             />
           </PropRow>
         </Section>
+
+        {/* ── Badge Layout ── */}
+        <Section title="Badge layout">
+          <PropSpacingInput
+            label="Padding"
+            values={{
+              top: p.badgePaddingTop ?? 4,
+              right: p.badgePaddingRight ?? 8,
+              bottom: p.badgePaddingBottom ?? 4,
+              left: p.badgePaddingLeft ?? 8,
+            }}
+            onChange={(vals) => {
+              onUpdateProp("badgePaddingTop", vals.top);
+              onUpdateProp("badgePaddingRight", vals.right);
+              onUpdateProp("badgePaddingBottom", vals.bottom);
+              onUpdateProp("badgePaddingLeft", vals.left);
+            }}
+          />
+          <PropSpacingInput
+            label="Margin"
+            values={{
+              top: p.badgeMarginTop ?? 0,
+              right: p.badgeMarginRight ?? 0,
+              bottom: p.badgeMarginBottom ?? 0,
+              left: p.badgeMarginLeft ?? 0,
+            }}
+            onChange={(vals) => {
+              onUpdateProp("badgeMarginTop", vals.top);
+              onUpdateProp("badgeMarginRight", vals.right);
+              onUpdateProp("badgeMarginBottom", vals.bottom);
+              onUpdateProp("badgeMarginLeft", vals.left);
+            }}
+          />
+        </Section>
+
+        {/* ── Badge Appearance ── */}
+        <CollapsibleSection title="Badge appearance">
+          <PropRow label="Shape">
+            <PropSelect
+              value={p.badgeShape || "pill"}
+              onChange={(v) => onUpdateProp("badgeShape", v)}
+              options={[
+                { value: "rectangle", label: "Rectangle" },
+                { value: "rounded", label: "Rounded" },
+                { value: "pill", label: "Pill" },
+                { value: "circle", label: "Circle" },
+              ]}
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Badge Fill ── */}
+        <CollapsibleSection title="Badge fill">
+          <PropRow label="Background" fullWidth>
+            <PropColorInput
+              value={p.badgeFillColor || "#11D483"}
+              onChange={(v) => onUpdateProp("badgeFillColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Badge Border ── */}
+        <CollapsibleSection title="Badge border">
+          <PropRow label="Border color" fullWidth>
+            <PropColorInput
+              value={p.badgeBorderColor || "#000000"}
+              onChange={(v) => onUpdateProp("badgeBorderColor", v)}
+              showOpacity
+            />
+          </PropRow>
+          <PropRow label="Border width">
+            <PropNumberUnit
+              value={p.badgeBorderWidth ?? 0}
+              onChange={(v) => onUpdateProp("badgeBorderWidth", v)}
+              unit="px"
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Badge Drop Shadow ── */}
+        <CollapsibleSection title="Badge drop shadow">
+          <PropRow label="Position">
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">X</span>
+                <PropNumberUnit
+                  value={p.badgeShadowX ?? 0}
+                  onChange={(v) => onUpdateProp("badgeShadowX", v)}
+                  className="w-[60px]"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">Y</span>
+                <PropNumberUnit
+                  value={p.badgeShadowY ?? 2}
+                  onChange={(v) => onUpdateProp("badgeShadowY", v)}
+                  className="w-[60px]"
+                />
+              </div>
+            </div>
+          </PropRow>
+          <PropRow label="Blur">
+            <PropNumberUnit
+              value={p.badgeShadowBlur ?? 6}
+              onChange={(v) => onUpdateProp("badgeShadowBlur", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.badgeShadowColor || "#000000"}
+              onChange={(v) => onUpdateProp("badgeShadowColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
       </div>
     );
   }
@@ -581,7 +696,6 @@ export function ComponentPropertyEditor({
   if (component.type === "FOOTER") {
     return (
       <div>
-        {/* Description banner */}
         <div className="px-4 py-3 text-sm text-white/60 border-b border-white/[0.06]">
           The footer and any added children components will be fixed to the
           bottom.
@@ -589,9 +703,6 @@ export function ComponentPropertyEditor({
 
         <Divider />
 
-        {/* ── Core Stack-like Controls ── */}
-
-        {/* Axis */}
         <PropRow label="Axis">
           <PropAxisToggle
             value={p.axis || "vertical"}
@@ -599,7 +710,6 @@ export function ComponentPropertyEditor({
           />
         </PropRow>
 
-        {/* Alignment */}
         <PropRow label="Alignment">
           <PropAlignmentToggle
             value={p.alignment || "start"}
@@ -607,7 +717,6 @@ export function ComponentPropertyEditor({
           />
         </PropRow>
 
-        {/* Distribution */}
         <PropRow label="Distribution">
           <PropSelect
             value={p.distribution || "start"}
@@ -623,7 +732,6 @@ export function ComponentPropertyEditor({
           />
         </PropRow>
 
-        {/* Child spacing */}
         <PropRow label="Child spacing">
           <PropNumberUnit
             value={p.childSpacing ?? 0}
@@ -632,7 +740,6 @@ export function ComponentPropertyEditor({
           />
         </PropRow>
 
-        {/* ── Size ── */}
         <Section title="Size">
           <PropRow label="Width">
             <PropSelect
@@ -676,25 +783,19 @@ export function ComponentPropertyEditor({
           )}
         </Section>
 
-        {/* ── Layout ── */}
         <Section title="Layout">
           <PropSpacingInput
             label="Padding"
-            vertical={p.paddingVertical ?? 0}
-            horizontal={p.paddingHorizontal ?? 0}
-            onChangeVertical={(v) => onUpdateProp("paddingVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("paddingHorizontal", v)}
+            values={getSpacingValues(p, "padding")}
+            onChange={makeSpacingOnChange(onUpdateProp, "padding")}
           />
           <PropSpacingInput
             label="Margin"
-            vertical={p.marginVertical ?? 0}
-            horizontal={p.marginHorizontal ?? 0}
-            onChangeVertical={(v) => onUpdateProp("marginVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("marginHorizontal", v)}
+            values={getSpacingValues(p, "margin")}
+            onChange={makeSpacingOnChange(onUpdateProp, "margin")}
           />
         </Section>
 
-        {/* ── Appearance ── */}
         <CollapsibleSection title="Appearance">
           <PropRow label="Shape">
             <PropSelect
@@ -717,7 +818,6 @@ export function ComponentPropertyEditor({
           </PropRow>
         </CollapsibleSection>
 
-        {/* ── Fill ── */}
         <CollapsibleSection title="Fill">
           <PropRow label="Background" fullWidth>
             <PropBackgroundTypeToggle
@@ -725,8 +825,6 @@ export function ComponentPropertyEditor({
               onChange={(v) => onUpdateProp("backgroundType", v)}
             />
           </PropRow>
-
-          {/* Color fill */}
           {(p.backgroundType || "color") === "color" && (
             <PropRow label="Color" fullWidth>
               <PropColorInput
@@ -736,8 +834,6 @@ export function ComponentPropertyEditor({
               />
             </PropRow>
           )}
-
-          {/* Image fill */}
           {p.backgroundType === "image" && (
             <>
               <PropFileUpload label="Image" accept="image/*" />
@@ -762,8 +858,6 @@ export function ComponentPropertyEditor({
               </PropRow>
             </>
           )}
-
-          {/* Video fill */}
           {p.backgroundType === "video" && (
             <>
               <PropVideoUpload />
@@ -778,7 +872,6 @@ export function ComponentPropertyEditor({
           )}
         </CollapsibleSection>
 
-        {/* ── Border ── */}
         <CollapsibleSection title="Border">
           <PropRow label="Border color" fullWidth>
             <PropColorInput
@@ -796,7 +889,6 @@ export function ComponentPropertyEditor({
           </PropRow>
         </CollapsibleSection>
 
-        {/* ── Drop Shadow ── */}
         <CollapsibleSection title="Drop Shadow">
           <PropRow label="Position">
             <div className="flex gap-2">
@@ -838,7 +930,7 @@ export function ComponentPropertyEditor({
   }
 
   /* ════════════════════════════════════════════════════════
-     TEXT PROPERTIES
+     TEXT PROPERTIES  ★ ENRICHED — every prop reflects on device
      ════════════════════════════════════════════════════════ */
   if (component.type === "TEXT") {
     return (
@@ -901,6 +993,26 @@ export function ComponentPropertyEditor({
           />
         </PropRow>
 
+        {/* Line height */}
+        <PropRow label="Line height">
+          <PropNumberUnit
+            value={p.lineHeight ?? 0}
+            onChange={(v) => onUpdateProp("lineHeight", v)}
+            unit=""
+            className="w-[80px]"
+          />
+        </PropRow>
+
+        {/* Letter spacing */}
+        <PropRow label="Letter spacing">
+          <PropNumberUnit
+            value={p.letterSpacing ?? 0}
+            onChange={(v) => onUpdateProp("letterSpacing", v)}
+            unit=""
+            className="w-[80px]"
+          />
+        </PropRow>
+
         <Divider />
 
         {/* Color */}
@@ -924,8 +1036,8 @@ export function ComponentPropertyEditor({
         <Section title="Size">
           <PropRow label="Width">
             <PropSelect
-              value={p.width || "fit"}
-              onChange={(v) => onUpdateProp("width", v)}
+              value={p.widthMode || "fill"}
+              onChange={(v) => onUpdateProp("widthMode", v)}
               options={[
                 { value: "fit", label: "Fit" },
                 { value: "fill", label: "Fill" },
@@ -933,10 +1045,19 @@ export function ComponentPropertyEditor({
               ]}
             />
           </PropRow>
+          {p.widthMode === "fixed" && (
+            <PropRow label="">
+              <PropNumberUnit
+                value={p.fixedWidth || 200}
+                onChange={(v) => onUpdateProp("fixedWidth", v)}
+                unit="px"
+              />
+            </PropRow>
+          )}
           <PropRow label="Height">
             <PropSelect
-              value={p.height || "fit"}
-              onChange={(v) => onUpdateProp("height", v)}
+              value={p.heightMode || "fit"}
+              onChange={(v) => onUpdateProp("heightMode", v)}
               options={[
                 { value: "fit", label: "Fit" },
                 { value: "fill", label: "Fill" },
@@ -944,37 +1065,134 @@ export function ComponentPropertyEditor({
               ]}
             />
           </PropRow>
+          {p.heightMode === "fixed" && (
+            <PropRow label="">
+              <PropNumberUnit
+                value={p.fixedHeight || 100}
+                onChange={(v) => onUpdateProp("fixedHeight", v)}
+                unit="px"
+              />
+            </PropRow>
+          )}
         </Section>
 
-        {/* ── Layout ── */}
+        {/* ── Layout (padding + margin with linked/individual toggle) ── */}
         <Section title="Layout">
           <PropSpacingInput
             label="Padding"
-            vertical={p.paddingVertical || 0}
-            horizontal={p.paddingHorizontal || 0}
-            onChangeVertical={(v) => onUpdateProp("paddingVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("paddingHorizontal", v)}
+            values={getSpacingValues(p, "padding")}
+            onChange={makeSpacingOnChange(onUpdateProp, "padding")}
           />
           <PropSpacingInput
             label="Margin"
-            vertical={p.marginVertical || 0}
-            horizontal={p.marginHorizontal || 0}
-            onChangeVertical={(v) => onUpdateProp("marginVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("marginHorizontal", v)}
+            values={getSpacingValues(p, "margin")}
+            onChange={makeSpacingOnChange(onUpdateProp, "margin")}
           />
         </Section>
+
+        {/* ── Appearance ── */}
+        <CollapsibleSection title="Appearance">
+          <PropRow label="Corner radius">
+            <PropNumberUnit
+              value={p.borderRadius ?? 0}
+              onChange={(v) => onUpdateProp("borderRadius", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Opacity">
+            <PropNumberUnit
+              value={p.opacity ?? 100}
+              onChange={(v) => onUpdateProp("opacity", v)}
+              unit="%"
+              min={0}
+              max={100}
+              className="w-[80px]"
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Border ── */}
+        <CollapsibleSection title="Border">
+          <PropRow label="Border color" fullWidth>
+            <PropColorInput
+              value={p.borderColor || "#000000"}
+              onChange={(v) => onUpdateProp("borderColor", v)}
+              showOpacity
+            />
+          </PropRow>
+          <PropRow label="Border width">
+            <PropNumberUnit
+              value={p.borderWidth ?? 0}
+              onChange={(v) => onUpdateProp("borderWidth", v)}
+              unit="px"
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Drop Shadow ── */}
+        <CollapsibleSection title="Drop Shadow">
+          <PropRow label="Position">
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">X</span>
+                <PropNumberUnit
+                  value={p.shadowX ?? 0}
+                  onChange={(v) => onUpdateProp("shadowX", v)}
+                  className="w-[60px]"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">Y</span>
+                <PropNumberUnit
+                  value={p.shadowY ?? 0}
+                  onChange={(v) => onUpdateProp("shadowY", v)}
+                  className="w-[60px]"
+                />
+              </div>
+            </div>
+          </PropRow>
+          <PropRow label="Blur">
+            <PropNumberUnit
+              value={p.shadowBlur ?? 0}
+              onChange={(v) => onUpdateProp("shadowBlur", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.shadowColor || "#000000"}
+              onChange={(v) => onUpdateProp("shadowColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
       </div>
     );
   }
 
   /* ════════════════════════════════════════════════════════
-     IMAGE PROPERTIES
+     IMAGE PROPERTIES  ★ ENRICHED — every prop reflects on device
      ════════════════════════════════════════════════════════ */
   if (component.type === "IMAGE") {
+    const handleImageUpload = (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        if (dataUrl) onUpdateProp("src", dataUrl);
+      };
+      reader.readAsDataURL(file);
+    };
+
     return (
       <div>
-        {/* File upload */}
-        <PropFileUpload label="Image" accept="image/*" />
+        {/* File upload with preview */}
+        <PropFileUpload
+          label="Image"
+          accept="image/*"
+          preview={p.src || undefined}
+          onUpload={handleImageUpload}
+          onRemove={() => onUpdateProp("src", "")}
+        />
 
         {/* Or URL fallback */}
         <PropRow label="Image URL" fullWidth>
@@ -992,7 +1210,6 @@ export function ComponentPropertyEditor({
           <PropSelect
             value={p.fitMode || "fit"}
             onChange={(v) => onUpdateProp("fitMode", v)}
-            className="w-[100px]"
             options={[
               { value: "fit", label: "Fit" },
               { value: "fill", label: "Fill" },
@@ -1020,12 +1237,13 @@ export function ComponentPropertyEditor({
               <PropNumberUnit
                 value={p.width || 300}
                 onChange={(v) => onUpdateProp("width", v)}
+                unit="px"
               />
             </PropRow>
           )}
           <PropRow label="Height">
             <PropSelect
-              value={p.heightMode || "fit"}
+              value={p.heightMode || "fixed"}
               onChange={(v) => onUpdateProp("heightMode", v)}
               options={[
                 { value: "fit", label: "Fit" },
@@ -1039,6 +1257,7 @@ export function ComponentPropertyEditor({
               <PropNumberUnit
                 value={p.height || 200}
                 onChange={(v) => onUpdateProp("height", v)}
+                unit="px"
               />
             </PropRow>
           )}
@@ -1048,17 +1267,13 @@ export function ComponentPropertyEditor({
         <Section title="Layout">
           <PropSpacingInput
             label="Padding"
-            vertical={p.paddingVertical || 0}
-            horizontal={p.paddingHorizontal || 0}
-            onChangeVertical={(v) => onUpdateProp("paddingVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("paddingHorizontal", v)}
+            values={getSpacingValues(p, "padding")}
+            onChange={makeSpacingOnChange(onUpdateProp, "padding")}
           />
           <PropSpacingInput
             label="Margin"
-            vertical={p.marginVertical || 0}
-            horizontal={p.marginHorizontal || 0}
-            onChangeVertical={(v) => onUpdateProp("marginVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("marginHorizontal", v)}
+            values={getSpacingValues(p, "margin")}
+            onChange={makeSpacingOnChange(onUpdateProp, "margin")}
           />
         </Section>
 
@@ -1079,26 +1294,108 @@ export function ComponentPropertyEditor({
             <PropNumberUnit
               value={p.borderRadius || 0}
               onChange={(v) => onUpdateProp("borderRadius", v)}
+              unit="px"
             />
           </PropRow>
         </Section>
 
-        {/* ── Collapsible extras ── */}
-        <CollapsibleSection title="Overlay" />
-        <CollapsibleSection title="Border" />
-        <CollapsibleSection title="Drop Shadow" />
+        {/* ── Overlay ── */}
+        <CollapsibleSection title="Overlay">
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.overlayColor || "#000000"}
+              onChange={(v) => onUpdateProp("overlayColor", v)}
+              showOpacity
+            />
+          </PropRow>
+          <PropRow label="Opacity">
+            <PropNumberUnit
+              value={p.overlayOpacity ?? 0}
+              onChange={(v) => onUpdateProp("overlayOpacity", v)}
+              unit="%"
+              min={0}
+              max={100}
+              className="w-[80px]"
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Border ── */}
+        <CollapsibleSection title="Border">
+          <PropRow label="Width">
+            <PropNumberUnit
+              value={p.borderWidth ?? 0}
+              onChange={(v) => onUpdateProp("borderWidth", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.borderColor || "#000000"}
+              onChange={(v) => onUpdateProp("borderColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Drop Shadow ── */}
+        <CollapsibleSection title="Drop Shadow">
+          <PropRow label="Position">
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">X</span>
+                <PropNumberUnit
+                  value={p.shadowX ?? 0}
+                  onChange={(v) => onUpdateProp("shadowX", v)}
+                  className="w-[60px]"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">Y</span>
+                <PropNumberUnit
+                  value={p.shadowY ?? 2}
+                  onChange={(v) => onUpdateProp("shadowY", v)}
+                  className="w-[60px]"
+                />
+              </div>
+            </div>
+          </PropRow>
+          <PropRow label="Blur">
+            <PropNumberUnit
+              value={p.shadowBlur ?? 6}
+              onChange={(v) => onUpdateProp("shadowBlur", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.shadowColor || "#000000"}
+              onChange={(v) => onUpdateProp("shadowColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
       </div>
     );
   }
 
   /* ════════════════════════════════════════════════════════
-     VIDEO PROPERTIES
+     VIDEO PROPERTIES  ★ ENRICHED — every prop reflects on device
      ════════════════════════════════════════════════════════ */
   if (component.type === "VIDEO") {
+    const handleVideoUpload = (file: File) => {
+      const url = URL.createObjectURL(file);
+      onUpdateProp("src", url);
+    };
+
     return (
       <div>
-        {/* Video upload */}
-        <PropVideoUpload />
+        {/* Video upload with preview */}
+        <PropVideoUpload
+          preview={p.src || undefined}
+          onUpload={handleVideoUpload}
+          onRemove={() => onUpdateProp("src", "")}
+        />
 
         {/* Or URL fallback */}
         <PropRow label="Video URL" fullWidth>
@@ -1116,7 +1413,6 @@ export function ComponentPropertyEditor({
           <PropSelect
             value={p.fitMode || "fit"}
             onChange={(v) => onUpdateProp("fitMode", v)}
-            className="w-[100px]"
             options={[
               { value: "fit", label: "Fit" },
               { value: "fill", label: "Fill" },
@@ -1163,9 +1459,18 @@ export function ComponentPropertyEditor({
               ]}
             />
           </PropRow>
+          {p.widthMode === "fixed" && (
+            <PropRow label="">
+              <PropNumberUnit
+                value={p.width || 300}
+                onChange={(v) => onUpdateProp("width", v)}
+                unit="px"
+              />
+            </PropRow>
+          )}
           <PropRow label="Height">
             <PropSelect
-              value={p.heightMode || "fit"}
+              value={p.heightMode || "fixed"}
               onChange={(v) => onUpdateProp("heightMode", v)}
               options={[
                 { value: "fit", label: "Fit" },
@@ -1179,6 +1484,7 @@ export function ComponentPropertyEditor({
               <PropNumberUnit
                 value={p.height || 200}
                 onChange={(v) => onUpdateProp("height", v)}
+                unit="px"
               />
             </PropRow>
           )}
@@ -1188,17 +1494,13 @@ export function ComponentPropertyEditor({
         <Section title="Layout">
           <PropSpacingInput
             label="Padding"
-            vertical={p.paddingVertical || 0}
-            horizontal={p.paddingHorizontal || 0}
-            onChangeVertical={(v) => onUpdateProp("paddingVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("paddingHorizontal", v)}
+            values={getSpacingValues(p, "padding")}
+            onChange={makeSpacingOnChange(onUpdateProp, "padding")}
           />
           <PropSpacingInput
             label="Margin"
-            vertical={p.marginVertical || 0}
-            horizontal={p.marginHorizontal || 0}
-            onChangeVertical={(v) => onUpdateProp("marginVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("marginHorizontal", v)}
+            values={getSpacingValues(p, "margin")}
+            onChange={makeSpacingOnChange(onUpdateProp, "margin")}
           />
         </Section>
 
@@ -1219,38 +1521,107 @@ export function ComponentPropertyEditor({
             <PropNumberUnit
               value={p.borderRadius || 0}
               onChange={(v) => onUpdateProp("borderRadius", v)}
+              unit="px"
             />
           </PropRow>
         </Section>
 
-        {/* ── Collapsible extras ── */}
-        <CollapsibleSection title="Overlay" />
+        {/* ── Overlay ── */}
+        <CollapsibleSection title="Overlay">
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.overlayColor || "#000000"}
+              onChange={(v) => onUpdateProp("overlayColor", v)}
+              showOpacity
+            />
+          </PropRow>
+          <PropRow label="Opacity">
+            <PropNumberUnit
+              value={p.overlayOpacity ?? 0}
+              onChange={(v) => onUpdateProp("overlayOpacity", v)}
+              unit="%"
+              min={0}
+              max={100}
+              className="w-[80px]"
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Border ── */}
+        <CollapsibleSection title="Border">
+          <PropRow label="Width">
+            <PropNumberUnit
+              value={p.borderWidth ?? 0}
+              onChange={(v) => onUpdateProp("borderWidth", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.borderColor || "#000000"}
+              onChange={(v) => onUpdateProp("borderColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Drop Shadow ── */}
+        <CollapsibleSection title="Drop Shadow">
+          <PropRow label="Position">
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">X</span>
+                <PropNumberUnit
+                  value={p.shadowX ?? 0}
+                  onChange={(v) => onUpdateProp("shadowX", v)}
+                  className="w-[60px]"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">Y</span>
+                <PropNumberUnit
+                  value={p.shadowY ?? 2}
+                  onChange={(v) => onUpdateProp("shadowY", v)}
+                  className="w-[60px]"
+                />
+              </div>
+            </div>
+          </PropRow>
+          <PropRow label="Blur">
+            <PropNumberUnit
+              value={p.shadowBlur ?? 6}
+              onChange={(v) => onUpdateProp("shadowBlur", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.shadowColor || "#000000"}
+              onChange={(v) => onUpdateProp("shadowColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
       </div>
     );
   }
 
   /* ════════════════════════════════════════════════════════
-     ICON LIBRARY PROPERTIES
+     ICON LIBRARY PROPERTIES  ★ ENRICHED
      ════════════════════════════════════════════════════════ */
   if (component.type === "ICON_LIBRARY") {
     return (
       <div>
-        <PropRow label="Icon" fullWidth>
-          <PropSelect
+        {/* Icon picker — searchable combobox */}
+        <PropRow label="Type" fullWidth>
+          <PropIconCombobox
             value={p.iconName || ""}
             onChange={(v) => onUpdateProp("iconName", v)}
-            options={[
-              { value: "", label: "Select an icon" },
-              ...Object.keys(icons)
-                .sort()
-                .map((name) => ({
-                  value: name,
-                  label: name,
-                })),
-            ]}
+            icons={icons}
           />
         </PropRow>
 
+        {/* Icon color */}
         <PropRow label="Color" fullWidth>
           <PropColorInput
             value={p.color || "#000000"}
@@ -1265,12 +1636,14 @@ export function ComponentPropertyEditor({
             <PropNumberUnit
               value={p.width || 24}
               onChange={(v) => onUpdateProp("width", v)}
+              unit="px"
             />
           </PropRow>
           <PropRow label="Height">
             <PropNumberUnit
               value={p.height || 24}
               onChange={(v) => onUpdateProp("height", v)}
+              unit="px"
             />
           </PropRow>
         </Section>
@@ -1279,29 +1652,603 @@ export function ComponentPropertyEditor({
         <Section title="Layout">
           <PropSpacingInput
             label="Padding"
-            vertical={p.paddingVertical || 0}
-            horizontal={p.paddingHorizontal || 0}
-            onChangeVertical={(v) => onUpdateProp("paddingVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("paddingHorizontal", v)}
+            values={getSpacingValues(p, "padding")}
+            onChange={makeSpacingOnChange(onUpdateProp, "padding")}
           />
           <PropSpacingInput
             label="Margin"
-            vertical={p.marginVertical || 0}
-            horizontal={p.marginHorizontal || 0}
-            onChangeVertical={(v) => onUpdateProp("marginVertical", v)}
-            onChangeHorizontal={(v) => onUpdateProp("marginHorizontal", v)}
+            values={getSpacingValues(p, "margin")}
+            onChange={makeSpacingOnChange(onUpdateProp, "margin")}
           />
         </Section>
 
-        <Divider />
+        {/* ── Icon Background ── */}
+        <CollapsibleSection title="Icon background">
+          <PropRow label="Background" fullWidth>
+            <PropColorInput
+              value={p.backgroundColor || "#FFFFFF"}
+              onChange={(v) => onUpdateProp("backgroundColor", v)}
+              showOpacity
+            />
+          </PropRow>
+          <PropRow label="Shape">
+            <PropSelect
+              value={p.bgShape || "rectangle"}
+              onChange={(v) => onUpdateProp("bgShape", v)}
+              options={[
+                { value: "rectangle", label: "Rectangle" },
+                { value: "circle", label: "Circle" },
+                { value: "rounded", label: "Rounded" },
+              ]}
+            />
+          </PropRow>
+          <PropRow label="Corner radius">
+            <PropNumberUnit
+              value={p.borderRadius ?? 0}
+              onChange={(v) => onUpdateProp("borderRadius", v)}
+              unit="px"
+            />
+          </PropRow>
+        </CollapsibleSection>
 
-        {/* ── Background ── */}
-        <PropRow label="Background" fullWidth>
-          <PropColorInput
-            value={p.backgroundColor || "transparent"}
-            onChange={(v) => onUpdateProp("backgroundColor", v)}
+        {/* ── Border ── */}
+        <CollapsibleSection title="Border">
+          <PropRow label="Width">
+            <PropNumberUnit
+              value={p.borderWidth ?? 0}
+              onChange={(v) => onUpdateProp("borderWidth", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.borderColor || "#000000"}
+              onChange={(v) => onUpdateProp("borderColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Drop Shadow ── */}
+        <CollapsibleSection title="Drop Shadow">
+          <PropRow label="Position">
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">X</span>
+                <PropNumberUnit
+                  value={p.shadowX ?? 0}
+                  onChange={(v) => onUpdateProp("shadowX", v)}
+                  className="w-[60px]"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">Y</span>
+                <PropNumberUnit
+                  value={p.shadowY ?? 2}
+                  onChange={(v) => onUpdateProp("shadowY", v)}
+                  className="w-[60px]"
+                />
+              </div>
+            </div>
+          </PropRow>
+          <PropRow label="Blur">
+            <PropNumberUnit
+              value={p.shadowBlur ?? 6}
+              onChange={(v) => onUpdateProp("shadowBlur", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.shadowColor || "#000000"}
+              onChange={(v) => onUpdateProp("shadowColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
+      </div>
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════
+     BUTTON PROPERTIES  ★ FULLY ENRICHED
+     Mirrors the Stack editor with Action/Option at the top,
+     full layout, appearance, fill, border, shadow, and badge.
+     ════════════════════════════════════════════════════════ */
+  if (component.type === "BUTTON") {
+    return (
+      <div>
+        {/* ── Action ── */}
+        <PropRow label="Action">
+          <PropSelect
+            value={p.action || "NEXT_SCREEN"}
+            onChange={(v) => onUpdateProp("action", v)}
+            options={[
+              { value: "NEXT_SCREEN", label: "Navigate to" },
+              { value: "DISMISS", label: "Dismiss" },
+              { value: "URL", label: "Open URL" },
+              { value: "RESTORE_PURCHASES", label: "Restore Purchases" },
+            ]}
           />
         </PropRow>
+
+        {/* Option — contextual sub-field */}
+        {p.action === "NEXT_SCREEN" && (
+          <PropRow label="Option">
+            <PropSelect
+              value={p.actionTarget || ""}
+              onChange={(v) => onUpdateProp("actionTarget", v)}
+              options={[
+                { value: "", label: "Next Screen" },
+                { value: "first", label: "First Screen" },
+                { value: "last", label: "Last Screen" },
+                { value: "specific", label: "Specific Screen…" },
+              ]}
+            />
+          </PropRow>
+        )}
+        {p.action === "URL" && (
+          <PropRow label="URL" fullWidth>
+            <PropInput
+              value={p.actionUrl || ""}
+              onChange={(v) => onUpdateProp("actionUrl", v)}
+              placeholder="https://..."
+            />
+          </PropRow>
+        )}
+
+        <Divider />
+
+        {/* ── Axis ── */}
+        <PropRow label="Axis">
+          <PropAxisToggle
+            value={p.axis || "vertical"}
+            onChange={(v) => onUpdateProp("axis", v)}
+          />
+        </PropRow>
+
+        {/* ── Alignment ── */}
+        <PropRow label="Alignment">
+          <PropAlignmentToggle
+            value={p.alignment || "center"}
+            onChange={(v) => onUpdateProp("alignment", v)}
+          />
+        </PropRow>
+
+        {/* ── Distribution ── */}
+        <PropRow label="Distribution">
+          <PropSelect
+            value={p.distribution || "start"}
+            onChange={(v) => onUpdateProp("distribution", v)}
+            options={[
+              { value: "start", label: "Start" },
+              { value: "center", label: "Center" },
+              { value: "end", label: "End" },
+              { value: "space-between", label: "Space Between" },
+              { value: "space-around", label: "Space Around" },
+              { value: "space-evenly", label: "Space Evenly" },
+            ]}
+          />
+        </PropRow>
+
+        {/* ── Child spacing ── */}
+        <PropRow label="Child spacing">
+          <PropNumberUnit
+            value={p.childSpacing ?? 0}
+            onChange={(v) => onUpdateProp("childSpacing", v)}
+            unit="px"
+          />
+        </PropRow>
+
+        {/* ── Size ── */}
+        <Section title="Size">
+          <PropRow label="Width">
+            <PropSelect
+              value={p.widthMode || "fit"}
+              onChange={(v) => onUpdateProp("widthMode", v)}
+              options={[
+                { value: "fill", label: "Fill" },
+                { value: "fit", label: "Fit" },
+                { value: "fixed", label: "Fixed" },
+              ]}
+            />
+          </PropRow>
+          {p.widthMode === "fixed" && (
+            <PropRow label="">
+              <PropNumberUnit
+                value={p.width || 300}
+                onChange={(v) => onUpdateProp("width", v)}
+                unit="px"
+              />
+            </PropRow>
+          )}
+          <PropRow label="Height">
+            <PropSelect
+              value={p.heightMode || "fit"}
+              onChange={(v) => onUpdateProp("heightMode", v)}
+              options={[
+                { value: "fit", label: "Fit" },
+                { value: "fill", label: "Fill" },
+                { value: "fixed", label: "Fixed" },
+              ]}
+            />
+          </PropRow>
+          {p.heightMode === "fixed" && (
+            <PropRow label="">
+              <PropNumberUnit
+                value={p.height || 48}
+                onChange={(v) => onUpdateProp("height", v)}
+                unit="px"
+              />
+            </PropRow>
+          )}
+        </Section>
+
+        {/* ── Layout ── */}
+        <Section title="Layout">
+          <PropSpacingInput
+            label="Padding"
+            values={getSpacingValues(p, "padding")}
+            onChange={makeSpacingOnChange(onUpdateProp, "padding")}
+          />
+          <PropSpacingInput
+            label="Margin"
+            values={getSpacingValues(p, "margin")}
+            onChange={makeSpacingOnChange(onUpdateProp, "margin")}
+          />
+        </Section>
+
+        {/* ── Appearance ── */}
+        <CollapsibleSection title="Appearance">
+          <PropRow label="Shape">
+            <PropSelect
+              value={p.shape || "rectangle"}
+              onChange={(v) => onUpdateProp("shape", v)}
+              options={[
+                { value: "rectangle", label: "Rectangle" },
+                { value: "circle", label: "Circle" },
+                { value: "rounded", label: "Rounded" },
+                { value: "pill", label: "Pill" },
+              ]}
+            />
+          </PropRow>
+          <PropRow label="Corner radius">
+            <PropNumberUnit
+              value={p.borderRadius ?? 12}
+              onChange={(v) => onUpdateProp("borderRadius", v)}
+              unit="px"
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Fill ── */}
+        <CollapsibleSection title="Fill">
+          <PropRow label="Background" fullWidth>
+            <PropBackgroundTypeToggle
+              value={p.backgroundType || "color"}
+              onChange={(v) => onUpdateProp("backgroundType", v)}
+            />
+          </PropRow>
+
+          {(p.backgroundType || "color") === "color" && (
+            <PropRow label="Color" fullWidth>
+              <PropColorInput
+                value={p.backgroundColor || p.style?.backgroundColor || "#007AFF"}
+                onChange={(v) => {
+                  onUpdateProp("backgroundColor", v);
+                  // Keep legacy style prop in sync
+                  onUpdateProp("style", { ...p.style, backgroundColor: v });
+                }}
+                showOpacity
+              />
+            </PropRow>
+          )}
+
+          {p.backgroundType === "image" && (
+            <>
+              <PropFileUpload label="Image" accept="image/*" />
+              <PropRow label="Image URL" fullWidth>
+                <PropInput
+                  value={p.backgroundImage || ""}
+                  onChange={(v) => onUpdateProp("backgroundImage", v)}
+                  placeholder="https://..."
+                />
+              </PropRow>
+              <PropRow label="Fit">
+                <PropSelect
+                  value={p.backgroundFit || "cover"}
+                  onChange={(v) => onUpdateProp("backgroundFit", v)}
+                  options={[
+                    { value: "cover", label: "Cover" },
+                    { value: "contain", label: "Contain" },
+                    { value: "fill", label: "Fill" },
+                    { value: "fit", label: "Fit" },
+                  ]}
+                />
+              </PropRow>
+            </>
+          )}
+
+          {p.backgroundType === "video" && (
+            <>
+              <PropVideoUpload />
+              <PropRow label="Video URL" fullWidth>
+                <PropInput
+                  value={p.backgroundVideo || ""}
+                  onChange={(v) => onUpdateProp("backgroundVideo", v)}
+                  placeholder="https://..."
+                />
+              </PropRow>
+            </>
+          )}
+        </CollapsibleSection>
+
+        {/* ── Border ── */}
+        <CollapsibleSection title="Border">
+          <PropRow label="Border color" fullWidth>
+            <PropColorInput
+              value={p.borderColor || "#000000"}
+              onChange={(v) => onUpdateProp("borderColor", v)}
+              showOpacity
+            />
+          </PropRow>
+          <PropRow label="Border width">
+            <PropNumberUnit
+              value={p.borderWidth ?? 0}
+              onChange={(v) => onUpdateProp("borderWidth", v)}
+              unit="px"
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Drop Shadow ── */}
+        <CollapsibleSection title="Drop Shadow">
+          <PropRow label="Position">
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">X</span>
+                <PropNumberUnit
+                  value={p.shadowX ?? 0}
+                  onChange={(v) => onUpdateProp("shadowX", v)}
+                  className="w-[60px]"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">Y</span>
+                <PropNumberUnit
+                  value={p.shadowY ?? 2}
+                  onChange={(v) => onUpdateProp("shadowY", v)}
+                  className="w-[60px]"
+                />
+              </div>
+            </div>
+          </PropRow>
+          <PropRow label="Blur">
+            <PropNumberUnit
+              value={p.shadowBlur ?? 6}
+              onChange={(v) => onUpdateProp("shadowBlur", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.shadowColor || "#000000"}
+              onChange={(v) => onUpdateProp("shadowColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Badge ── */}
+        <CollapsibleSection title="Badge">
+          <PropRow label="" fullWidth>
+            <PropTextarea
+              value={p.badgeText || "Badge"}
+              onChange={(v) => onUpdateProp("badgeText", v)}
+              rows={2}
+              showToolbar
+            />
+            <AddVariableLink />
+          </PropRow>
+          <PropRow label="Alignment">
+            <PropAlignmentToggle
+              value={p.badgeAlignment || "center"}
+              onChange={(v) => onUpdateProp("badgeAlignment", v)}
+            />
+          </PropRow>
+          <PropRow label="Font family">
+            <PropSelect
+              value={p.badgeFontFamily || "system"}
+              onChange={(v) => onUpdateProp("badgeFontFamily", v)}
+              options={[
+                { value: "system", label: "System Font" },
+                { value: "serif", label: "Serif" },
+                { value: "mono", label: "Monospace" },
+                { value: "rounded", label: "Rounded" },
+              ]}
+            />
+          </PropRow>
+          <PropRow label="Font weight">
+            <PropSelect
+              value={p.badgeFontWeight || "normal"}
+              onChange={(v) => onUpdateProp("badgeFontWeight", v)}
+              options={[
+                { value: "normal", label: "Regular" },
+                { value: "500", label: "Medium" },
+                { value: "600", label: "Semibold" },
+                { value: "bold", label: "Bold" },
+                { value: "800", label: "Extra Bold" },
+              ]}
+            />
+          </PropRow>
+          <PropRow label="Font size">
+            <PropSelect
+              value={p.badgeFontSize || "14"}
+              onChange={(v) => onUpdateProp("badgeFontSize", v)}
+              options={[
+                { value: "10", label: "10" },
+                { value: "12", label: "12" },
+                { value: "14", label: "14" },
+                { value: "16", label: "16" },
+                { value: "18", label: "18" },
+                { value: "20", label: "20" },
+                { value: "24", label: "24" },
+              ]}
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.badgeColor || "#000000"}
+              onChange={(v) => onUpdateProp("badgeColor", v)}
+              showOpacity
+            />
+          </PropRow>
+          <PropRow label="Background" fullWidth>
+            <PropColorInput
+              value={p.badgeBackgroundColor || "transparent"}
+              onChange={(v) => onUpdateProp("badgeBackgroundColor", v)}
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Badge Position ── */}
+        <Section title="Badge position">
+          <PropRow label="Style">
+            <PropSelect
+              value={p.badgePositionStyle || "overlaid"}
+              onChange={(v) => onUpdateProp("badgePositionStyle", v)}
+              options={[
+                { value: "overlaid", label: "Overlaid" },
+                { value: "inline", label: "Inline" },
+                { value: "above", label: "Above" },
+                { value: "below", label: "Below" },
+              ]}
+            />
+          </PropRow>
+          <PropRow label="Alignment">
+            <PropPositionGrid
+              value={p.badgePositionAlignment || "top-center"}
+              onChange={(v) => onUpdateProp("badgePositionAlignment", v)}
+            />
+          </PropRow>
+        </Section>
+
+        {/* ── Badge Layout ── */}
+        <Section title="Badge layout">
+          <PropSpacingInput
+            label="Padding"
+            values={{
+              top: p.badgePaddingTop ?? 4,
+              right: p.badgePaddingRight ?? 8,
+              bottom: p.badgePaddingBottom ?? 4,
+              left: p.badgePaddingLeft ?? 8,
+            }}
+            onChange={(vals) => {
+              onUpdateProp("badgePaddingTop", vals.top);
+              onUpdateProp("badgePaddingRight", vals.right);
+              onUpdateProp("badgePaddingBottom", vals.bottom);
+              onUpdateProp("badgePaddingLeft", vals.left);
+            }}
+          />
+          <PropSpacingInput
+            label="Margin"
+            values={{
+              top: p.badgeMarginTop ?? 0,
+              right: p.badgeMarginRight ?? 0,
+              bottom: p.badgeMarginBottom ?? 0,
+              left: p.badgeMarginLeft ?? 0,
+            }}
+            onChange={(vals) => {
+              onUpdateProp("badgeMarginTop", vals.top);
+              onUpdateProp("badgeMarginRight", vals.right);
+              onUpdateProp("badgeMarginBottom", vals.bottom);
+              onUpdateProp("badgeMarginLeft", vals.left);
+            }}
+          />
+        </Section>
+
+        {/* ── Badge Appearance ── */}
+        <CollapsibleSection title="Badge appearance">
+          <PropRow label="Shape">
+            <PropSelect
+              value={p.badgeShape || "pill"}
+              onChange={(v) => onUpdateProp("badgeShape", v)}
+              options={[
+                { value: "rectangle", label: "Rectangle" },
+                { value: "rounded", label: "Rounded" },
+                { value: "pill", label: "Pill" },
+                { value: "circle", label: "Circle" },
+              ]}
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Badge Fill ── */}
+        <CollapsibleSection title="Badge fill">
+          <PropRow label="Background" fullWidth>
+            <PropColorInput
+              value={p.badgeFillColor || "#11D483"}
+              onChange={(v) => onUpdateProp("badgeFillColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Badge Border ── */}
+        <CollapsibleSection title="Badge border">
+          <PropRow label="Border color" fullWidth>
+            <PropColorInput
+              value={p.badgeBorderColor || "#000000"}
+              onChange={(v) => onUpdateProp("badgeBorderColor", v)}
+              showOpacity
+            />
+          </PropRow>
+          <PropRow label="Border width">
+            <PropNumberUnit
+              value={p.badgeBorderWidth ?? 0}
+              onChange={(v) => onUpdateProp("badgeBorderWidth", v)}
+              unit="px"
+            />
+          </PropRow>
+        </CollapsibleSection>
+
+        {/* ── Badge Drop Shadow ── */}
+        <CollapsibleSection title="Badge drop shadow">
+          <PropRow label="Position">
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">X</span>
+                <PropNumberUnit
+                  value={p.badgeShadowX ?? 0}
+                  onChange={(v) => onUpdateProp("badgeShadowX", v)}
+                  className="w-[60px]"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40">Y</span>
+                <PropNumberUnit
+                  value={p.badgeShadowY ?? 2}
+                  onChange={(v) => onUpdateProp("badgeShadowY", v)}
+                  className="w-[60px]"
+                />
+              </div>
+            </div>
+          </PropRow>
+          <PropRow label="Blur">
+            <PropNumberUnit
+              value={p.badgeShadowBlur ?? 6}
+              onChange={(v) => onUpdateProp("badgeShadowBlur", v)}
+              unit="px"
+            />
+          </PropRow>
+          <PropRow label="Color" fullWidth>
+            <PropColorInput
+              value={p.badgeShadowColor || "#000000"}
+              onChange={(v) => onUpdateProp("badgeShadowColor", v)}
+              showOpacity
+            />
+          </PropRow>
+        </CollapsibleSection>
       </div>
     );
   }
@@ -1312,79 +2259,313 @@ export function ComponentPropertyEditor({
   const fallbackEditors: Record<string, React.ReactNode> = {
     TAB_BUTTON: (
       <>
-        <PropField label="Active Color">
+        {/* ── Active tab selector (like screenshot: "Tab 1" dropdown) ── */}
+        <div className="mb-4">
+          <PropSelect
+            value={p.activeTabId || p.tabs?.[0]?.id || ""}
+            onChange={(v) => {
+              onUpdateProp("activeTabId", v);
+              // Also update active flags
+              const tabs = p.tabs?.map((t: any) => ({
+                ...t,
+                active: t.id === v,
+              }));
+              if (tabs) onUpdateProp("tabs", tabs);
+            }}
+            options={
+              p.tabs?.map((t: any) => ({
+                value: t.id,
+                label: t.label,
+              })) || []
+            }
+          />
+        </div>
+
+        <Divider />
+
+        {/* ── Tab Button Style ── */}
+        <PropField label="Style">
+          <PropSelect
+            value={p.variant || "pill"}
+            onChange={(v) => onUpdateProp("variant", v)}
+            options={[
+              { value: "pill", label: "Simple Pill" },
+              { value: "filled", label: "Filled Pill" },
+              { value: "pill-badge", label: "With Badge" },
+              { value: "separated", label: "Separated" },
+              { value: "underline", label: "Underline" },
+            ]}
+          />
+        </PropField>
+
+        <PropField label="Indicator">
+          <PropSelect
+            value={p.activeIndicator || "bg"}
+            onChange={(v) => onUpdateProp("activeIndicator", v)}
+            options={[
+              { value: "bg", label: "Background" },
+              { value: "underline", label: "Underline" },
+            ]}
+          />
+        </PropField>
+
+        <Divider />
+
+        {/* ── Colors ── */}
+        <PropField label="Active text">
           <PropColorInput
-            value={p.activeColor || "#007AFF"}
+            value={p.activeColor || "#FFFFFF"}
             onChange={(v) => onUpdateProp("activeColor", v)}
           />
         </PropField>
-        <PropField label="Inactive Color">
+        <PropField label="Active bg">
+          <PropColorInput
+            value={p.activeBgColor || "#6C5CE7"}
+            onChange={(v) => onUpdateProp("activeBgColor", v)}
+          />
+        </PropField>
+        <PropField label="Inactive text">
           <PropColorInput
             value={p.inactiveColor || "#999"}
             onChange={(v) => onUpdateProp("inactiveColor", v)}
           />
         </PropField>
-        <SectionLabel>Tabs</SectionLabel>
-        {p.tabs?.map(
-          (tab: { id: string; label: string }, i: number) => (
-            <div key={tab.id} className="mt-1.5">
-              <PropInput
-                value={tab.label}
-                onChange={(v) => {
-                  const tabs = [...p.tabs];
-                  tabs[i] = { ...tabs[i], label: v };
-                  onUpdateProp("tabs", tabs);
-                }}
-              />
-            </div>
-          )
-        )}
-      </>
-    ),
-    BUTTON: (
-      <>
-        <PropField label="Label">
-          <PropInput
-            value={p.label}
-            onChange={(v) => onUpdateProp("label", v)}
+        <PropField label="Inactive bg">
+          <PropColorInput
+            value={p.inactiveBgColor || "transparent"}
+            onChange={(v) => onUpdateProp("inactiveBgColor", v)}
           />
         </PropField>
-        <PropField label="Action">
+        <PropField label="Container bg">
+          <PropColorInput
+            value={p.containerBgColor || "#F0F0F0"}
+            onChange={(v) => onUpdateProp("containerBgColor", v)}
+          />
+        </PropField>
+
+        <Divider />
+
+        {/* ── Shape ── */}
+        <PropField label="Container radius">
+          <PropNumberUnit
+            value={p.containerBorderRadius ?? 12}
+            onChange={(v) => onUpdateProp("containerBorderRadius", v)}
+            unit="px"
+          />
+        </PropField>
+        <PropField label="Tab radius">
+          <PropNumberUnit
+            value={p.tabBorderRadius ?? 10}
+            onChange={(v) => onUpdateProp("tabBorderRadius", v)}
+            unit="px"
+          />
+        </PropField>
+        <PropField label="Container padding">
+          <PropNumberUnit
+            value={p.containerPadding ?? 4}
+            onChange={(v) => onUpdateProp("containerPadding", v)}
+            unit="px"
+          />
+        </PropField>
+
+        <Divider />
+
+        {/* ── Typography ── */}
+        <PropField label="Font size">
+          <PropNumberUnit
+            value={p.fontSize ?? 13}
+            onChange={(v) => onUpdateProp("fontSize", v)}
+            unit=""
+          />
+        </PropField>
+        <PropField label="Font weight">
           <PropSelect
-            value={p.action || "NEXT_SCREEN"}
-            onChange={(v) => onUpdateProp("action", v)}
+            value={p.fontWeight || "600"}
+            onChange={(v) => onUpdateProp("fontWeight", v)}
             options={[
-              { value: "NEXT_SCREEN", label: "Next Screen" },
-              { value: "DISMISS", label: "Dismiss" },
-              { value: "URL", label: "Open URL" },
+              { value: "normal", label: "Regular" },
+              { value: "500", label: "Medium" },
+              { value: "600", label: "Semibold" },
+              { value: "bold", label: "Bold" },
             ]}
           />
         </PropField>
-        <PropField label="Background">
-          <PropColorInput
-            value={p.style?.backgroundColor || "#007AFF"}
-            onChange={(v) =>
-              onUpdateProp("style", { ...p.style, backgroundColor: v })
-            }
+        <PropField label="Tab padding V">
+          <PropNumberUnit
+            value={p.tabPaddingV ?? 8}
+            onChange={(v) => onUpdateProp("tabPaddingV", v)}
+            unit="px"
           />
         </PropField>
-        <PropField label="Text Color">
-          <PropColorInput
-            value={p.style?.textColor || "#FFFFFF"}
-            onChange={(v) =>
-              onUpdateProp("style", { ...p.style, textColor: v })
-            }
+        <PropField label="Tab padding H">
+          <PropNumberUnit
+            value={p.tabPaddingH ?? 16}
+            onChange={(v) => onUpdateProp("tabPaddingH", v)}
+            unit="px"
           />
         </PropField>
-        <PropField label="Border Radius">
-          <PropInput
-            value={p.style?.borderRadius || 12}
-            onChange={(v) =>
-              onUpdateProp("style", { ...p.style, borderRadius: v })
-            }
-            type="number"
-          />
-        </PropField>
+
+        <PropToggle
+          value={p.activeShadow ?? true}
+          onChange={(v) => onUpdateProp("activeShadow", v)}
+          label="Active shadow"
+        />
+
+        <Divider />
+
+        {/* ── Tab List (tree-like structure) ── */}
+        <SectionLabel>Tabs</SectionLabel>
+        {p.tabs?.map(
+          (
+            tab: {
+              id: string;
+              label: string;
+              active: boolean;
+              badge?: string;
+              children?: any[];
+            },
+            i: number
+          ) => {
+            const isActive =
+              tab.id === (p.activeTabId || p.tabs?.[0]?.id);
+
+            return (
+              <div
+                key={tab.id}
+                className={`p-3 border rounded-xl mt-1.5 space-y-2 relative group/tab transition-colors ${
+                  isActive
+                    ? "bg-[#6C5CE7]/5 border-[#6C5CE7]/20"
+                    : "bg-white/[0.02] border-white/[0.06]"
+                }`}
+              >
+                {/* Delete button */}
+                {(p.tabs?.length || 0) > 1 && (
+                  <button
+                    onClick={() => {
+                      const tabs = [...p.tabs];
+                      tabs.splice(i, 1);
+                      if (tabs.length > 0 && !tabs.some((t: any) => t.active)) {
+                        tabs[0] = { ...tabs[0], active: true };
+                      }
+                      onUpdateProp("tabs", tabs);
+                      if (p.activeTabId === tab.id) {
+                        onUpdateProp("activeTabId", tabs[0]?.id);
+                      }
+                    }}
+                    className="absolute top-2 right-2 p-1 text-white/20 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all opacity-0 group-hover/tab:opacity-100"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+
+                {/* Tab header: icon + label */}
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${
+                      isActive
+                        ? "bg-[#6C5CE7] text-white"
+                        : "bg-white/[0.06] text-white/30"
+                    }`}
+                  >
+                    {i + 1}
+                  </div>
+                  <PropInput
+                    value={tab.label}
+                    onChange={(v) => {
+                      const tabs = [...p.tabs];
+                      tabs[i] = { ...tabs[i], label: v };
+                      onUpdateProp("tabs", tabs);
+                    }}
+                    placeholder="Tab label"
+                    className="flex-1"
+                  />
+                </div>
+
+                {/* Badge (if variant supports it) */}
+                {(p.variant === "pill-badge" || tab.badge) && (
+                  <PropInput
+                    value={tab.badge || ""}
+                    onChange={(v) => {
+                      const tabs = [...p.tabs];
+                      tabs[i] = { ...tabs[i], badge: v };
+                      onUpdateProp("tabs", tabs);
+                    }}
+                    placeholder="Badge text (optional)"
+                  />
+                )}
+
+                {/* Set active / view button */}
+                <button
+                  onClick={() => {
+                    const tabs = p.tabs.map((t: any) => ({
+                      ...t,
+                      active: t.id === tab.id,
+                    }));
+                    onUpdateProp("tabs", tabs);
+                    onUpdateProp("activeTabId", tab.id);
+                  }}
+                  className={`text-[11px] px-2 py-1 rounded-md transition-colors w-full text-center ${
+                    isActive
+                      ? "bg-[#6C5CE7]/20 text-[#6C5CE7]"
+                      : "text-white/30 hover:text-white/60 hover:bg-white/[0.04] border border-white/[0.06]"
+                  }`}
+                >
+                  {isActive ? "✓ Viewing this tab" : "Switch to this tab"}
+                </button>
+
+                {/* Tab children preview */}
+                {isActive && tab.children && tab.children.length > 0 && (
+                  <div className="ml-5 pl-3 border-l border-white/[0.06] space-y-1">
+                    {tab.children.map((child: any, ci: number) => (
+                      <div
+                        key={child.id}
+                        className="flex items-center gap-2 py-1 text-[11px] text-white/40"
+                      >
+                        <span className="text-white/20">T</span>
+                        <PropInput
+                          value={child.content || ""}
+                          onChange={(v) => {
+                            const tabs = [...p.tabs];
+                            const children = [...(tabs[i].children || [])];
+                            children[ci] = { ...children[ci], content: v };
+                            tabs[i] = { ...tabs[i], children };
+                            onUpdateProp("tabs", tabs);
+                          }}
+                          placeholder="Text content"
+                          className="flex-1"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
+        )}
+
+        <button
+          onClick={() => {
+            const newTab = {
+              id: `tab_${Date.now()}`,
+              label: `Tab ${(p.tabs?.length || 0) + 1}`,
+              active: false,
+              children: [
+                {
+                  id: `text_${Date.now()}`,
+                  type: "TEXT",
+                  content: "Text",
+                  fontSize: 14,
+                  color: "#1A1A1A",
+                },
+              ],
+            };
+            onUpdateProp("tabs", [...(p.tabs || []), newTab]);
+          }}
+          className="flex items-center justify-center gap-2 w-full mt-3 py-2.5 bg-white/[0.03] border border-dashed border-white/[0.1] rounded-xl text-white/40 hover:text-white/60 hover:border-white/[0.2] hover:bg-white/[0.05] transition-all text-sm"
+        >
+          <Plus size={14} />
+          Add Tab
+        </button>
       </>
     ),
     TEXT_INPUT: (
@@ -1423,20 +2604,18 @@ export function ComponentPropertyEditor({
           />
         </PropField>
         <SectionLabel>Options</SectionLabel>
-        {p.options?.map(
-          (opt: { id: string; label: string }, i: number) => (
-            <div key={opt.id} className="mt-1.5">
-              <PropInput
-                value={opt.label}
-                onChange={(v) => {
-                  const opts = [...p.options];
-                  opts[i] = { ...opts[i], label: v };
-                  onUpdateProp("options", opts);
-                }}
-              />
-            </div>
-          )
-        )}
+        {p.options?.map((opt: { id: string; label: string }, i: number) => (
+          <div key={opt.id} className="mt-1.5">
+            <PropInput
+              value={opt.label}
+              onChange={(v) => {
+                const opts = [...p.options];
+                opts[i] = { ...opts[i], label: v };
+                onUpdateProp("options", opts);
+              }}
+            />
+          </div>
+        ))}
       </>
     ),
     MULTI_SELECT: (
@@ -1454,20 +2633,18 @@ export function ComponentPropertyEditor({
           />
         </PropField>
         <SectionLabel>Options</SectionLabel>
-        {p.options?.map(
-          (opt: { id: string; label: string }, i: number) => (
-            <div key={opt.id} className="mt-1.5">
-              <PropInput
-                value={opt.label}
-                onChange={(v) => {
-                  const opts = [...p.options];
-                  opts[i] = { ...opts[i], label: v };
-                  onUpdateProp("options", opts);
-                }}
-              />
-            </div>
-          )
-        )}
+        {p.options?.map((opt: { id: string; label: string }, i: number) => (
+          <div key={opt.id} className="mt-1.5">
+            <PropInput
+              value={opt.label}
+              onChange={(v) => {
+                const opts = [...p.options];
+                opts[i] = { ...opts[i], label: v };
+                onUpdateProp("options", opts);
+              }}
+            />
+          </div>
+        ))}
       </>
     ),
     SLIDER: (

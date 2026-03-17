@@ -345,7 +345,7 @@ function SortableScreenRow({
             className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors group ${
               isSelected && !selectedComponentId
                 ? "bg-white/[0.08] text-white"
-                : "text-white/50 hover:bg-white/[0.04] hover:text-white/70"
+                : "text-white/50 hover:bg-white/[0.04] hover:text-white"
             }`}
           >
             <div
@@ -513,8 +513,8 @@ function SortableComponentRow({
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
             className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors group cursor-default ${
               isSelected
-                ? "bg-white/[0.08] text-white"
-                : "text-white/40 hover:bg-white/[0.04] hover:text-white/60"
+                ? "bg-white/[0.10] text-white"
+                : "text-white/70 hover:bg-white/[0.08] hover:text-white"
             }`}
           >
             <div

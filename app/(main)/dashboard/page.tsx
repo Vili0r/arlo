@@ -4,7 +4,7 @@ import { UsageSection } from "@/components/dashboard/usage-section";
 import { AlertsSection } from "@/components/dashboard/alerts-section";
 import { ProjectsSection } from "@/components/dashboard/projects-section";
 import { RecentPreviews } from "@/components/dashboard/recent-previews";
-import { getProjects } from "./new/actions";
+import { getProjects } from "./project/actions";
 
 export default async function DashboardPage() {
   const projects = await getProjects();

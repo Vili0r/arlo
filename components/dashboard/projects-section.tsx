@@ -33,7 +33,7 @@ function ProjectCard({ project }: { project: ProjectListItem }) {
   const hasPublished = project.flows.some((f) => f.status === "PUBLISHED");
 
   return (
-    <Link href={`/dashboard/new/${project.id}`}>
+    <Link href={`/dashboard/project/${project.id}`}>
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-xl p-4 hover:border-white/[0.15] transition-all duration-200 group hover:bg-white/[0.04] cursor-pointer">
         {/* Top row */}
         <div className="flex items-start justify-between mb-3">

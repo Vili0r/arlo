@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Plus, Smartphone, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -20,26 +20,41 @@ import { ComponentPalette } from "./_components/component-palette";
 import { PropertySheet } from "./_components/property-sheet";
 import { PhonePreviewComponent } from "./_components/phone-preview";
 import { CanvasToolbar } from "./_components/canvas-toolbar";
-import Link from "next/link";
 import type { ComponentActions } from "./_components/screens-list";
+import { TabStyleSidebar, presetToTabComponentProps } from "./_components/tab-style-sidebar";
+import { useHistory } from "./_lib/use-history";
+import { useKeyboardShortcuts } from "./_lib/use-keyboard-shortcuts";
+import { SaveToolbar } from "./_components/save-toolbar";
+import { saveDraft, autoSaveDraft, publishFlow, getOrCreateFlow } from "./actions";
 
 export default function FlowBuilderPage() {
   const router = useRouter();
   const { projectId } = useParams();
   const canvas = useCanvas();
 
-  const [config, setConfig] = useState<FlowConfig>({
+  const defaultConfig: FlowConfig = {
     screens: [
-      { id: "screen_1", name: "Welcome", order: 0, style: { backgroundColor: "#FFFFFF", padding: 24 }, components: [] },
+      {
+        id: "screen_1",
+        name: "Welcome",
+        order: 0,
+        style: { backgroundColor: "#FFFFFF", padding: 24 },
+        components: [],
+      },
     ],
-    settings: { dismissible: true, showProgressBar: true, transitionAnimation: "slide" },
-  });
+    settings: {
+      dismissible: true,
+      showProgressBar: true,
+      transitionAnimation: "slide",
+    },
+  };
 
   const [selectedScreenIndex, setSelectedScreenIndex] = useState(0);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SidebarTab>("screens");
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [tabSidebarOpen, setTabSidebarOpen] = useState(false);
 
   const [selectedDevice, setSelectedDevice] = useState<DevicePreset>(
     ALL_DEVICES.find((d) => d.id === DEFAULT_DEVICE_ID) || ALL_DEVICES[0],
@@ -47,33 +62,125 @@ export default function FlowBuilderPage() {
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [fullScreenView, setFullScreenView] = useState(false);
 
+  const [copiedComponent, setCopiedComponent] = useState<FlowComponent | null>(null);
+  const [copiedStyles, setCopiedStyles] = useState<Record<string, unknown> | null>(null);
+  const history = useHistory<FlowConfig>(defaultConfig);
+  const config = history.state;
+
   const currentScreen = config.screens[selectedScreenIndex];
   const selectedComponent = currentScreen?.components.find((c) => c.id === selectedComponentId);
   const frame = getFrameDimensions(selectedDevice, orientation);
 
-  const [copiedComponent, setCopiedComponent] = useState<FlowComponent | null>(null);
-  const [copiedStyles, setCopiedStyles] = useState<Record<string, unknown> | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [flowId, setFlowId] = useState<string | null>(null); // set from URL or after creation
 
   useEffect(() => {
     if (selectedComponentId) setSheetOpen(true);
   }, [selectedComponentId]);
+
+  useEffect(() => {
+    if (!projectId || typeof projectId !== "string") return;
+
+    getOrCreateFlow(projectId).then((data) => {
+      setFlowId(data.flowId);
+      if (data.config) {
+        history.reset(data.config);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // — Save draft handler —
+  const handleSaveDraft = useCallback(async () => {
+    if (!flowId || !history.isDirty) return;
+    setSaveState("saving");
+    try {
+      await saveDraft({ flowId, config: history.state });
+      history.markSaved();
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2000);
+    } catch (err) {
+      console.error("Save failed:", err);
+      setSaveState("error");
+      setTimeout(() => setSaveState("idle"), 3000);
+    }
+  }, [flowId, history]);
+  
+  // — Publish handler —
+  const handlePublish = useCallback(async () => {
+    if (!flowId) return;
+    setSaveState("saving");
+    try {
+      await publishFlow({ flowId, config: history.state });
+      history.markSaved();
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2000);
+    } catch (err) {
+      console.error("Publish failed:", err);
+      setSaveState("error");
+      setTimeout(() => setSaveState("idle"), 3000);
+    }
+  }, [flowId, history]);
+  
+  // — Auto-save on a 30s debounce when dirty —
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  useEffect(() => {
+    if (!flowId || !history.isDirty) return;
+  
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await autoSaveDraft({ flowId, config: history.state });
+        history.markSaved();
+      } catch {
+        // Silent fail for auto-save — user can still manually save
+      }
+    }, 30_000);
+  
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [flowId, history.isDirty, history.state, history]);
+
+  useKeyboardShortcuts({
+    onUndo: history.undo,
+    onRedo: history.redo,
+    onSave: handleSaveDraft,
+  });
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (history.isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [history.isDirty]);
 
   const closeSheet = useCallback(() => {
     setSheetOpen(false);
     setTimeout(() => setSelectedComponentId(null), 200);
   }, []);
 
-  const updateConfig = useCallback(
-    (updater: (prev: FlowConfig) => FlowConfig) => setConfig(updater),
-    [],
-  );
+  const updateConfig = history.set;
 
   const addComponent = useCallback(
     (type: string) => {
+      if (type === "TAB_BUTTON") {
+        setTabSidebarOpen(true);
+        return;
+      }
+ 
       updateConfig((prev) => {
         const screens = [...prev.screens];
         const screen = { ...screens[selectedScreenIndex] };
-        screen.components = [...screen.components, createDefaultComponent(type, screen.components.length)];
+        screen.components = [
+          ...screen.components,
+          createDefaultComponent(type, screen.components.length),
+        ];
         screens[selectedScreenIndex] = screen;
         return { ...prev, screens };
       });
@@ -109,6 +216,27 @@ export default function FlowBuilderPage() {
         screens[selectedScreenIndex] = screen;
         return { ...prev, screens };
       });
+    },
+    [selectedScreenIndex, updateConfig],
+  );
+
+ const handleTabPresetSelect = useCallback(
+    (preset: import("./_components/tab-style-sidebar").TabPreset) => {
+      updateConfig((prev) => {
+        const screens = [...prev.screens];
+        const screen = { ...screens[selectedScreenIndex] };
+        const comp = {
+          id: `comp_${Date.now()}`,
+          type: "TAB_BUTTON" as const,
+          order: screen.components.length,
+          props: presetToTabComponentProps(preset),
+        } as FlowComponent;
+        screen.components = [...screen.components, comp];
+        screens[selectedScreenIndex] = screen;
+        return { ...prev, screens };
+      });
+      setActiveTab("screens");
+      setTabSidebarOpen(false);
     },
     [selectedScreenIndex, updateConfig],
   );
@@ -328,15 +456,6 @@ export default function FlowBuilderPage() {
       {/* ─── SIDEBAR ─────────────────────────────────── */}
       <div className="flex shrink-0 h-full">
         <div className="w-[52px] bg-white/[0.02] border-r border-white/[0.08] flex flex-col items-center shrink-0">
-          <div className="h-[53px] w-full flex items-center justify-center border-b border-white/[0.08] shrink-0">
-            <Link
-              href={`/dashboard/new/${projectId}`}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.05] transition-all"
-            >
-              <X size={18} />
-            </Link>
-          </div>
-
           <div className="flex flex-col items-center py-3 gap-1 flex-1">
             {SIDEBAR_TABS.map((tab) => (
               <button
@@ -448,6 +567,19 @@ export default function FlowBuilderPage() {
         onMouseUp={canvas.handleMouseUp}
         onMouseLeave={canvas.handleMouseUp}
       >
+         <div className="absolute top-4 right-4 z-20">
+          <SaveToolbar
+            canUndo={history.canUndo}
+            canRedo={history.canRedo}
+            isDirty={history.isDirty}
+            saveState={saveState}
+            onUndo={history.undo}
+            onRedo={history.redo}
+            onSaveDraft={handleSaveDraft}
+            onPublish={handlePublish}
+            historyLength={history.historyLength}
+          />
+        </div>
         <CanvasToolbar
           zoom={canvas.zoom}
           screenName={currentScreen?.name || "Untitled"}
@@ -457,7 +589,7 @@ export default function FlowBuilderPage() {
           onZoomOut={canvas.zoomOut}
           onResetZoom={canvas.resetZoom}
           onResetView={canvas.resetView}
-          onBack={() => router.push(`/dashboard/projects/${projectId}`)}
+          onBack={() => router.push(`/dashboard/project/${projectId}`)}
           selectedDevice={selectedDevice}
           orientation={orientation}
           fullScreenView={fullScreenView}
@@ -522,6 +654,12 @@ export default function FlowBuilderPage() {
         onUpdateProp={
           selectedComponent ? (key, value) => updateComponentProp(selectedComponent.id, key, value) : undefined
         }
+      />
+      
+      <TabStyleSidebar
+        open={tabSidebarOpen}
+        onClose={() => setTabSidebarOpen(false)}
+        onSelect={handleTabPresetSelect}
       />
     </div>
   );

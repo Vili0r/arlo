@@ -74,7 +74,7 @@ export default function NewProjectPage() {
       if (iconFile) formData.append("icon", iconFile);
 
       const project = await createProject(formData);
-      router.push(`/dashboard/new/${project.id}`);
+      router.push(`/dashboard/project/${project.id}`);
     } catch (err: any) {
       setIsUploading(false);
       console.error('Error creating project:', err);

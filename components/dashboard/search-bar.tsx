@@ -31,7 +31,7 @@ export function SearchBar() {
       </div>
 
       {/* Add New button */}
-      <Link href="/dashboard/new" className="flex items-center gap-1.5 bg-white text-black px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/90 transition-colors group">
+      <Link href="/dashboard/project" className="flex items-center gap-1.5 bg-white text-black px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/90 transition-colors group">
         <span>Add New Project</span>
       </Link>
     </div>

@@ -174,15 +174,6 @@ export function CanvasToolbar({
         </div>
       </div>
 
-      <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
-        <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/60 hover:text-white hover:bg-white/[0.06] rounded-lg border border-white/[0.1] backdrop-blur-md transition-colors cursor-pointer">
-          <Save size={13} /> Save Draft
-        </button>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-white/90 rounded-lg transition-colors cursor-pointer">
-          <Upload size={13} /> Publish
-        </button>
-      </div>
-
       <div className="absolute top-4 left-4 flex items-center gap-2 z-20">
         <button onClick={onBack} className="p-1.5 text-white/40 hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer">
           <ChevronLeft size={16} />

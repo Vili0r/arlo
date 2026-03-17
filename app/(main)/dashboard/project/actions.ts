@@ -156,7 +156,7 @@ export async function updateProject(projectId: string, formData: FormData) {
   });
 
   revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/projects/${projectId}`);
+  revalidatePath(`/dashboard/project/${projectId}`);
   return updated;
 }
 
