@@ -156,41 +156,17 @@ export async function publishFlow(input: {
   return { success: true, versionId: version.id, version: version.version };
 }
 
-/* ── Get or create default flow for a project ────────── */
+/* ── Get flow by ID ──────────────────────────────────── */
 
-export async function getOrCreateFlow(projectId: string): Promise<{
+export async function getFlow(flowId: string): Promise<{
   flowId: string;
+  projectId: string;
   config: FlowConfig | null;
   version: number | null;
   status: string;
 }> {
   const userId = await requireUser();
-
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { userId: true },
-  });
-  if (!project || project.userId !== userId) {
-    throw new Error("Project not found or access denied");
-  }
-
-  // Try to find an existing flow for this project
-  let flow = await prisma.flow.findFirst({
-    where: { projectId },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  // If no flow exists, create one
-  if (!flow) {
-    flow = await prisma.flow.create({
-      data: {
-        projectId,
-        name: "Default Flow",
-        slug: "default",
-        status: "DRAFT",
-      },
-    });
-  }
+  const flow = await requireFlowAccess(flowId, userId);
 
   // Load the latest version if it exists
   const latest = await prisma.flowVersion.findFirst({
@@ -200,6 +176,7 @@ export async function getOrCreateFlow(projectId: string): Promise<{
 
   return {
     flowId: flow.id,
+    projectId: flow.projectId,
     config: latest ? (latest.config as unknown as FlowConfig) : null,
     version: latest?.version ?? null,
     status: flow.status,

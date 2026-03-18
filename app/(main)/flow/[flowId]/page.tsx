@@ -25,11 +25,12 @@ import { TabStyleSidebar, presetToTabComponentProps } from "./_components/tab-st
 import { useHistory } from "./_lib/use-history";
 import { useKeyboardShortcuts } from "./_lib/use-keyboard-shortcuts";
 import { SaveToolbar } from "./_components/save-toolbar";
-import { saveDraft, autoSaveDraft, publishFlow, getOrCreateFlow } from "./actions";
+import { saveDraft, autoSaveDraft, publishFlow, getFlow } from "./actions";
 
 export default function FlowBuilderPage() {
   const router = useRouter();
-  const { projectId } = useParams();
+  const { flowId: flowIdParam } = useParams();
+  const [projectId, setProjectId] = useState<string | null>(null);
   const canvas = useCanvas();
 
   const defaultConfig: FlowConfig = {
@@ -72,23 +73,23 @@ export default function FlowBuilderPage() {
   const frame = getFrameDimensions(selectedDevice, orientation);
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [flowId, setFlowId] = useState<string | null>(null); // set from URL or after creation
+  const flowId = typeof flowIdParam === "string" ? flowIdParam : null;
 
   useEffect(() => {
     if (selectedComponentId) setSheetOpen(true);
   }, [selectedComponentId]);
 
   useEffect(() => {
-    if (!projectId || typeof projectId !== "string") return;
+    if (!flowId) return;
 
-    getOrCreateFlow(projectId).then((data) => {
-      setFlowId(data.flowId);
+    getFlow(flowId).then((data) => {
+      setProjectId(data.projectId);
       if (data.config) {
         history.reset(data.config);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }, [flowId]);
 
   // — Save draft handler —
   const handleSaveDraft = useCallback(async () => {

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Search,
   LayoutGrid,
-  Rocket,
+  Key,
   ScrollText,
   BarChart3,
   Gauge,
@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { UserButton } from "@clerk/nextjs";
+import { usePathname } from "next/navigation";
+
 
 interface SidebarProps {
   isOpen: boolean;
@@ -42,8 +44,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: "Projects", icon: <LayoutGrid size={18} />, href: "/dashboard", active: true },
-  { label: "Deployments", icon: <Rocket size={18} />, href: "#" },
+  { label: "Projects", icon: <LayoutGrid size={18} />, href: "/dashboard" },
+  { label: "Keys", icon: <Key size={18} />, href: "/dashboard/keys" },
   { label: "Logs", icon: <ScrollText size={18} />, href: "#" },
   { label: "Analytics", icon: <BarChart3 size={18} />, href: "#" },
   { label: "Speed Insights", icon: <Gauge size={18} />, href: "#" },
@@ -61,6 +63,8 @@ const navItems: NavItem[] = [
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const {user} = useUser();
+  const pathname = usePathname();
+
 
   return (
     <>
@@ -109,25 +113,32 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 scrollbar-thin">
-          {navItems.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href || "#"}
-              className={`
-                flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-sm font-medium transition-colors
-                ${
-                  item.active
-                    ? "bg-white/[0.1] text-white"
-                    : "text-white/60 hover:bg-white/[0.06] hover:text-white/90"
-                }
-              `}
-            >
-              <span className={item.active ? "text-white" : "text-white/50"}>{item.icon}</span>
-              <span className="flex-1 truncate">{item.label}</span>
-              {item.hasSubmenu && <ChevronRight size={14} className="text-white/30" />}
-            </Link>
-          ))}
+          {navItems.map((item) => {
+            const isActive = item.href === "/dashboard"
+              ? pathname === "/dashboard"
+              : item.href !== "#" && (pathname === item.href || pathname.startsWith(item.href + "/"));
+
+            return (
+              <Link
+                key={item.label}
+                href={item.href || "#"}
+                className={`
+                  flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-sm font-medium transition-colors
+                  ${
+                    isActive
+                      ? "bg-white/[0.1] text-white"
+                      : "text-white/60 hover:bg-white/[0.06] hover:text-white/90"
+                  }
+                `}
+              >
+                <span className={isActive ? "text-white" : "text-white/50"}>{item.icon}</span>
+                <span className="flex-1 truncate">{item.label}</span>
+                {item.hasSubmenu && <ChevronRight size={14} className="text-white/30" />}
+              </Link>
+            );
+          })}
         </nav>
+
 
         {/* Footer */}
         <div className="border-t border-white/[0.08] px-3 py-3">
