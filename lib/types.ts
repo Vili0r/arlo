@@ -1,4 +1,5 @@
 import { Prisma } from "../app/generated/prisma/client";
+import type { ComponentAnimation, ScreenTransitionConfig  } from "@/app/(main)/flow/[flowId]/_lib/animation-presets";
 
 // ============================================
 // PRISMA QUERY INCLUDES
@@ -384,27 +385,33 @@ export interface AwardProps {
 
 // Component union — discriminated by type
 
+interface FlowComponentBase {
+  id: string;
+  order: number;
+  animation?: ComponentAnimation;
+}
+
 export type FlowComponent =
-  | { id: string; type: "TEXT"; order: number; props: TextProps }
-  | { id: string; type: "IMAGE"; order: number; props: ImageProps }
-  | { id: string; type: "LOTTIE"; order: number; props: LottieProps }
-  | { id: string; type: "VIDEO"; order: number; props: VideoProps }
-  | { id: string; type: "ICON"; order: number; props: IconProps }
-  | { id: string; type: "ICON_LIBRARY"; order: number; props: IconLibraryProps }
-  | { id: string; type: "BUTTON"; order: number; props: ButtonProps }
-  | { id: string; type: "TEXT_INPUT"; order: number; props: TextInputProps }
-  | { id: string; type: "MULTI_SELECT"; order: number; props: MultiSelectProps }
-  | { id: string; type: "SINGLE_SELECT"; order: number; props: SingleSelectProps }
-  | { id: string; type: "SLIDER"; order: number; props: SliderProps }
-  | { id: string; type: "PROGRESS_BAR"; order: number; props: ProgressBarProps }
-  | { id: string; type: "PAGE_INDICATOR"; order: number; props: PageIndicatorProps }
-  | { id: string; type: "STACK"; order: number; props: StackProps }
-  | { id: string; type: "FOOTER"; order: number; props: FooterProps }
-  | { id: string; type: "TAB_BUTTON"; order: number; props: TabButtonProps }
-  | { id: string; type: "CAROUSEL"; order: number; props: CarouselProps }
-  | { id: string; type: "SOCIAL_PROOF"; order: number; props: SocialProofProps }
-  | { id: string; type: "FEATURE_LIST"; order: number; props: FeatureListProps }
-  | { id: string; type: "AWARD"; order: number; props: AwardProps };
+  | (FlowComponentBase & { type: "TEXT"; props: TextProps })
+  | (FlowComponentBase & { type: "IMAGE"; props: ImageProps })
+  | (FlowComponentBase & { type: "LOTTIE"; props: LottieProps })
+  | (FlowComponentBase & { type: "VIDEO"; props: VideoProps })
+  | (FlowComponentBase & { type: "ICON"; props: IconProps })
+  | (FlowComponentBase & { type: "ICON_LIBRARY"; props: IconLibraryProps })
+  | (FlowComponentBase & { type: "BUTTON"; props: ButtonProps })
+  | (FlowComponentBase & { type: "TEXT_INPUT"; props: TextInputProps })
+  | (FlowComponentBase & { type: "MULTI_SELECT"; props: MultiSelectProps })
+  | (FlowComponentBase & { type: "SINGLE_SELECT"; props: SingleSelectProps })
+  | (FlowComponentBase & { type: "SLIDER"; props: SliderProps })
+  | (FlowComponentBase & { type: "PROGRESS_BAR"; props: ProgressBarProps })
+  | (FlowComponentBase & { type: "PAGE_INDICATOR"; props: PageIndicatorProps })
+  | (FlowComponentBase & { type: "STACK"; props: StackProps })
+  | (FlowComponentBase & { type: "FOOTER"; props: FooterProps })
+  | (FlowComponentBase & { type: "TAB_BUTTON"; props: TabButtonProps })
+  | (FlowComponentBase & { type: "CAROUSEL"; props: CarouselProps })
+  | (FlowComponentBase & { type: "SOCIAL_PROOF"; props: SocialProofProps })
+  | (FlowComponentBase & { type: "FEATURE_LIST"; props: FeatureListProps })
+  | (FlowComponentBase & { type: "AWARD"; props: AwardProps });
 
 // Screen and config
 
@@ -425,6 +432,7 @@ export interface Screen {
   order: number;
   style?: ScreenStyle;
   components: FlowComponent[];
+  animation?: ComponentAnimation;  
 }
 
 export interface ComponentConfig {
@@ -442,6 +450,7 @@ export interface FlowSettings {
   showBackButton?: boolean;
   showSkipButton?: boolean;
   skipButtonLabel?: string;
+  screenTransition?: ScreenTransitionConfig;  
 }
 
 export interface FlowConfig {

@@ -15,6 +15,9 @@ import {
   Award,
   Layers,
   BoxSelect,
+  PlusCircle,
+  Map,
+  LayoutTemplate,
 } from "lucide-react";
 
 export const COMPONENT_TYPES = [
@@ -59,9 +62,10 @@ export const COLOR_MAP: Record<string, { bg: string; border: string; text: strin
   gold: { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400" },
 };
 
-export type SidebarTab = "screens" | "add";
+export const SIDEBAR_TABS = [
+  { id: "screens" as const, label: "Screens", icon: Layers },
+  { id: "add" as const, label: "Components", icon: PlusCircle },
+  { id: "templates" as const, label: "Templates", icon: LayoutTemplate }, 
+] as const;
 
-export const SIDEBAR_TABS: { id: SidebarTab; label: string; icon: React.ElementType }[] = [
-  { id: "screens", label: "Screens", icon: Layers },
-  { id: "add", label: "Components", icon: BoxSelect },
-];
+export type SidebarTab = (typeof SIDEBAR_TABS)[number]["id"];

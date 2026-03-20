@@ -1,7 +1,24 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { Plus, Smartphone, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import {
+  Plus,
+  Smartphone,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
+  ChevronRight,
+  Copy,
+  Trash2,
+  Settings2,
+} from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { useParams, useRouter } from "next/navigation";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { FlowConfig, FlowComponent } from "@/lib/types";
@@ -24,8 +41,9 @@ import type { ComponentActions } from "./_components/screens-list";
 import { TabStyleSidebar, presetToTabComponentProps } from "./_components/tab-style-sidebar";
 import { useHistory } from "./_lib/use-history";
 import { useKeyboardShortcuts } from "./_lib/use-keyboard-shortcuts";
-import { SaveToolbar } from "./_components/save-toolbar";
 import { saveDraft, autoSaveDraft, publishFlow, getFlow } from "./actions";
+import { TemplatePalette, QuickFlowTemplates } from "./_components/template-picker";
+import { ALL_TEMPLATES, type TemplateDefinition } from "./_lib/templates";
 
 export default function FlowBuilderPage() {
   const router = useRouter();
@@ -404,53 +422,128 @@ export default function FlowBuilderPage() {
     }
   };
 
-  /* ─── Screen content (shared across all frames) ──── */
-  const screenContent = (
-    <div
-      className="flex-1 overflow-y-auto"
-      style={{
-        backgroundColor: currentScreen?.style?.backgroundColor || "#FFFFFF",
-        padding: currentScreen?.style?.padding || 24,
-        cursor: "default",
-      }}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      {currentScreen?.components.length === 0 ? (
-        <div className="h-full flex flex-col items-center justify-center text-center">
-          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
-            <Smartphone size={20} className="text-gray-300" />
-          </div>
-          <p className="text-sm font-medium text-gray-400">No components yet</p>
-          <p className="text-xs text-gray-300 mt-1">Add components from the sidebar</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {[...currentScreen.components]
-            .sort((a, b) => a.order - b.order)
-            .map((comp) => (
-              <PhonePreviewComponent
-                key={comp.id}
-                component={comp}
-                isSelected={comp.id === selectedComponentId}
-                onSelect={() => setSelectedComponentId(comp.id)}
-              />
-            ))}
-        </div>
-      )}
-    </div>
+  const handleUseTemplate = useCallback(
+    (template: TemplateDefinition) => {
+      const screen = template.build();
+      screen.order = config.screens.length;
+
+      updateConfig((prev) => ({
+        ...prev,
+        screens: [...prev.screens, screen],
+      }));
+      setSelectedScreenIndex(config.screens.length);
+      setSelectedComponentId(null);
+      setActiveTab("add"); // Switch to content tab after insertion
+    },
+    [config.screens.length, updateConfig],
   );
 
-  const progressBar = config.settings?.showProgressBar ? (
-    <div className="h-1 bg-gray-100 shrink-0">
+  // Quick Start flow builder — generates multiple screens at once
+  const handleBuildQuickFlow = useCallback(
+    (templateIds: string[]) => {
+      const newScreens = templateIds
+        .map((id) => {
+          const tpl = ALL_TEMPLATES.find((t) => t.id === id);
+          return tpl ? tpl.build() : null;
+        })
+        .filter(Boolean)
+        .map((screen, i) => ({
+          ...screen!,
+          order: config.screens.length + i,
+        }));
+
+      if (newScreens.length === 0) return;
+
+      updateConfig((prev) => ({
+        ...prev,
+        screens: [...prev.screens, ...newScreens],
+      }));
+      setSelectedScreenIndex(config.screens.length);
+      setSelectedComponentId(null);
+    },
+    [config.screens.length, updateConfig],
+  );
+
+  /* ─── Per-screen content renderer ──── */
+  const renderScreenContent = useCallback(
+    (screen: typeof config.screens[number], screenIdx: number) => (
       <div
-        className="h-full transition-all duration-300"
+        className="flex-1 overflow-y-auto"
         style={{
-          width: `${((selectedScreenIndex + 1) / config.screens.length) * 100}%`,
-          backgroundColor: config.settings.progressBarColor || "#007AFF",
+          backgroundColor: screen?.style?.backgroundColor || "#FFFFFF",
+          padding: screen?.style?.padding || 24,
+          cursor: "default",
         }}
-      />
-    </div>
-  ) : null;
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {screen?.components.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center">
+            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+              <Smartphone size={20} className="text-gray-300" />
+            </div>
+            <p className="text-sm font-medium text-gray-400">No components yet</p>
+            <p className="text-xs text-gray-300 mt-1">Add components from the sidebar</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {[...screen.components]
+              .sort((a, b) => a.order - b.order)
+              .map((comp) => (
+                <PhonePreviewComponent
+                  key={comp.id}
+                  component={comp}
+                  isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
+                  onSelect={() => {
+                    setSelectedScreenIndex(screenIdx);
+                    setSelectedComponentId(comp.id);
+                  }}
+                />
+              ))}
+          </div>
+        )}
+      </div>
+    ),
+    [selectedScreenIndex, selectedComponentId],
+  );
+
+  const renderProgressBar = useCallback(
+    (screenIdx: number) =>
+      config.settings?.showProgressBar ? (
+        <div className="h-1 bg-gray-100 shrink-0">
+          <div
+            className="h-full transition-all duration-300"
+            style={{
+              width: `${((screenIdx + 1) / config.screens.length) * 100}%`,
+              backgroundColor: config.settings.progressBarColor || "#007AFF",
+            }}
+          />
+        </div>
+      ) : null,
+    [config.settings?.showProgressBar, config.settings?.progressBarColor, config.screens.length],
+  );
+
+  /* ─── Canvas layout constants ──── */
+  const SCREEN_GAP = 80;
+  const totalCanvasWidth =
+    config.screens.length * frame.frameWidth +
+    (config.screens.length - 1) * SCREEN_GAP;
+  const canvasStartX = -totalCanvasWidth / 2;
+
+  const duplicateScreen = useCallback(
+    (index: number) => {
+      updateConfig((prev) => {
+        const source = prev.screens[index];
+        const clone = {
+          ...structuredClone(source),
+          id: `screen_${Date.now()}`,
+          name: `${source.name} (copy)`,
+          order: prev.screens.length,
+        };
+        return { ...prev, screens: [...prev.screens, clone] };
+      });
+    },
+    [updateConfig],
+  );
 
   return (
     <div className="flex h-screen overflow-hidden bg-black">
@@ -537,6 +630,18 @@ export default function FlowBuilderPage() {
               />
             )}
             {activeTab === "add" && <ComponentPalette onAdd={addComponent} />}
+            {activeTab === "templates" && (
+              <div className="relative h-full">
+                {/* Quick Start flows at top */}
+                <QuickFlowTemplates onBuildFlow={handleBuildQuickFlow} />
+
+                {/* Divider */}
+                <div className="border-t border-white/[0.06] my-4" />
+
+                {/* Full template browser */}
+                <TemplatePalette onSelectTemplate={handleUseTemplate} />
+              </div>
+            )}
           </div>
           {activeTab === "screens" && (
             <div className="p-3 border-t border-white/[0.08] shrink-0">
@@ -568,19 +673,6 @@ export default function FlowBuilderPage() {
         onMouseUp={canvas.handleMouseUp}
         onMouseLeave={canvas.handleMouseUp}
       >
-         <div className="absolute top-4 right-4 z-20">
-          <SaveToolbar
-            canUndo={history.canUndo}
-            canRedo={history.canRedo}
-            isDirty={history.isDirty}
-            saveState={saveState}
-            onUndo={history.undo}
-            onRedo={history.redo}
-            onSaveDraft={handleSaveDraft}
-            onPublish={handlePublish}
-            historyLength={history.historyLength}
-          />
-        </div>
         <CanvasToolbar
           zoom={canvas.zoom}
           screenName={currentScreen?.name || "Untitled"}
@@ -590,7 +682,9 @@ export default function FlowBuilderPage() {
           onZoomOut={canvas.zoomOut}
           onResetZoom={canvas.resetZoom}
           onResetView={canvas.resetView}
-          onBack={() => router.push(`/dashboard/project/${projectId}`)}
+          onBack={() =>
+            router.push(`/dashboard/project/${projectId}`)
+          }
           selectedDevice={selectedDevice}
           orientation={orientation}
           fullScreenView={fullScreenView}
@@ -603,6 +697,14 @@ export default function FlowBuilderPage() {
             canvas.resetView();
           }}
           onToggleFullScreen={() => setFullScreenView((p) => !p)}
+          canUndo={history.canUndo}
+          canRedo={history.canRedo}
+          onUndo={history.undo}
+          onRedo={history.redo}
+          isDirty={history.isDirty}
+          saveState={saveState}
+          onSaveDraft={handleSaveDraft}
+          onPublish={handlePublish}
         />
 
         {/* World layer */}
@@ -625,22 +727,120 @@ export default function FlowBuilderPage() {
               transition: canvas.isPanning || canvas.isDraggingPhone ? "none" : "transform 0.15s ease-out",
             }}
           >
-            <div
-              onMouseDown={canvas.handlePhoneMouseDown}
-              className="absolute"
-              style={{
-                left: canvas.phonePosition.x - frame.frameWidth / 2,
-                top: canvas.phonePosition.y - frame.frameHeight / 2,
-                cursor: canvas.isDraggingPhone ? "grabbing" : "grab",
-              }}
-            >
-              <DeviceFrame
-                device={selectedDevice}
-                orientation={orientation}
-                frame={frame}
-                screenContent={screenContent}
-                progressBar={progressBar}
-              />
+            {/* All screens laid out horizontally */}
+            <div className="absolute flex items-start" style={{ top: -frame.frameHeight / 2 }}>
+              {config.screens.map((screen, idx) => {
+                const xPos = canvasStartX + idx * (frame.frameWidth + SCREEN_GAP);
+                const isSelected = idx === selectedScreenIndex;
+
+                return (
+                  <React.Fragment key={screen.id}>
+                    {/* Connection arrow between screens */}
+                    {idx > 0 && (
+                      <div
+                        className="absolute flex items-center justify-center"
+                        style={{
+                          left: canvasStartX + (idx - 1) * (frame.frameWidth + SCREEN_GAP) + frame.frameWidth,
+                          top: frame.frameHeight / 2 - 12,
+                          width: SCREEN_GAP,
+                          height: 24,
+                        }}
+                      >
+                        <div className="flex items-center gap-1">
+                          <div className="h-px bg-white/[0.15]" style={{ width: SCREEN_GAP - 32 }} />
+                          <ChevronRight size={14} className="text-white/25 shrink-0" />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Screen frame with context menu */}
+                    <div
+                      className="absolute"
+                      style={{ left: xPos, top: 0 }}
+                    >
+                      {/* Screen label above frame */}
+                      <div
+                        className={`flex items-center justify-between mb-3 px-1 transition-colors ${
+                          isSelected ? "opacity-100" : "opacity-60 hover:opacity-80"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold ${
+                              isSelected
+                                ? "bg-blue-500 text-white"
+                                : "bg-white/[0.08] text-white/60"
+                            }`}
+                          >
+                            {idx + 1}
+                          </div>
+                          <span
+                            className={`text-[11px] font-medium ${
+                              isSelected ? "text-white" : "text-white/50"
+                            }`}
+                          >
+                            {screen.name}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                          className="p-1 text-white/20 hover:text-white/60 hover:bg-white/[0.06] rounded transition-colors"
+                        >
+                          <Settings2 size={11} />
+                        </button>
+                      </div>
+
+                      <ContextMenu>
+                        <ContextMenuTrigger render={<div />}>
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
+                              setSelectedScreenIndex(idx);
+                              setSelectedComponentId(null);
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className={`rounded-[4px] transition-all cursor-pointer ${
+                              isSelected
+                                ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-[#0a0a0a] shadow-[0_0_30px_rgba(59,130,246,0.15)]"
+                                : "ring-1 ring-transparent hover:ring-white/[0.15] opacity-75 hover:opacity-100"
+                            }`}
+                          >
+                            <DeviceFrame
+                              device={selectedDevice}
+                              orientation={orientation}
+                              frame={frame}
+                              screenContent={renderScreenContent(screen, idx)}
+                              progressBar={renderProgressBar(idx)}
+                            />
+                          </div>
+                        </ContextMenuTrigger>
+
+                        <ContextMenuContent className="min-w-[180px] bg-[#1a1a1e] border-white/[0.1] rounded-xl shadow-2xl p-1">
+                          <ContextMenuItem
+                            onClick={() => duplicateScreen(idx)}
+                            className="text-white/80 focus:bg-white/[0.08] focus:text-white"
+                          >
+                            <Copy size={14} className="mr-2 text-white/40" />
+                            Duplicate Screen
+                          </ContextMenuItem>
+                          <ContextMenuSeparator className="bg-white/[0.08]" />
+                          <ContextMenuItem
+                            onClick={() => deleteScreen(idx)}
+                            disabled={config.screens.length <= 1}
+                            className="text-red-400 focus:bg-red-500/10 focus:text-red-400 disabled:text-white/20"
+                          >
+                            <Trash2 size={14} className="mr-2" />
+                            Delete Screen
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
             </div>
           </div>
         </div>
