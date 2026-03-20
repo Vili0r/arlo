@@ -39,7 +39,7 @@ export function PropertySheet({
 
   return (
     <div
-      className={`h-full border-l border-white/[0.08] bg-[#0e0e10] flex flex-col shrink-0 transition-all duration-200 ease-out overflow-hidden ${
+      className={`absolute right-0 top-0 z-50 h-full border-l border-white/[0.08] bg-[#0e0e10] flex flex-col shrink-0 shadow-[-8px_0_40px_rgba(0,0,0,0.5)] transition-all duration-200 ease-out overflow-hidden ${
         open ? "w-[340px]" : "w-0"
       }`}
     >

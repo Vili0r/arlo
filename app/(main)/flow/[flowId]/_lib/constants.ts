@@ -18,6 +18,7 @@ import {
   PlusCircle,
   Map,
   LayoutTemplate,
+  Settings2,
 } from "lucide-react";
 
 export const COMPONENT_TYPES = [
@@ -64,6 +65,7 @@ export const COLOR_MAP: Record<string, { bg: string; border: string; text: strin
 
 export const SIDEBAR_TABS = [
   { id: "screens" as const, label: "Screens", icon: Layers },
+  { id: "settings" as const, label: "Settings", icon: Settings2 },
   { id: "add" as const, label: "Components", icon: PlusCircle },
   { id: "templates" as const, label: "Templates", icon: LayoutTemplate }, 
 ] as const;

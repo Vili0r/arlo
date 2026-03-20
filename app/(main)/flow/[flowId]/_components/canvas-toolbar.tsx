@@ -170,11 +170,8 @@ export function CanvasToolbar({
   return (
     <>
       {/* ── Center Toolbar ── */}
-      <div className="absolute top-4 left-[55%] -translate-x-1/2 flex items-center gap-1.5 z-20 pointer-events-auto">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20 pointer-events-auto">
         <div className="flex items-center bg-white/[0.08] backdrop-blur-md border border-white/[0.1] rounded-xl px-1 py-1 gap-0.5">
-          <button className="p-2 text-white/50 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer">
-            <Search size={14} />
-          </button>
           <DevicePicker
             selectedDevice={selectedDevice}
             orientation={orientation}
@@ -184,16 +181,16 @@ export function CanvasToolbar({
             onToggleFullScreen={onToggleFullScreen}
           />
         </div>
-        <div className="flex items-center bg-white/[0.08] backdrop-blur-md border border-white/[0.1] rounded-xl px-1 py-1">
+        {/* <div className="flex items-center bg-white/[0.08] backdrop-blur-md border border-white/[0.1] rounded-xl px-1 py-1">
           <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer">
             <Globe size={13} /> English (US) <ChevronDown size={11} className="text-white/40" />
           </button>
-        </div>
-        <div className="flex items-center bg-white/[0.08] backdrop-blur-md border border-white/[0.1] rounded-xl px-1 py-1">
+        </div> */}
+        {/* <div className="flex items-center bg-white/[0.08] backdrop-blur-md border border-white/[0.1] rounded-xl px-1 py-1">
           <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer">
             <Eye size={13} /> Default
           </button>
-        </div>
+        </div> */}
         <div className="flex items-center bg-white/[0.08] backdrop-blur-md border border-white/[0.1] rounded-xl px-1 py-1 gap-0.5 ml-2">
           <button onClick={onZoomOut} className="p-2 text-white/50 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer">
             <Minus size={13} />

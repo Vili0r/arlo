@@ -65,7 +65,6 @@ export const TEMPLATE_CATEGORIES: {
 
 /* ═══════════════════════════════════════════════════════════
    1. WELCOME / HERO SCREEN
-   App screenshot or illustration + headline + CTA
    ═══════════════════════════════════════════════════════════ */
 
 const welcomeHero: TemplateDefinition = {
@@ -105,8 +104,8 @@ const welcomeHero: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
+        position: "bottom",
       }),
       comp("BUTTON", 3, {
         label: "Already have an account? Sign In",
@@ -115,8 +114,8 @@ const welcomeHero: TemplateDefinition = {
         fontSize: 15,
         fontWeight: "500",
         fullWidth: true,
-        marginTop: 8,
         action: "custom",
+        position: "bottom",
       }),
     ],
   }),
@@ -124,7 +123,6 @@ const welcomeHero: TemplateDefinition = {
 
 /* ═══════════════════════════════════════════════════════════
    2. SINGLE SELECT — Simple text options
-   Question + subtitle + vertical option cards + Continue
    ═══════════════════════════════════════════════════════════ */
 
 const singleSelectSimple: TemplateDefinition = {
@@ -181,7 +179,6 @@ const singleSelectSimple: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
         position: "bottom",
       }),
@@ -191,7 +188,6 @@ const singleSelectSimple: TemplateDefinition = {
 
 /* ═══════════════════════════════════════════════════════════
    3. SINGLE SELECT — With icons
-   Options have emoji/icon + title + optional subtitle
    ═══════════════════════════════════════════════════════════ */
 
 const singleSelectIcons: TemplateDefinition = {
@@ -250,7 +246,6 @@ const singleSelectIcons: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
         position: "bottom",
       }),
@@ -260,7 +255,6 @@ const singleSelectIcons: TemplateDefinition = {
 
 /* ═══════════════════════════════════════════════════════════
    4. MULTI SELECT — With icons
-   Multiple selectable options (checkboxes)
    ═══════════════════════════════════════════════════════════ */
 
 const multiSelectIcons: TemplateDefinition = {
@@ -312,7 +306,6 @@ const multiSelectIcons: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
         position: "bottom",
       }),
@@ -370,7 +363,6 @@ const binaryChoice: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
         position: "bottom",
       }),
@@ -434,7 +426,6 @@ const attribution: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
         position: "bottom",
       }),
@@ -490,7 +481,6 @@ const datePicker: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
         position: "bottom",
       }),
@@ -555,7 +545,6 @@ const measurementPicker: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
         position: "bottom",
       }),
@@ -612,7 +601,6 @@ const valuePropChart: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
         position: "bottom",
       }),
@@ -654,7 +642,6 @@ const featureExplainer: TemplateDefinition = {
       comp("STACK", 2, {
         direction: "horizontal",
         gap: 12,
-        marginTop: 24,
         children: [
           {
             type: "BUTTON",
@@ -778,7 +765,6 @@ const trustScreen: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 24,
         action: "next",
         position: "bottom",
       }),
@@ -884,7 +870,6 @@ const socialProofRating: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 20,
         action: "next",
         position: "bottom",
       }),
@@ -1027,7 +1012,6 @@ const integrationConnect: TemplateDefinition = {
         fontWeight: "600",
         paddingVertical: 18,
         fullWidth: true,
-        marginTop: 32,
         action: "next",
         position: "bottom",
       }),
@@ -1038,7 +1022,6 @@ const integrationConnect: TemplateDefinition = {
         fontSize: 15,
         fontWeight: "500",
         fullWidth: true,
-        marginTop: 8,
         action: "next",
         position: "bottom",
       }),
