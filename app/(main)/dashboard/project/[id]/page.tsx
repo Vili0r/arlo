@@ -21,6 +21,8 @@ import {
 import { CreateFlowButton } from "@/app/(main)/dashboard/project/[id]/_components/create-flow-dialog";
 import { FlowsCard } from "@/app/(main)/dashboard/project/[id]/_components/flows-card";
 import { ApiKeysCard } from "@/app/(main)/dashboard/key/_components/api-keys-card";
+import { PlacementsCard } from "@/app/(main)/dashboard/project/[id]/_components/placements-card";
+import { RegistryKeysCard } from "@/app/(main)/dashboard/project/[id]/_components/registry-keys-card";
 
 interface ProjectPageProps {
   params: {
@@ -230,6 +232,39 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
                 environment: k.environment,
                 lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
                 createdAt: k.createdAt.toISOString(),
+              }))}
+            />
+
+            <PlacementsCard
+              projectId={project.id}
+              placements={project.placements.map((placement) => ({
+                id: placement.id,
+                key: placement.key,
+                name: placement.name,
+                flow: {
+                  id: placement.flow.id,
+                  name: placement.flow.name,
+                  slug: placement.flow.slug,
+                  status: placement.flow.status,
+                },
+                createdAt: placement.createdAt.toISOString(),
+              }))}
+              flows={project.flows.map((flow) => ({
+                id: flow.id,
+                name: flow.name,
+                slug: flow.slug,
+                status: flow.status,
+              }))}
+            />
+
+            <RegistryKeysCard
+              projectId={project.id}
+              registryKeys={project.registryKeys.map((entry) => ({
+                id: entry.id,
+                key: entry.key,
+                type: entry.type,
+                description: entry.description,
+                createdAt: entry.createdAt.toISOString(),
               }))}
             />
 

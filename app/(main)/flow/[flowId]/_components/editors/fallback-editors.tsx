@@ -24,13 +24,101 @@ import {
 import { icons, X, Plus } from "lucide-react";
 import { getSpacingValues, makeSpacingOnChange, PropAxisToggle, PropBackgroundTypeToggle, PropPositionGrid } from "./shared";
 
+function CustomComponentEditor({
+  registryKeys,
+  props,
+  onUpdateProp,
+}: {
+  registryKeys?: { id: string; key: string; type: "SCREEN" | "COMPONENT"; description: string | null }[];
+  props: Record<string, any>;
+  onUpdateProp: (key: string, value: unknown) => void;
+}) {
+  const componentRegistryEntries = (registryKeys || []).filter((entry) => entry.type === "COMPONENT");
+  const componentRegistryOptions = componentRegistryEntries.map((entry) => ({
+    value: entry.key,
+    label: entry.key,
+  }));
+  const selectedRegistryEntry =
+    componentRegistryEntries.find((entry) => entry.key === props.registryKey) || null;
+  const [payloadInput, setPayloadInput] = React.useState(
+    JSON.stringify(props.payload || {}, null, 2)
+  );
+  const [payloadError, setPayloadError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setPayloadInput(JSON.stringify(props.payload || {}, null, 2));
+    setPayloadError(null);
+  }, [props.payload, props.registryKey]);
+
+  return (
+    <>
+      <PropField label="Registry key">
+        <PropSelect
+          value={props.registryKey || ""}
+          onChange={(value) => onUpdateProp("registryKey", value)}
+          options={
+            componentRegistryOptions.length > 0
+              ? componentRegistryOptions
+              : [{ value: "", label: "No component keys yet" }]
+          }
+        />
+      </PropField>
+
+      {selectedRegistryEntry?.description ? (
+        <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
+            Registry Notes
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-white/50">
+            {selectedRegistryEntry.description}
+          </p>
+        </div>
+      ) : null}
+
+      <PropField label="Payload JSON">
+        <div className="space-y-2">
+          <PropTextarea
+            value={payloadInput}
+            onChange={(value) => {
+              setPayloadInput(value);
+              try {
+                const parsed = value.trim() ? JSON.parse(value) : {};
+                onUpdateProp("payload", parsed);
+                setPayloadError(null);
+              } catch {
+                setPayloadError("Payload must be valid JSON before it can be saved.");
+              }
+            }}
+            placeholder='e.g. { "variant": "hero" }'
+            rows={7}
+          />
+          {payloadError ? (
+            <p className="text-[11px] text-rose-300/80">{payloadError}</p>
+          ) : (
+            <p className="text-[11px] text-white/25">
+              Passed through to the native registered component as structured props.
+            </p>
+          )}
+        </div>
+      </PropField>
+    </>
+  );
+}
+
 export function getFallbackEditors(
   component: FlowComponent,
-  onUpdateProp: (key: string, value: unknown) => void
+  onUpdateProp: (key: string, value: unknown) => void,
+  registryKeys?: { id: string; key: string; type: "SCREEN" | "COMPONENT"; description: string | null }[]
 ) {
   const p = component.props as Record<string, any>;
-  
   const fallbackEditors: Record<string, React.ReactNode> = {
+    CUSTOM_COMPONENT: (
+      <CustomComponentEditor
+        registryKeys={registryKeys}
+        props={p}
+        onUpdateProp={onUpdateProp}
+      />
+    ),
     TAB_BUTTON: (
       <>
         {/* ── Active tab selector (like screenshot: "Tab 1" dropdown) ── */}

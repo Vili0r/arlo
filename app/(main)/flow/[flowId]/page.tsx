@@ -10,7 +10,14 @@ export default async function FlowBuilderPage(props: { params: Promise<{ flowId:
     notFound();
   }
 
-  const { config, projectId } = await getFlow(flowId);
+  const { config, projectId, registryKeys } = await getFlow(flowId);
 
-  return <FlowBuilderClient flowId={flowId} initialData={config} initialProjectId={projectId} />;
+  return (
+    <FlowBuilderClient
+      flowId={flowId}
+      initialData={config}
+      initialProjectId={projectId}
+      registryKeys={registryKeys}
+    />
+  );
 }

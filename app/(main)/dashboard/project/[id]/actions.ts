@@ -72,3 +72,110 @@ export async function deleteApiKey(projectId: string, keyId: string) {
 
   revalidatePath(`/dashboard/project/${projectId}`);
 }
+
+export async function createPlacement(
+  projectId: string,
+  data: { key: string; name?: string; flowId: string }
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+  });
+  if (!project) throw new Error("Project not found");
+
+  const flow = await prisma.flow.findFirst({
+    where: { id: data.flowId, projectId },
+  });
+  if (!flow) throw new Error("Flow not found");
+
+  const placement = await prisma.placement.create({
+    data: {
+      projectId,
+      flowId: data.flowId,
+      key: data.key.trim(),
+      name: data.name?.trim() || null,
+    },
+  });
+
+  revalidatePath(`/dashboard/project/${projectId}`);
+  return placement;
+}
+
+export async function deletePlacement(projectId: string, placementId: string) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+  });
+  if (!project) throw new Error("Project not found");
+
+  const placement = await prisma.placement.findFirst({
+    where: {
+      id: placementId,
+      projectId,
+    },
+  });
+  if (!placement) throw new Error("Placement not found");
+
+  await prisma.placement.delete({
+    where: { id: placementId },
+  });
+
+  revalidatePath(`/dashboard/project/${projectId}`);
+}
+
+export async function createRegistryKey(
+  projectId: string,
+  data: {
+    key: string;
+    type: "SCREEN" | "COMPONENT";
+    description?: string;
+  }
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+  });
+  if (!project) throw new Error("Project not found");
+
+  const registryKey = await prisma.customRegistryKey.create({
+    data: {
+      projectId,
+      key: data.key.trim(),
+      type: data.type,
+      description: data.description?.trim() || null,
+    },
+  });
+
+  revalidatePath(`/dashboard/project/${projectId}`);
+  return registryKey;
+}
+
+export async function deleteRegistryKey(projectId: string, registryKeyId: string) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+  });
+  if (!project) throw new Error("Project not found");
+
+  const registryKey = await prisma.customRegistryKey.findFirst({
+    where: {
+      id: registryKeyId,
+      projectId,
+    },
+  });
+  if (!registryKey) throw new Error("Registry key not found");
+
+  await prisma.customRegistryKey.delete({
+    where: { id: registryKeyId },
+  });
+
+  revalidatePath(`/dashboard/project/${projectId}`);
+}

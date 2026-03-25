@@ -23,6 +23,7 @@ export function PropertySheet({
   onUpdateProp,
   onUpdateAnimation,
   screens,
+  registryKeys,
 }: {
   open: boolean;
   component: FlowComponent | null;
@@ -31,6 +32,7 @@ export function PropertySheet({
   onUpdateProp?: (key: string, value: unknown) => void;
   onUpdateAnimation?: (anim: ComponentAnimation) => void;
   screens?: Screen[];
+  registryKeys?: { id: string; key: string; type: "SCREEN" | "COMPONENT"; description: string | null }[];
 }) {
   const meta = component
     ? COMPONENT_TYPES.find((c) => c.type === component.type)
@@ -88,6 +90,7 @@ export function PropertySheet({
               component={component}
               onUpdateProp={onUpdateProp}
               screens={screens}
+              registryKeys={registryKeys}
             />
           </div>
         ) : (

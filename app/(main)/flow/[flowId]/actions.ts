@@ -164,6 +164,12 @@ export async function getFlow(flowId: string): Promise<{
   config: FlowConfig | null;
   version: number | null;
   status: string;
+  registryKeys: {
+    id: string;
+    key: string;
+    type: "SCREEN" | "COMPONENT";
+    description: string | null;
+  }[];
 }> {
   const userId = await requireUser();
   const flow = await requireFlowAccess(flowId, userId);
@@ -174,12 +180,24 @@ export async function getFlow(flowId: string): Promise<{
     orderBy: { version: "desc" },
   });
 
+  const registryKeys = await prisma.customRegistryKey.findMany({
+    where: { projectId: flow.projectId },
+    orderBy: [{ type: "asc" }, { key: "asc" }],
+    select: {
+      id: true,
+      key: true,
+      type: true,
+      description: true,
+    },
+  });
+
   return {
     flowId: flow.id,
     projectId: flow.projectId,
     config: latest ? (latest.config as unknown as FlowConfig) : null,
     version: latest?.version ?? null,
     status: flow.status,
+    registryKeys,
   };
 }
 

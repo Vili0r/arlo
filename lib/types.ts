@@ -61,6 +61,26 @@ export const projectDetailInclude = {
       createdAt: "desc",
     },
   },
+  placements: {
+    include: {
+      flow: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          status: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  },
+  registryKeys: {
+    orderBy: {
+      createdAt: "desc",
+    },
+  },
 } satisfies Prisma.ProjectInclude;
 
 export const flowDetailInclude = {

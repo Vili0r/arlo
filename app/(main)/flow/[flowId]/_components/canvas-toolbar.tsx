@@ -38,6 +38,7 @@ export function CanvasToolbar({
   screenName,
   screenIndex,
   totalScreens,
+  componentCount,
   onZoomIn,
   onZoomOut,
   onResetZoom,
@@ -63,6 +64,7 @@ export function CanvasToolbar({
   screenName: string;
   screenIndex: number;
   totalScreens: number;
+  componentCount: number;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -217,6 +219,13 @@ export function CanvasToolbar({
             <span className="text-xs text-white/60 font-medium leading-none">{screenName}</span>
             <span className="text-[10px] text-white/30 leading-tight">{screenIndex + 1}/{totalScreens}</span>
           </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2 py-1.5 backdrop-blur-md">
+          <span className="text-[10px] font-medium text-white/55">{componentCount}</span>
+          <span className="text-[10px] text-white/28">
+            {componentCount === 1 ? "layer" : "layers"}
+          </span>
         </div>
 
         {/* Undo / Redo cluster */}

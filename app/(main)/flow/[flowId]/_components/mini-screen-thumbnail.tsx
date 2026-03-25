@@ -16,6 +16,8 @@ import {
   ToggleLeft,
   List,
   Square,
+  AppWindow,
+  Puzzle,
 } from "lucide-react";
 import type { Screen, FlowComponent } from "@/lib/types";
 
@@ -39,6 +41,7 @@ const COMPONENT_ICON_MAP: Record<string, React.ElementType> = {
   SOCIAL_PROOF: Star,
   FEATURE_LIST: CheckCircle,
   AWARD: Award,
+  CUSTOM_COMPONENT: Puzzle,
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -62,6 +65,7 @@ export function MiniScreenThumbnail({
 }) {
   const bgColor = screen.style?.backgroundColor || "#FFFFFF";
   const components = [...screen.components].sort((a, b) => a.order - b.order);
+  const hasNativeScreen = Boolean(screen.customScreenKey);
 
   return (
     <div
@@ -77,7 +81,14 @@ export function MiniScreenThumbnail({
         {/* Mini status bar */}
         <div className="flex items-center justify-between px-[3px] mb-[1px] shrink-0">
           <div className="w-[10px] h-[2px] rounded-full bg-black/15" />
-          <div className="w-[16px] h-[4px] rounded-full bg-black/25" />
+          <div className="flex items-center gap-[2px]">
+            {hasNativeScreen ? (
+              <div className="px-[2px] py-[1px] rounded-full bg-fuchsia-500/20 border border-fuchsia-500/30">
+                <AppWindow size={4} className="text-fuchsia-500/80" />
+              </div>
+            ) : null}
+            <div className="w-[16px] h-[4px] rounded-full bg-black/25" />
+          </div>
           <div className="w-[8px] h-[2px] rounded-full bg-black/15" />
         </div>
 
@@ -279,6 +290,14 @@ function MiniComponentBlock({ component }: { component: FlowComponent }) {
         }}
       >
         <Award size={4} style={{ color: p.textColor || "#fff", opacity: 0.5 }} />
+      </div>
+    );
+  }
+
+  if (component.type === "CUSTOM_COMPONENT") {
+    return (
+      <div className="rounded-[2px] border border-fuchsia-500/30 bg-fuchsia-500/10 flex items-center justify-center shrink-0 h-[10px]">
+        <Puzzle size={4} className="text-fuchsia-500/70" />
       </div>
     );
   }

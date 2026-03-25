@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import {
   ALL_TEMPLATES,
+  FLOW_PRESETS,
   TEMPLATE_CATEGORIES,
   searchTemplates,
   getTemplatesByCategory,
@@ -50,6 +51,32 @@ export function TemplatePalette({ onSelectTemplate }: TemplatePalette) {
     <div className="flex flex-col h-full -m-3">
       {/* Header */}
       <div className="px-3 pt-3 pb-2 space-y-2">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
+                Screen Recipes
+              </p>
+              <p className="mt-1 text-[11px] leading-5 text-white/30">
+                Start from high-conviction onboarding patterns, then tune the details in the builder.
+              </p>
+            </div>
+            <div className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/40">
+              {ALL_TEMPLATES.length} templates
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {FLOW_PRESETS.slice(0, 4).map((preset) => (
+              <span
+                key={preset.id}
+                className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[10px] text-white/36"
+              >
+                {preset.icon} {preset.name}
+              </span>
+            ))}
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <LayoutTemplate size={14} className="text-white/40" />
           <span className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">
@@ -328,93 +355,66 @@ export function QuickFlowTemplates({
 }: {
   onBuildFlow: (templateIds: string[]) => void;
 }) {
-  const PRESET_FLOWS = [
-    {
-      id: "fitness-onboarding",
-      name: "Fitness App",
-      icon: "💪",
-      description: "Gender → Goal → Activity → Height/Weight → Results",
-      templateIds: [
-        "welcome-hero",
-        "single-select-simple",
-        "single-select-icons",
-        "measurement-picker",
-        "date-picker",
-        "value-prop-chart",
-        "trust-screen",
-        "permission-request",
-      ],
-    },
-    {
-      id: "saas-onboarding",
-      name: "SaaS App",
-      icon: "🚀",
-      description: "Welcome → Goal → Role → Integration → Social Proof",
-      templateIds: [
-        "welcome-hero",
-        "single-select-simple",
-        "multi-select-icons",
-        "attribution",
-        "integration-connect",
-        "social-proof-rating",
-      ],
-    },
-    {
-      id: "health-onboarding",
-      name: "Health & Wellness",
-      icon: "🧘",
-      description: "Welcome → Goal → Diet → Barriers → Trust → Paywall",
-      templateIds: [
-        "welcome-hero",
-        "single-select-simple",
-        "multi-select-icons",
-        "binary-choice",
-        "value-prop-chart",
-        "trust-screen",
-        "social-proof-rating",
-        "permission-request",
-      ],
-    },
-    {
-      id: "minimal-onboarding",
-      name: "Minimal (3 screens)",
-      icon: "✨",
-      description: "Welcome → One question → Get started",
-      templateIds: ["welcome-hero", "single-select-icons", "trust-screen"],
-    },
-  ];
-
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 px-1 mb-2">
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
+        <div className="flex items-center gap-2 px-1">
+          <Sparkles size={12} className="text-amber-400" />
+          <span className="text-[11px] font-semibold text-white/50 uppercase tracking-[0.18em]">
+            Quick Start Flows
+          </span>
+        </div>
+        <p className="mt-2 px-1 text-[11px] leading-5 text-white/30">
+          Generate a polished multi-screen onboarding arc inspired by strong consumer app patterns.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2 px-1">
         <Sparkles size={12} className="text-amber-400" />
         <span className="text-[11px] font-semibold text-white/50">
-          Quick Start Flows
+          Starter Collections
         </span>
       </div>
 
-      {PRESET_FLOWS.map((flow) => (
+      {FLOW_PRESETS.map((flow) => (
         <button
           key={flow.id}
           onClick={() => onBuildFlow(flow.templateIds)}
-          className="w-full flex items-start gap-3 px-3 py-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04] transition-all text-left group"
+          className="group relative w-full overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-3 text-left transition-all hover:border-white/[0.12] hover:bg-white/[0.04]"
         >
-          <span className="text-[20px] mt-0.5">{flow.icon}</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-white/70 group-hover:text-white/90">
-              {flow.name}
-            </p>
-            <p className="text-[10px] text-white/30 mt-0.5">
-              {flow.description}
-            </p>
-            <p className="text-[9px] text-white/20 mt-1">
-              {flow.templateIds.length} screens
-            </p>
-          </div>
-          <ChevronRight
-            size={14}
-            className="text-white/15 group-hover:text-white/40 mt-1 shrink-0 transition-colors"
+          <div
+            className="absolute inset-x-0 top-0 h-px opacity-80"
+            style={{ background: `linear-gradient(90deg, transparent, ${flow.accent}, transparent)` }}
           />
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 text-[20px]">{flow.icon}</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="text-[12px] font-semibold text-white/70 group-hover:text-white/90">
+                  {flow.name}
+                </p>
+                <span
+                  className="rounded-full px-1.5 py-0.5 text-[9px] font-medium"
+                  style={{
+                    backgroundColor: `${flow.accent}18`,
+                    color: flow.accent,
+                  }}
+                >
+                  {flow.templateIds.length} screens
+                </span>
+              </div>
+              <p className="mt-0.5 text-[10px] text-white/30">
+                {flow.description}
+              </p>
+              <p className="mt-1 text-[9px] text-white/22">
+                {flow.audience}
+              </p>
+            </div>
+            <ChevronRight
+              size={14}
+              className="mt-1 shrink-0 text-white/15 transition-colors group-hover:text-white/40"
+            />
+          </div>
         </button>
       ))}
     </div>

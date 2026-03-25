@@ -11,6 +11,8 @@ import {
   CopyPlus,
   Paintbrush,
   Trash2,
+  Sparkles,
+  Wand2,
 } from "lucide-react";
 import {
   DndContext,
@@ -48,6 +50,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Screen, FlowComponent } from "@/lib/types";
 import { COMPONENT_TYPES } from "../_lib/constants";
+
+function getScreenSignals(screen: Screen) {
+  const components = [...screen.components].sort((a, b) => a.order - b.order);
+
+  return {
+    previewLabels: components
+      .slice(0, 3)
+      .map((component) => COMPONENT_TYPES.find((entry) => entry.type === component.type)?.label || component.type),
+    hasPinnedFooter: components.some((component) => (component.props as { position?: string }).position === "bottom"),
+    hasQuestions: components.some((component) => ["SINGLE_SELECT", "MULTI_SELECT", "TEXT_INPUT", "SLIDER"].includes(component.type)),
+    hasCustomComponent: components.some((component) => component.type === "CUSTOM_COMPONENT"),
+    hasNativeScreen: Boolean((screen as Screen & { customScreenKey?: string | null }).customScreenKey),
+  };
+}
 
 /* ═══════════════════════════════════════════════════════════
    TYPES
@@ -276,6 +292,7 @@ function SortableScreenRow({
     () => [...screen.components].sort((a, b) => a.order - b.order),
     [screen.components],
   );
+  const screenSignals = useMemo(() => getScreenSignals(screen), [screen]);
 
   const menuContentClass =
     "min-w-[200px] bg-[#1a1a1e] border-white/[0.1] rounded-xl shadow-2xl p-1";
@@ -356,36 +373,84 @@ function SortableScreenRow({
             >
               <GripVertical size={12} className="text-white/20" />
             </div>
-            <Layers size={13} className="shrink-0" />
+            <Layers size={13} className="mt-0.5 shrink-0" />
 
-            {isEditing ? (
-              <input
-                ref={inputRef}
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    commitRename();
-                  } else if (e.key === "Escape") {
-                    e.preventDefault();
-                    cancelEditing();
-                  }
-                  e.stopPropagation();
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs font-medium truncate bg-white/[0.08] text-white rounded px-1.5 py-0.5 -my-0.5 outline-none ring-1 ring-blue-500/60 focus:ring-blue-500 w-full min-w-0"
-              />
-            ) : (
-              <span className="text-xs font-medium truncate">{screen.name}</span>
-            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                {isEditing ? (
+                  <input
+                    ref={inputRef}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        commitRename();
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        cancelEditing();
+                      }
+                      e.stopPropagation();
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full min-w-0 rounded bg-white/[0.08] px-1.5 py-0.5 text-xs font-medium text-white outline-none ring-1 ring-blue-500/60 focus:ring-blue-500"
+                  />
+                ) : (
+                  <span className="truncate text-xs font-medium">{screen.name}</span>
+                )}
+                <span className="rounded-full border border-white/[0.08] px-1.5 py-0.5 text-[9px] text-white/24">
+                  {index + 1}
+                </span>
+              </div>
+
+              {!isEditing && (
+                <>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 text-[9px] text-white/26">
+                      {screen.components.length} layers
+                    </span>
+                    {screenSignals.hasQuestions && (
+                      <span className="rounded-full border border-blue-400/20 bg-blue-400/10 px-1.5 py-0.5 text-[9px] text-blue-300/80">
+                        Inputs
+                      </span>
+                    )}
+                    {screenSignals.hasPinnedFooter && (
+                      <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-1.5 py-0.5 text-[9px] text-emerald-300/80">
+                        CTA rail
+                      </span>
+                    )}
+                    {screenSignals.hasNativeScreen && (
+                      <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-1.5 py-0.5 text-[9px] text-fuchsia-300/80">
+                        Native
+                      </span>
+                    )}
+                    {screenSignals.hasCustomComponent && (
+                      <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-1.5 py-0.5 text-[9px] text-amber-300/80">
+                        Custom
+                      </span>
+                    )}
+                  </div>
+
+                  {screenSignals.previewLabels.length > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {screenSignals.previewLabels.map((label) => (
+                        <span
+                          key={`${screen.id}-${label}`}
+                          className="rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[9px] text-white/22"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
 
             {!isEditing && (
               <>
-                <span className="text-[10px] text-white/30 ml-auto mr-1">{screen.components.length}</span>
-
-                <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                <div className="ml-auto shrink-0" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       nativeButton={false}
@@ -782,47 +847,75 @@ export function ScreensList({
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-    >
-      <SortableContext items={screenIds} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col gap-1">
-          {screens.map((screen, index) => (
-            <SortableScreenRow
-              key={screen.id}
-              screen={screen}
-              index={index}
-              isSelected={selectedIndex === index}
-              isOverBefore={overId === screen.id && overSide === "before"}
-              isOverAfter={overId === screen.id && overSide === "after"}
-              selectedComponentId={selectedComponentId}
-              onSelect={() => onSelect(index)}
-              onSelectComponent={onSelectComponent}
-              onReorderComponents={onReorderComponents}
-              componentActions={componentActions}
-              screenActions={screenActions}
-              canDeleteScreen={screens.length > 1}
-              onRenameScreen={onRenameScreen}
-            />
-          ))}
-        </div>
-      </SortableContext>
-
-      <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
-        {activeScreen && (
-          <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-white/[0.12] text-white border border-white/[0.15] backdrop-blur-md shadow-xl">
-            <GripVertical size={12} className="text-white/30" />
-            <Layers size={13} />
-            <span className="text-xs font-medium">{activeScreen.name}</span>
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
+              Story Rail
+            </p>
+            <p className="mt-1 text-[11px] leading-5 text-white/30">
+              Arrange screens like chapters. The selected screen expands so you can inspect its layers inline.
+            </p>
           </div>
-        )}
-      </DragOverlay>
-    </DndContext>
+          <div className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/40">
+            {screens.length} screens
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[10px] text-white/34">
+            <Sparkles size={11} className="text-white/30" />
+            Selected screen opens its layer stack
+          </div>
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[10px] text-white/34">
+            <Wand2 size={11} className="text-white/30" />
+            Drag to reorder the onboarding arc
+          </div>
+        </div>
+      </div>
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      >
+        <SortableContext items={screenIds} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-col gap-1">
+            {screens.map((screen, index) => (
+              <SortableScreenRow
+                key={screen.id}
+                screen={screen}
+                index={index}
+                isSelected={selectedIndex === index}
+                isOverBefore={overId === screen.id && overSide === "before"}
+                isOverAfter={overId === screen.id && overSide === "after"}
+                selectedComponentId={selectedComponentId}
+                onSelect={() => onSelect(index)}
+                onSelectComponent={onSelectComponent}
+                onReorderComponents={onReorderComponents}
+                componentActions={componentActions}
+                screenActions={screenActions}
+                canDeleteScreen={screens.length > 1}
+                onRenameScreen={onRenameScreen}
+              />
+            ))}
+          </div>
+        </SortableContext>
+
+        <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+          {activeScreen && (
+            <div className="flex items-center gap-2 rounded-lg border border-white/[0.15] bg-white/[0.12] px-2.5 py-2 text-white shadow-xl backdrop-blur-md">
+              <GripVertical size={12} className="text-white/30" />
+              <Layers size={13} />
+              <span className="text-xs font-medium">{activeScreen.name}</span>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }

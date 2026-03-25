@@ -77,10 +77,12 @@ export function FlowBuilderClient({
   flowId,
   initialData,
   initialProjectId,
+  registryKeys,
 }: {
   flowId: string;
   initialData: FlowConfig | null;
   initialProjectId: string | null;
+  registryKeys: { id: string; key: string; type: "SCREEN" | "COMPONENT"; description: string | null }[];
 }) {
   const router = useRouter();
   const [projectId, setProjectId] = useState<string | null>(initialProjectId);
@@ -123,6 +125,7 @@ export function FlowBuilderClient({
 
   const currentScreen = config.screens[selectedScreenIndex];
   const selectedComponent = currentScreen?.components.find((c) => c.id === selectedComponentId);
+  const screenRegistryKeys = registryKeys.filter((entry) => entry.type === "SCREEN");
   const frame = getFrameDimensions(selectedDevice, orientation);
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -839,6 +842,7 @@ export function FlowBuilderClient({
                 <ScreenLogicPanel
                   currentScreen={currentScreen}
                   allScreens={config.screens}
+                  screenRegistryKeys={screenRegistryKeys}
                   onUpdateBranchRules={(rules) => {
                     updateConfig((prev) => {
                       const screens = [...prev.screens];
@@ -856,6 +860,16 @@ export function FlowBuilderClient({
                         ...screens[selectedScreenIndex],
                         skipWhen: conditions,
                       };
+                      return { ...prev, screens };
+                    });
+                  }}
+                  onUpdateCustomScreen={(patch) => {
+                    updateConfig((prev) => {
+                      const screens = [...prev.screens];
+                      screens[selectedScreenIndex] = {
+                        ...screens[selectedScreenIndex],
+                        ...patch,
+                      } as any;
                       return { ...prev, screens };
                     });
                   }}
@@ -898,6 +912,7 @@ export function FlowBuilderClient({
           screenName={currentScreen?.name || "Untitled"}
           screenIndex={selectedScreenIndex}
           totalScreens={config.screens.length}
+          componentCount={currentScreen?.components.length || 0}
           onZoomIn={canvas.zoomIn}
           onZoomOut={canvas.zoomOut}
           onResetZoom={canvas.resetZoom}
@@ -1191,6 +1206,7 @@ export function FlowBuilderClient({
           selectedComponent ? (key, value) => updateComponentProp(selectedComponent.id, key, value) : undefined
         }
         screens={config.screens}
+        registryKeys={registryKeys}
       />
       
       <TabStyleSidebar

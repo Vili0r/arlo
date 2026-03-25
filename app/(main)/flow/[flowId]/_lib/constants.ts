@@ -13,6 +13,7 @@ import {
   Star,
   ListChecks,
   Award,
+  Puzzle,
   Layers,
   BoxSelect,
   PlusCircle,
@@ -42,6 +43,7 @@ export const COMPONENT_TYPES = [
   { type: "SOCIAL_PROOF", label: "Social Proof", icon: Star, category: "Rich", color: "yellow" },
   { type: "FEATURE_LIST", label: "Feature List", icon: ListChecks, category: "Rich", color: "lime" },
   { type: "AWARD", label: "Award", icon: Award, category: "Rich", color: "gold" },
+  { type: "CUSTOM_COMPONENT", label: "Custom Component", icon: Puzzle, category: "Rich", color: "fuchsia" },
 ] as const;
 
 export const COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
@@ -61,6 +63,7 @@ export const COLOR_MAP: Record<string, { bg: string; border: string; text: strin
   yellow: { bg: "bg-yellow-500/10", border: "border-yellow-500/20", text: "text-yellow-400" },
   lime: { bg: "bg-lime-500/10", border: "border-lime-500/20", text: "text-lime-400" },
   gold: { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400" },
+  fuchsia: { bg: "bg-fuchsia-500/10", border: "border-fuchsia-500/20", text: "text-fuchsia-400" },
 };
 
 export const SIDEBAR_TABS = [

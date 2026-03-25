@@ -20,6 +20,7 @@ export function createDefaultComponent(type: string, order: number): FlowCompone
     SOCIAL_PROOF: () => ({ id, type: "SOCIAL_PROOF", order, props: { rating: 4.8, totalReviews: 12400, reviews: [{ id: "rev_1", author: "Sarah M.", rating: 5, text: "Absolutely love this app!", avatar: "" }, { id: "rev_2", author: "James K.", rating: 5, text: "Changed my daily routine for the better.", avatar: "" }], showStars: true, compact: false } }),
     FEATURE_LIST: () => ({ id, type: "FEATURE_LIST", order, props: { title: "What you get", features: [{ id: "f_1", icon: "check", label: "Unlimited access to all features" }, { id: "f_2", icon: "check", label: "Priority customer support" }, { id: "f_3", icon: "check", label: "Cloud sync across devices" }], iconColor: "#34C759", textColor: "#1A1A1A" } }),
     AWARD: () => ({ id, type: "AWARD", order, props: { variant: "badge", title: "App of the Year", subtitle: "2025 Design & Innovation", issuer: "App Store", iconSrc: "", showLaurels: true, backgroundColor: "#1C1C1E", textColor: "#FFFFFF" } }),
+    CUSTOM_COMPONENT: () => ({ id, type: "CUSTOM_COMPONENT", order, props: { registryKey: "", payload: {} } }),
   };
 
   return (defaults[type] || defaults.TEXT)() as FlowComponent;

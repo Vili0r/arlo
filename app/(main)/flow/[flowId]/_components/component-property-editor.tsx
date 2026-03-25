@@ -13,10 +13,12 @@ export function ComponentPropertyEditor({
   component,
   onUpdateProp,
   screens,
+  registryKeys,
 }: {
   component: FlowComponent;
   onUpdateProp: (key: string, value: unknown) => void;
   screens?: Screen[];
+  registryKeys?: { id: string; key: string; type: "SCREEN" | "COMPONENT"; description: string | null }[];
 }) {
   if (component.type === "STACK") return <StackEditor component={component} onUpdateProp={onUpdateProp} />;
   if (component.type === "FOOTER") return <FooterEditor component={component} onUpdateProp={onUpdateProp} />;
@@ -26,7 +28,7 @@ export function ComponentPropertyEditor({
   if (component.type === "ICON_LIBRARY") return <IconLibraryEditor component={component} onUpdateProp={onUpdateProp} />;
   if (component.type === "BUTTON") return <ButtonEditor component={component} onUpdateProp={onUpdateProp} screens={screens} />;
 
-  const fallbackEditors = getFallbackEditors(component, onUpdateProp);
+  const fallbackEditors = getFallbackEditors(component, onUpdateProp, registryKeys);
   return (
     <div className="flex flex-col gap-4">
       {fallbackEditors[component.type] || (

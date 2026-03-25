@@ -40,6 +40,16 @@ export interface TemplateDefinition {
   build: () => Screen;
 }
 
+export interface FlowPresetDefinition {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  audience: string;
+  accent: string;
+  templateIds: string[];
+}
+
 export type TemplateCategory =
   | "welcome"
   | "question"
@@ -1048,6 +1058,86 @@ export const ALL_TEMPLATES: TemplateDefinition[] = [
   socialProofRating,
   permissionRequest,
   integrationConnect,
+];
+
+export const FLOW_PRESETS: FlowPresetDefinition[] = [
+  {
+    id: "ai-coach",
+    name: "AI Coach",
+    icon: "🧠",
+    description: "Intent capture, personalisation, trust, and a premium finish.",
+    audience: "Coaching, assistant, and guided-product apps",
+    accent: "#7C3AED",
+    templateIds: [
+      "welcome-hero",
+      "single-select-simple",
+      "multi-select-icons",
+      "binary-choice",
+      "value-prop-chart",
+      "trust-screen",
+      "social-proof-rating",
+      "permission-request",
+    ],
+  },
+  {
+    id: "language-sprint",
+    name: "Language Sprint",
+    icon: "🗣️",
+    description: "Momentum-first onboarding with fast picks and a habit-building arc.",
+    audience: "Learning, habit, and practice apps",
+    accent: "#22C55E",
+    templateIds: [
+      "welcome-hero",
+      "single-select-icons",
+      "binary-choice",
+      "multi-select-icons",
+      "trust-screen",
+      "social-proof-rating",
+      "permission-request",
+    ],
+  },
+  {
+    id: "run-club",
+    name: "Run Club",
+    icon: "🏃",
+    description: "Goal setting, activity level, integrations, and proof of progress.",
+    audience: "Fitness, running, and performance products",
+    accent: "#F97316",
+    templateIds: [
+      "welcome-hero",
+      "single-select-simple",
+      "single-select-icons",
+      "measurement-picker",
+      "integration-connect",
+      "value-prop-chart",
+      "permission-request",
+    ],
+  },
+  {
+    id: "creator-funnel",
+    name: "Creator Funnel",
+    icon: "🎥",
+    description: "Acquisition-aware onboarding with attribution, role, and value proof.",
+    audience: "Consumer subscriptions and creator tools",
+    accent: "#EC4899",
+    templateIds: [
+      "welcome-hero",
+      "attribution",
+      "single-select-simple",
+      "feature-explainer",
+      "social-proof-rating",
+      "trust-screen",
+    ],
+  },
+  {
+    id: "minimal-activation",
+    name: "Minimal Activation",
+    icon: "✨",
+    description: "A compact three-screen starter for fast shipping and iteration.",
+    audience: "Early-stage apps and MVP onboarding",
+    accent: "#38BDF8",
+    templateIds: ["welcome-hero", "single-select-icons", "trust-screen"],
+  },
 ];
 
 export function getTemplatesByCategory(
