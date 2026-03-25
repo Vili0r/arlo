@@ -20,10 +20,17 @@ export interface FlowSessionOptions {
 
 export type FlowSessionStatus = "idle" | "active" | "completed" | "dismissed";
 
+export interface FlowFieldError {
+  fieldKey: string;
+  componentId: string;
+  message: string;
+}
+
 export type FlowSessionEffect =
   | { type: "screen_changed"; screenId: string; screenIndex: number }
   | { type: "completed"; screenId: string; screenIndex: number }
   | { type: "dismissed"; screenId: string; screenIndex: number }
+  | { type: "validation_failed"; errors: FlowFieldError[] }
   | { type: "open_url"; url: string }
   | { type: "deep_link"; url: string }
   | { type: "custom_event"; eventName: string }
@@ -43,6 +50,9 @@ export interface FlowSessionSnapshot {
   values: Record<string, FlowValue>;
   visibleScreenIds: string[];
   identity: ArloIdentifyInput | null;
+  validationErrors: FlowFieldError[];
+  validationErrorsByField: Record<string, string>;
+  isCurrentScreenValid: boolean;
 }
 
 export interface FlowSession {
@@ -52,6 +62,8 @@ export interface FlowSession {
   getVisibleScreens(): Screen[];
   getValue(fieldKey: string): FlowValue;
   setValue(fieldKey: string, value: FlowValue): FlowSessionSnapshot;
+  validateCurrentScreen(): FlowFieldError[];
+  canContinue(): boolean;
   goToScreenId(screenId: string): FlowSessionEffect;
   next(): FlowSessionEffect;
   previous(): FlowSessionEffect;
@@ -227,9 +239,13 @@ function createSnapshot(
   currentScreenIndex: number,
   status: FlowSessionStatus,
   values: Record<string, FlowValue>,
-  identity: ArloIdentifyInput | null
+  identity: ArloIdentifyInput | null,
+  validationErrors: FlowFieldError[]
 ): FlowSessionSnapshot {
   const currentScreen = visibleScreens[currentScreenIndex] ?? null;
+  const validationErrorsByField = Object.fromEntries(
+    validationErrors.map((error) => [error.fieldKey, error.message])
+  );
 
   return {
     flowSlug: response.flow.slug,
@@ -242,6 +258,9 @@ function createSnapshot(
     values: { ...values },
     visibleScreenIds: visibleScreens.map((screen) => screen.id),
     identity,
+    validationErrors: [...validationErrors],
+    validationErrorsByField,
+    isCurrentScreenValid: validationErrors.length === 0,
   };
 }
 
@@ -259,6 +278,96 @@ export function createFlowSession(
   let status: FlowSessionStatus = "idle";
   let visibleScreens = getVisibleScreens(orderedScreens, values);
   let currentScreenIndex = visibleScreens.length > 0 ? 0 : -1;
+  let validationErrors: FlowFieldError[] = [];
+
+  function validateScreen(screen: Screen | null): FlowFieldError[] {
+    if (!screen) {
+      return [];
+    }
+
+    const errors: FlowFieldError[] = [];
+
+    for (const component of screen.components) {
+      switch (component.type) {
+        case "TEXT_INPUT": {
+          const value = values[component.props.fieldKey];
+
+          if (component.props.required && !isValueSet(value)) {
+            errors.push({
+              fieldKey: component.props.fieldKey,
+              componentId: component.id,
+              message: `${component.props.label ?? "This field"} is required`,
+            });
+          }
+
+          if (
+            typeof value === "string" &&
+            component.props.maxLength &&
+            value.length > component.props.maxLength
+          ) {
+            errors.push({
+              fieldKey: component.props.fieldKey,
+              componentId: component.id,
+              message: `${component.props.label ?? "This field"} must be ${component.props.maxLength} characters or fewer`,
+            });
+          }
+          break;
+        }
+        case "SINGLE_SELECT": {
+          const value = values[component.props.fieldKey];
+          if (component.props.required && !isValueSet(value)) {
+            errors.push({
+              fieldKey: component.props.fieldKey,
+              componentId: component.id,
+              message: component.props.label ?? "Please select an option",
+            });
+          }
+          break;
+        }
+        case "MULTI_SELECT": {
+          const rawValue = values[component.props.fieldKey];
+          const selections = Array.isArray(rawValue)
+            ? rawValue.filter((item): item is string => typeof item === "string")
+            : [];
+
+          if (component.props.required && selections.length === 0) {
+            errors.push({
+              fieldKey: component.props.fieldKey,
+              componentId: component.id,
+              message: component.props.label ?? "Please select at least one option",
+            });
+          }
+
+          if (
+            typeof component.props.minSelections === "number" &&
+            selections.length < component.props.minSelections
+          ) {
+            errors.push({
+              fieldKey: component.props.fieldKey,
+              componentId: component.id,
+              message: `Select at least ${component.props.minSelections} option${component.props.minSelections === 1 ? "" : "s"}`,
+            });
+          }
+
+          if (
+            typeof component.props.maxSelections === "number" &&
+            selections.length > component.props.maxSelections
+          ) {
+            errors.push({
+              fieldKey: component.props.fieldKey,
+              componentId: component.id,
+              message: `Select no more than ${component.props.maxSelections} option${component.props.maxSelections === 1 ? "" : "s"}`,
+            });
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    return errors;
+  }
 
   function refreshVisibleScreens(): void {
     const previousScreenId = visibleScreens[currentScreenIndex]?.id ?? null;
@@ -281,6 +390,8 @@ export function createFlowSession(
       Math.max(currentScreenIndex, 0),
       visibleScreens.length - 1
     );
+
+    validationErrors = validateScreen(visibleScreens[currentScreenIndex] ?? null);
   }
 
   function readCurrentScreen(): Screen | null {
@@ -317,6 +428,14 @@ export function createFlowSession(
         type: "completed",
         screenId: "",
         screenIndex: -1,
+      };
+    }
+
+    validationErrors = validateScreen(current);
+    if (validationErrors.length > 0) {
+      return {
+        type: "validation_failed",
+        errors: [...validationErrors],
       };
     }
 
@@ -378,6 +497,14 @@ export function createFlowSession(
 
     switch (component.props.action) {
       case "NEXT_SCREEN":
+        validationErrors = validateScreen(current);
+        if (validationErrors.length > 0) {
+          return {
+            type: "validation_failed",
+            errors: [...validationErrors],
+          };
+        }
+
         if (explicitTargetIndex !== null) {
           return goToIndex(explicitTargetIndex);
         }
@@ -441,8 +568,19 @@ export function createFlowSession(
         currentScreenIndex,
         status,
         values,
-        identity
+        identity,
+        validationErrors
       );
+    },
+    validateCurrentScreen(): FlowFieldError[] {
+      refreshVisibleScreens();
+      validationErrors = validateScreen(readCurrentScreen());
+      return [...validationErrors];
+    },
+    canContinue(): boolean {
+      refreshVisibleScreens();
+      validationErrors = validateScreen(readCurrentScreen());
+      return validationErrors.length === 0;
     },
     getCurrentScreen(): Screen | null {
       refreshVisibleScreens();
@@ -468,7 +606,8 @@ export function createFlowSession(
         currentScreenIndex,
         status,
         values,
-        identity
+        identity,
+        validationErrors
       );
     },
     goToScreenId(screenId: string): FlowSessionEffect {

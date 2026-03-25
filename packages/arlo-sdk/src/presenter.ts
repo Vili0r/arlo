@@ -35,7 +35,12 @@ export interface ArloPresentationState {
 export interface ArloPresenter {
   getState(): ArloPresentationState;
   presentFlow(slug: string, options?: PresentFlowOptions): Promise<ArloPresentationState>;
+  presentPlacement(
+    placementKey: string,
+    options?: PresentFlowOptions
+  ): Promise<ArloPresentationState>;
   preloadFlow(slug: string): Promise<SDKFlowResponse>;
+  preloadPlacement(placementKey: string): Promise<SDKFlowResponse>;
   dismiss(): Promise<ArloPresentationState>;
   syncSession(): ArloPresentationState;
   clear(): ArloPresentationState;
@@ -95,6 +100,59 @@ export function createArloPresenter(
     return state;
   }
 
+  async function presentResolvedFlow(
+    requestedKey: string,
+    loader: () => Promise<SDKFlowResponse>,
+    presentOptions: PresentFlowOptions = {}
+  ): Promise<ArloPresentationState> {
+    setState((previous) => ({
+      ...previous,
+      status: "loading",
+      flowSlug: requestedKey,
+      error: null,
+    }));
+
+    try {
+      const response = await loader();
+      const session = createFlowSession(response, {
+        identity: options.client.getIdentity(),
+        initialValues: presentOptions.initialValues,
+      });
+
+      const effect = session.start();
+      await applyFlowSessionEffect(session, effect, options.handlers);
+
+      const snapshot = session.getSnapshot();
+      const nextStatus =
+        snapshot.status === "dismissed"
+          ? "dismissed"
+          : snapshot.status === "completed"
+            ? "completed"
+            : "presented";
+
+      return setState({
+        status: nextStatus,
+        flowSlug: response.flow.slug,
+        response,
+        session,
+        error: null,
+      });
+    } catch (error) {
+      const sdkError =
+        error instanceof ArloSDKError
+          ? error
+          : new ArloSDKError("Failed to present flow");
+
+      return setState({
+        status: "error",
+        flowSlug: requestedKey,
+        response: null,
+        session: null,
+        error: sdkError,
+      });
+    }
+  }
+
   return {
     getState(): ArloPresentationState {
       return state;
@@ -103,55 +161,27 @@ export function createArloPresenter(
       slug: string,
       presentOptions: PresentFlowOptions = {}
     ): Promise<ArloPresentationState> {
-      setState((previous) => ({
-        ...previous,
-        status: "loading",
-        flowSlug: slug,
-        error: null,
-      }));
-
-      try {
-        const response = await options.client.getFlow(slug, presentOptions);
-        const session = createFlowSession(response, {
-          identity: options.client.getIdentity(),
-          initialValues: presentOptions.initialValues,
-        });
-
-        const effect = session.start();
-        await applyFlowSessionEffect(session, effect, options.handlers);
-
-        const snapshot = session.getSnapshot();
-        const nextStatus =
-          snapshot.status === "dismissed"
-            ? "dismissed"
-            : snapshot.status === "completed"
-              ? "completed"
-              : "presented";
-
-        return setState({
-          status: nextStatus,
-          flowSlug: slug,
-          response,
-          session,
-          error: null,
-        });
-      } catch (error) {
-        const sdkError =
-          error instanceof ArloSDKError
-            ? error
-            : new ArloSDKError("Failed to present flow");
-
-        return setState({
-          status: "error",
-          flowSlug: slug,
-          response: null,
-          session: null,
-          error: sdkError,
-        });
-      }
+      return presentResolvedFlow(
+        slug,
+        () => options.client.getFlow(slug, presentOptions),
+        presentOptions
+      );
+    },
+    presentPlacement(
+      placementKey: string,
+      presentOptions: PresentFlowOptions = {}
+    ): Promise<ArloPresentationState> {
+      return presentResolvedFlow(
+        placementKey,
+        () => options.client.getPlacement(placementKey, presentOptions),
+        presentOptions
+      );
     },
     preloadFlow(slug: string): Promise<SDKFlowResponse> {
       return options.client.preloadFlow(slug);
+    },
+    preloadPlacement(placementKey: string): Promise<SDKFlowResponse> {
+      return options.client.preloadPlacement(placementKey);
     },
     async dismiss(): Promise<ArloPresentationState> {
       if (!state.session) {

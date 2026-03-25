@@ -35,11 +35,11 @@ session.start();
 
 const effect = session.pressButton("primary_cta");
 await applyFlowSessionEffect(session, effect, {
-  onOpenUrl(url) {
+  onOpenUrl({ url }) {
     console.log("Open external URL", url);
   },
-  onScreenChanged(activeSession) {
-    console.log(activeSession.getSnapshot().currentScreenId);
+  onScreenChanged({ snapshot }) {
+    console.log(snapshot.currentScreenId);
   },
 });
 ```
@@ -61,6 +61,71 @@ await presenter.presentFlow("welcome");
 const state = presenter.getState();
 
 console.log(state.status, state.session?.getSnapshot().currentScreenId);
+```
+
+## Placement API
+
+```ts
+const response = await client.getPlacement("onboarding_home");
+console.log(response.flow.slug);
+
+await presenter.presentPlacement("onboarding_home");
+```
+
+## Persistent Cache
+
+```ts
+import { createArloClient, createPersistentFlowCache } from "./src";
+
+const cache = createPersistentFlowCache({
+  storage: {
+    getItem: async (key) => localStorage.getItem(key),
+    setItem: async (key, value) => localStorage.setItem(key, value),
+    removeItem: async (key) => localStorage.removeItem(key),
+  },
+  maxAgeMs: 1000 * 60 * 60 * 24,
+});
+
+const client = createArloClient({
+  apiKey: "ob_live_xxx",
+  projectId: "proj_123",
+  baseUrl: "https://your-arlo-domain.com",
+  cache,
+  offlineFallback: true,
+});
+```
+
+## Validation
+
+```ts
+const session = createFlowSession(response);
+const errors = session.validateCurrentScreen();
+
+if (errors.length > 0) {
+  console.log(errors);
+}
+```
+
+## Host App Callbacks
+
+```ts
+const presenter = createArloPresenter({
+  client,
+  handlers: {
+    onCompleted({ snapshot }) {
+      console.log("Completed flow", snapshot.flowSlug, snapshot.values);
+    },
+    onDismissed({ snapshot }) {
+      console.log("Dismissed on screen", snapshot.currentScreenId);
+    },
+    onOpenUrl({ url, snapshot }) {
+      console.log("Open", url, "from", snapshot.currentScreenId);
+    },
+    onValidationFailed({ effect }) {
+      console.log(effect.errors);
+    },
+  },
+});
 ```
 
 ## Endpoint contract

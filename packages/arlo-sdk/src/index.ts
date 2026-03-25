@@ -1,4 +1,5 @@
 export { createArloClient } from "./client";
+export { createPersistentFlowCache } from "./cache";
 export { applyFlowSessionEffect } from "./bridge";
 export { createArloPresenter } from "./presenter";
 export { createFlowSession } from "./runtime";
@@ -14,6 +15,7 @@ export {
 export type {
   ArloClient,
   ArloClientOptions,
+  ArloCacheStorage,
   ArloFlowCache,
   ArloFlowCacheEntry,
   ArloIdentifyInput,
@@ -22,8 +24,10 @@ export type {
   ArloUserTraits,
   BranchRule,
   CreateArloPresenterOptions,
+  CreatePersistentFlowCacheOptions,
   FlowComponent,
   FlowConfig,
+  FlowFieldError,
   FlowSession,
   FlowSessionEffect,
   FlowSessionOptions,
@@ -31,6 +35,10 @@ export type {
   FlowSessionStatus,
   FlowSettings,
   FlowBridgeHandlers,
+  FlowBridgeActionPayload,
+  FlowBridgeBasePayload,
+  FlowBridgeLifecyclePayload,
+  FlowBridgeValidationPayload,
   GetFlowOptions,
   PresentationStatus,
   PresentFlowOptions,

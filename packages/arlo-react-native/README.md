@@ -13,15 +13,24 @@ React Native renderer for Arlo flows.
 ```tsx
 import { useEffect, useState } from "react";
 import { createArloClient, createArloPresenter } from "arlo-sdk";
-import { ArloPresenterRenderer } from "./src";
+import { ArloPresenterRenderer, createArloRegistry, createReactNativeFlowCache } from "./src";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const arlo = createArloClient({
   apiKey: "ob_live_xxx",
   projectId: "proj_123",
   baseUrl: "https://your-arlo-domain.com",
+  cache: createReactNativeFlowCache({
+    storage: AsyncStorage,
+  }),
 });
 
 export function OnboardingScreen() {
+  const registry = createArloRegistry();
+  registry.registerScreen("paywall_v1", ({ session }) => {
+    return null;
+  });
+
   const [presenter] = useState(() =>
     createArloPresenter({
       client: arlo,
@@ -39,12 +48,13 @@ export function OnboardingScreen() {
   return (
     <ArloPresenterRenderer
       presenter={presenter}
+      registry={registry}
       handlers={{
-        onOpenUrl(url) {
+        onOpenUrl({ url }) {
           console.log("Open URL", url);
         },
-        onCompleted() {
-          console.log("Flow completed");
+        onCompleted({ snapshot }) {
+          console.log("Flow completed", snapshot.values);
         },
       }}
     />

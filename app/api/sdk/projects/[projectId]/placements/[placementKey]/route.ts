@@ -19,34 +19,38 @@ function jsonError(
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ projectId: string; slug: string }> }
+  context: { params: Promise<{ projectId: string; placementKey: string }> }
 ) {
   try {
-    const { projectId, slug } = await context.params;
+    const { projectId, placementKey } = await context.params;
     const apiKey = await resolveSDKAuth(request.headers.get("x-api-key"), projectId);
 
-    const flow = await prisma.flow.findFirst({
+    const placement = await prisma.placement.findFirst({
       where: {
         projectId,
-        slug,
+        key: placementKey,
       },
       include: {
-        publishedVersion: true,
+        flow: {
+          include: {
+            publishedVersion: true,
+          },
+        },
       },
     });
 
-    if (!flow) {
+    if (!placement) {
       return jsonError(404, "Flow not found", "FLOW_NOT_FOUND");
     }
 
-    if (flow.status !== "PUBLISHED" || !flow.publishedVersion) {
+    if (placement.flow.status !== "PUBLISHED" || !placement.flow.publishedVersion) {
       return jsonError(404, "Flow is not published", "FLOW_NOT_PUBLISHED");
     }
 
     const response = buildSDKFlowResponse({
-      slug: flow.slug,
-      version: flow.publishedVersion.version,
-      config: flow.publishedVersion.config,
+      slug: placement.flow.slug,
+      version: placement.flow.publishedVersion.version,
+      config: placement.flow.publishedVersion.config,
     });
 
     await touchSDKApiKey(apiKey.id);
@@ -56,6 +60,7 @@ export async function GET(
       headers: {
         "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
         "X-Arlo-Environment": apiKey.environment,
+        "X-Arlo-Placement": placement.key,
       },
     });
   } catch (error) {
@@ -63,7 +68,7 @@ export async function GET(
       return jsonError(error.status, error.message, error.code);
     }
 
-    console.error("Error resolving SDK flow", error);
-    return jsonError(500, "Failed to load flow", "FLOW_NOT_FOUND");
+    console.error("Error resolving SDK placement", error);
+    return jsonError(500, "Failed to load placement", "FLOW_NOT_FOUND");
   }
 }

@@ -46,6 +46,7 @@ export const componentTypeEnum = z.enum([
   "SOCIAL_PROOF",
   "FEATURE_LIST",
   "AWARD",
+  "CUSTOM_COMPONENT",
 ]);
 
 export const buttonActionEnum = z.enum([
@@ -304,6 +305,11 @@ export const awardPropsSchema = z.object({
   textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
 });
 
+export const customComponentPropsSchema = z.object({
+  registryKey: z.string().min(1).max(100),
+  payload: z.record(z.string(), z.unknown()).optional(),
+});
+
 // ========== Component Schema ==========
 // Uses a discriminated union so each component type
 // validates against its own specific props.
@@ -429,6 +435,12 @@ export const componentSchema = z.discriminatedUnion("type", [
     order: z.number().int().min(0),
     props: awardPropsSchema,
   }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("CUSTOM_COMPONENT"),
+    order: z.number().int().min(0),
+    props: customComponentPropsSchema,
+  }),
 ]);
 
 export const ruleOperatorEnum = z.enum([
@@ -473,6 +485,8 @@ export const screenSchema = z.object({
   name: z.string().min(1, "Screen name is required").max(50),
   order: z.number().int().min(0),
   style: screenStyleSchema.optional(),
+  customScreenKey: z.string().min(1).max(100).optional(),
+  customPayload: z.record(z.string(), z.unknown()).optional(),
   components: z.array(componentSchema).max(20, "A screen can have at most 20 components"),
   branchRules: z.array(branchRuleSchema).max(20).optional(),
   skipWhen: z.array(skipConditionSchema).max(20).optional(),

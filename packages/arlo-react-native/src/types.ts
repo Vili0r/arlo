@@ -5,7 +5,9 @@ import type {
   FlowComponent,
   FlowSession,
   FlowSessionSnapshot,
+  Screen,
 } from "arlo-sdk";
+import type { ArloRegistry } from "./registry";
 
 export interface ArloComponentRenderContext {
   session: FlowSession;
@@ -24,12 +26,16 @@ export type ArloComponentRendererMap = Partial<{
   [K in FlowComponent["type"]]: ArloComponentRenderer<Extract<FlowComponent, { type: K }>>;
 }>;
 
+export type ArloCustomScreenRenderer = (screen: Screen, context: ArloComponentRenderContext) => ReactNode;
+
 export interface ArloFlowRendererProps {
   session: FlowSession;
   handlers?: FlowBridgeHandlers;
   componentRenderers?: ArloComponentRendererMap;
+  registry?: ArloRegistry;
   autoStart?: boolean;
   emptyState?: ReactNode;
   unsupportedComponent?: (component: FlowComponent) => ReactNode;
+  unsupportedScreen?: (screen: Screen) => ReactNode;
   onSnapshotChange?: (snapshot: FlowSessionSnapshot) => void;
 }

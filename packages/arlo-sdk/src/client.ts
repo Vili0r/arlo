@@ -64,6 +64,31 @@ function createCacheKey(projectId: string, slug: string): string {
   return `${projectId}:${slug}`;
 }
 
+async function parseFlowResponse(
+  response: Response,
+  emitter: ArloEventEmitter
+): Promise<SDKFlowResponse> {
+  if (!response.ok) {
+    const error = await parseErrorResponse(response);
+    emitter.emit("flow:error", error);
+    throw error;
+  }
+
+  const json = await response.json();
+  const parsed = sdkFlowResponseSchema.safeParse(json);
+
+  if (!parsed.success) {
+    const error = new ArloSDKError("The server returned an invalid flow payload", {
+      status: response.status,
+      code: "INVALID_RESPONSE",
+    });
+    emitter.emit("flow:error", error);
+    throw error;
+  }
+
+  return parsed.data;
+}
+
 async function parseErrorResponse(response: Response): Promise<ArloSDKError> {
   try {
     const json = await response.json();
@@ -109,12 +134,12 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   let identity: ArloIdentifyInput | null = null;
 
-  async function loadFromNetwork(slug: string): Promise<SDKFlowResponse> {
+  async function loadFromPath(pathname: string): Promise<SDKFlowResponse> {
     let response: Response;
 
     try {
       response = await fetchImpl(
-        `${baseUrl}/api/sdk/projects/${encodeURIComponent(options.projectId)}/flows/${encodeURIComponent(slug)}`,
+        `${baseUrl}${pathname}`,
         {
           method: "GET",
           headers: {
@@ -138,41 +163,39 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
       throw error;
     }
 
-    if (!response.ok) {
-      const error = await parseErrorResponse(response);
-      emitter.emit("flow:error", error);
-      throw error;
-    }
-
-    const json = await response.json();
-    const parsed = sdkFlowResponseSchema.safeParse(json);
-
-    if (!parsed.success) {
-      const error = new ArloSDKError("The server returned an invalid flow payload", {
-        status: response.status,
-        code: "INVALID_RESPONSE",
-      });
-      emitter.emit("flow:error", error);
-      throw error;
-    }
-
-    return parsed.data;
+    return parseFlowResponse(response, emitter);
   }
 
-  async function getFlow(slug: string, flowOptions?: GetFlowOptions): Promise<SDKFlowResponse> {
-    const cacheKey = createCacheKey(options.projectId, slug);
+  async function getResource(
+    cacheKey: string,
+    pathname: string,
+    flowOptions?: GetFlowOptions
+  ): Promise<SDKFlowResponse> {
     const useCache = flowOptions?.useCache !== false;
     const forceRefresh = flowOptions?.forceRefresh === true;
+    const allowOfflineFallback =
+      flowOptions?.allowOfflineFallback ?? options.offlineFallback ?? true;
+    const cached = useCache ? await cache.get(cacheKey) : null;
 
     if (useCache && !forceRefresh) {
-      const cached = await cache.get(cacheKey);
       if (cached) {
         emitter.emit("flow:cache-hit", cached.response);
         return cached.response;
       }
     }
 
-    const response = await loadFromNetwork(slug);
+    let response: SDKFlowResponse;
+
+    try {
+      response = await loadFromPath(pathname);
+    } catch (error) {
+      if (allowOfflineFallback && cached) {
+        emitter.emit("flow:cache-hit", cached.response);
+        return cached.response;
+      }
+
+      throw error;
+    }
 
     if (useCache) {
       await cache.set(cacheKey, {
@@ -183,6 +206,25 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
 
     emitter.emit("flow:fetched", response);
     return response;
+  }
+
+  async function getFlow(slug: string, flowOptions?: GetFlowOptions): Promise<SDKFlowResponse> {
+    return getResource(
+      createCacheKey(options.projectId, `flow:${slug}`),
+      `/api/sdk/projects/${encodeURIComponent(options.projectId)}/flows/${encodeURIComponent(slug)}`,
+      flowOptions
+    );
+  }
+
+  async function getPlacement(
+    placementKey: string,
+    flowOptions?: GetFlowOptions
+  ): Promise<SDKFlowResponse> {
+    return getResource(
+      createCacheKey(options.projectId, `placement:${placementKey}`),
+      `/api/sdk/projects/${encodeURIComponent(options.projectId)}/placements/${encodeURIComponent(placementKey)}`,
+      flowOptions
+    );
   }
 
   return {
@@ -196,11 +238,17 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
     getFlow(slug: string, flowOptions?: GetFlowOptions): Promise<SDKFlowResponse> {
       return getFlow(slug, flowOptions);
     },
+    getPlacement(placementKey: string, flowOptions?: GetFlowOptions): Promise<SDKFlowResponse> {
+      return getPlacement(placementKey, flowOptions);
+    },
     preloadFlow(slug: string): Promise<SDKFlowResponse> {
       return getFlow(slug, { useCache: true });
     },
+    preloadPlacement(placementKey: string): Promise<SDKFlowResponse> {
+      return getPlacement(placementKey, { useCache: true });
+    },
     async clearCachedFlow(slug: string): Promise<void> {
-      const cacheKey = createCacheKey(options.projectId, slug);
+      const cacheKey = createCacheKey(options.projectId, `flow:${slug}`);
       await cache.delete?.(cacheKey);
     },
     on<K extends keyof ArloEventMap>(

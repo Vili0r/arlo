@@ -156,7 +156,8 @@ export type ComponentType =
   | "CAROUSEL"
   | "SOCIAL_PROOF"
   | "FEATURE_LIST"
-  | "AWARD";
+  | "AWARD"
+  | "CUSTOM_COMPONENT";
 
 export type ButtonAction =
   | "NEXT_SCREEN"
@@ -392,6 +393,11 @@ export interface AwardProps {
   textColor?: string;
 }
 
+export interface CustomComponentProps {
+  registryKey: string;
+  payload?: Record<string, unknown>;
+}
+
 // Component union — discriminated by type
 
 interface FlowComponentBase {
@@ -420,7 +426,8 @@ export type FlowComponent =
   | (FlowComponentBase & { type: "CAROUSEL"; props: CarouselProps })
   | (FlowComponentBase & { type: "SOCIAL_PROOF"; props: SocialProofProps })
   | (FlowComponentBase & { type: "FEATURE_LIST"; props: FeatureListProps })
-  | (FlowComponentBase & { type: "AWARD"; props: AwardProps });
+  | (FlowComponentBase & { type: "AWARD"; props: AwardProps })
+  | (FlowComponentBase & { type: "CUSTOM_COMPONENT"; props: CustomComponentProps });
 
 // Flow logic
 
@@ -465,6 +472,8 @@ export interface Screen {
   name: string;
   order: number;
   style?: ScreenStyle;
+  customScreenKey?: string;
+  customPayload?: Record<string, unknown>;
   components: FlowComponent[];
   animation?: ComponentAnimation;
   branchRules?: BranchRule[];

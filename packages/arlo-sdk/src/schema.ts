@@ -273,6 +273,11 @@ export const awardPropsSchema = z.object({
   textColor: optionalHexColorSchema,
 });
 
+export const customComponentPropsSchema = z.object({
+  registryKey: z.string().min(1).max(100),
+  payload: z.record(z.string(), z.unknown()).optional(),
+});
+
 const componentBaseSchema = z.object({
   id: z.string().min(1),
   order: z.number().int().min(0),
@@ -299,6 +304,7 @@ export const flowComponentSchema = z.discriminatedUnion("type", [
   componentBaseSchema.extend({ type: z.literal("SOCIAL_PROOF"), props: socialProofPropsSchema }),
   componentBaseSchema.extend({ type: z.literal("FEATURE_LIST"), props: featureListPropsSchema }),
   componentBaseSchema.extend({ type: z.literal("AWARD"), props: awardPropsSchema }),
+  componentBaseSchema.extend({ type: z.literal("CUSTOM_COMPONENT"), props: customComponentPropsSchema }),
 ]);
 
 export const branchRuleSchema = z.object({
@@ -332,6 +338,8 @@ export const screenSchema = z.object({
   name: z.string().min(1).max(50),
   order: z.number().int().min(0),
   style: screenStyleSchema.optional(),
+  customScreenKey: z.string().min(1).max(100).optional(),
+  customPayload: z.record(z.string(), z.unknown()).optional(),
   components: z.array(flowComponentSchema).max(20),
   branchRules: z.array(branchRuleSchema).max(20).optional(),
   skipWhen: z.array(skipConditionSchema).max(20).optional(),

@@ -45,6 +45,10 @@ function coerceNumberValue(value: unknown, fallback: number): number {
   return typeof value === "number" ? value : fallback;
 }
 
+function getFieldError(snapshot: FlowSessionSnapshot, fieldKey: string): string | null {
+  return snapshot.validationErrorsByField[fieldKey] ?? null;
+}
+
 function DefaultTextComponent({ component }: { component: Extract<FlowComponent, { type: "TEXT" }> }) {
   return (
     <Text
@@ -124,6 +128,7 @@ function DefaultTextInputComponent({
   context: ArloComponentRenderContext;
 }) {
   const value = coerceStringValue(context.snapshot.values[component.props.fieldKey]);
+  const error = getFieldError(context.snapshot, component.props.fieldKey);
 
   return (
     <View style={styles.fieldGroup}>
@@ -143,8 +148,9 @@ function DefaultTextInputComponent({
                 : "default"
         }
         maxLength={component.props.maxLength}
-        style={styles.input}
+        style={[styles.input, error ? styles.inputError : undefined]}
       />
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
 }
@@ -178,6 +184,7 @@ function DefaultSingleSelectComponent({
   context: ArloComponentRenderContext;
 }) {
   const value = coerceStringValue(context.snapshot.values[component.props.fieldKey]);
+  const error = getFieldError(context.snapshot, component.props.fieldKey);
 
   return (
     <View style={styles.fieldGroup}>
@@ -192,6 +199,7 @@ function DefaultSingleSelectComponent({
           />
         ))}
       </View>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
 }
@@ -204,6 +212,7 @@ function DefaultMultiSelectComponent({
   context: ArloComponentRenderContext;
 }) {
   const values = coerceStringArrayValue(context.snapshot.values[component.props.fieldKey]);
+  const error = getFieldError(context.snapshot, component.props.fieldKey);
 
   return (
     <View style={styles.fieldGroup}>
@@ -228,6 +237,7 @@ function DefaultMultiSelectComponent({
           );
         })}
       </View>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
 }
@@ -335,7 +345,8 @@ function DefaultPageIndicatorComponent({
 
 function renderDefaultComponent(
   component: FlowComponent,
-  context: ArloComponentRenderContext
+  context: ArloComponentRenderContext,
+  registry?: ArloFlowRendererProps["registry"]
 ) {
   switch (component.type) {
     case "TEXT":
@@ -356,6 +367,17 @@ function renderDefaultComponent(
       return <DefaultProgressBarComponent component={component} snapshot={context.snapshot} />;
     case "PAGE_INDICATOR":
       return <DefaultPageIndicatorComponent component={component} snapshot={context.snapshot} />;
+    case "CUSTOM_COMPONENT": {
+      const registered = registry?.getComponent(component.props.registryKey);
+      return registered
+        ? registered({
+            session: context.session,
+            snapshot: context.snapshot,
+            screen: context.snapshot.currentScreen!,
+            component,
+          })
+        : null;
+    }
     default:
       return null;
   }
@@ -365,9 +387,11 @@ export function ArloFlowRenderer({
   session,
   handlers,
   componentRenderers,
+  registry,
   autoStart = true,
   emptyState = null,
   unsupportedComponent,
+  unsupportedScreen,
   onSnapshotChange,
 }: ArloFlowRendererProps) {
   const [snapshot, setSnapshot] = useState(() => session.getSnapshot());
@@ -417,6 +441,36 @@ export function ArloFlowRenderer({
     return <>{emptyState}</>;
   }
 
+  if (snapshot.currentScreen.customScreenKey) {
+    const registeredScreen = registry?.getScreen(snapshot.currentScreen.customScreenKey);
+
+    if (registeredScreen) {
+      return (
+        <>
+          {registeredScreen({
+            session,
+            snapshot,
+            screen: snapshot.currentScreen,
+          })}
+        </>
+      );
+    }
+
+    return (
+      <>
+        {unsupportedScreen ? (
+          unsupportedScreen(snapshot.currentScreen)
+        ) : (
+          <View style={styles.unsupported}>
+            <Text style={styles.unsupportedText}>
+              Unsupported screen: {snapshot.currentScreen.customScreenKey}
+            </Text>
+          </View>
+        )}
+      </>
+    );
+  }
+
   return (
     <ScrollView
       contentContainerStyle={[
@@ -431,7 +485,7 @@ export function ArloFlowRenderer({
 
         const content = customRenderer
           ? customRenderer(component as never, context as never)
-          : renderDefaultComponent(component, context);
+          : renderDefaultComponent(component, context, registry);
 
         if (content === null) {
           return (
@@ -481,6 +535,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: "#ffffff",
     backgroundColor: "#141419",
+  },
+  inputError: {
+    borderColor: "#f36b8d",
+  },
+  fieldError: {
+    color: "#f59cb3",
+    fontSize: 12,
+    fontWeight: "500",
   },
   button: {
     minHeight: 52,

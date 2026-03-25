@@ -21,6 +21,7 @@ model Project {
   userId    String // from Clerk auth, e.g. "user_2x7..."
   apiKeys   ApiKey[]
   flows     Flow[]
+  placements Placement[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -64,6 +65,7 @@ model Flow {
   publishedVersionId String?       @unique
   publishedVersion   FlowVersion?  @relation("PublishedVersion", fields: [publishedVersionId], references: [id])
   versions           FlowVersion[] @relation("FlowVersions")
+  placements         Placement[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
@@ -92,4 +94,21 @@ model FlowVersion {
   @@unique([flowId, version])
   @@index([flowId])
   @@map("flow_versions")
+}
+
+model Placement {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  flowId     String
+  flow       Flow     @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  key        String
+  name       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([projectId, key])
+  @@index([projectId])
+  @@index([flowId])
+  @@map("placements")
 }

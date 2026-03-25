@@ -36,6 +36,7 @@ export interface ArloClientOptions {
   fetch?: typeof fetch;
   cache?: ArloFlowCache;
   headers?: Record<string, string>;
+  offlineFallback?: boolean;
 }
 
 export interface ArloFlowCacheEntry {
@@ -52,6 +53,7 @@ export interface ArloFlowCache {
 export interface GetFlowOptions {
   useCache?: boolean;
   forceRefresh?: boolean;
+  allowOfflineFallback?: boolean;
 }
 
 export interface ArloEventMap {
@@ -65,7 +67,9 @@ export interface ArloClient {
   identify(input: ArloIdentifyInput): void;
   getIdentity(): ArloIdentifyInput | null;
   getFlow(slug: string, options?: GetFlowOptions): Promise<SDKFlowResponse>;
+  getPlacement(placementKey: string, options?: GetFlowOptions): Promise<SDKFlowResponse>;
   preloadFlow(slug: string): Promise<SDKFlowResponse>;
+  preloadPlacement(placementKey: string): Promise<SDKFlowResponse>;
   clearCachedFlow(slug: string): Promise<void>;
   on<K extends keyof ArloEventMap>(
     event: K,
@@ -86,6 +90,7 @@ export class ArloSDKError extends Error {
 }
 
 export type {
+  FlowFieldError,
   FlowSession,
   FlowSessionEffect,
   FlowSessionOptions,
@@ -94,9 +99,19 @@ export type {
 } from "./runtime";
 export type { FlowBridgeHandlers } from "./bridge";
 export type {
+  FlowBridgeActionPayload,
+  FlowBridgeBasePayload,
+  FlowBridgeLifecyclePayload,
+  FlowBridgeValidationPayload,
+} from "./bridge";
+export type {
   ArloPresentationState,
   ArloPresenter,
   CreateArloPresenterOptions,
   PresentationStatus,
   PresentFlowOptions,
 } from "./presenter";
+export type {
+  ArloCacheStorage,
+  CreatePersistentFlowCacheOptions,
+} from "./cache";
