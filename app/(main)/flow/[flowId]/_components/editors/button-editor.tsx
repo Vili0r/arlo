@@ -27,9 +27,11 @@ import { getSpacingValues, makeSpacingOnChange, PropAxisToggle, PropBackgroundTy
 export function ButtonEditor({
   component,
   onUpdateProp,
+  screens,
 }: {
   component: FlowComponent;
   onUpdateProp: (key: string, value: unknown) => void;
+  screens?: import("@/lib/types").Screen[];
 }) {
   const p = component.props as Record<string, any>;
     return (
@@ -41,19 +43,28 @@ export function ButtonEditor({
             onChange={(v) => onUpdateProp("action", v)}
             options={[
               { value: "NEXT_SCREEN", label: "Navigate to" },
+              { value: "PREV_SCREEN", label: "Previous Screen" },
               { value: "DISMISS", label: "Dismiss" },
-              { value: "URL", label: "Open URL" },
+              { value: "CLOSE_FLOW", label: "Close Flow" },
+              { value: "OPEN_URL", label: "Open URL" },
+              { value: "DEEP_LINK", label: "Deep Link" },
+              { value: "REQUEST_NOTIFICATIONS", label: "Request Notifications" },
+              { value: "REQUEST_TRACKING", label: "Request Tracking (ATT)" },
               { value: "RESTORE_PURCHASES", label: "Restore Purchases" },
+              { value: "CUSTOM_EVENT", label: "Custom Event" },
             ]}
           />
         </PropRow>
 
-        {/* Option — contextual sub-field */}
+        {/* Option — contextual sub-fields */}
         {p.action === "NEXT_SCREEN" && (
-          <PropRow label="Option">
+          <PropRow label="Target">
             <PropSelect
               value={p.actionTarget || ""}
-              onChange={(v) => onUpdateProp("actionTarget", v)}
+              onChange={(v) => {
+                onUpdateProp("actionTarget", v);
+                if (v !== "specific") onUpdateProp("actionTargetScreenId", "");
+              }}
               options={[
                 { value: "", label: "Next Screen" },
                 { value: "first", label: "First Screen" },
@@ -63,12 +74,66 @@ export function ButtonEditor({
             />
           </PropRow>
         )}
-        {p.action === "URL" && (
+        {p.action === "NEXT_SCREEN" && p.actionTarget === "specific" && screens && (
+          <PropRow label="Screen">
+            <PropSelect
+              value={p.actionTargetScreenId || ""}
+              onChange={(v) => onUpdateProp("actionTargetScreenId", v)}
+              options={screens.map((s, i) => ({
+                value: s.id,
+                label: `${i + 1}. ${s.name}`,
+              }))}
+            />
+          </PropRow>
+        )}
+        {(p.action === "OPEN_URL" || p.action === "URL") && (
           <PropRow label="URL" fullWidth>
             <PropInput
-              value={p.actionUrl || ""}
+              value={p.actionUrl || p.url || ""}
               onChange={(v) => onUpdateProp("actionUrl", v)}
               placeholder="https://..."
+            />
+          </PropRow>
+        )}
+        {p.action === "DEEP_LINK" && (
+          <PropRow label="Deep Link" fullWidth>
+            <PropInput
+              value={p.deepLinkUrl || ""}
+              onChange={(v) => onUpdateProp("deepLinkUrl", v)}
+              placeholder="myapp://screen/profile"
+            />
+          </PropRow>
+        )}
+        {p.action === "CUSTOM_EVENT" && (
+          <PropRow label="Event Name" fullWidth>
+            <PropInput
+              value={p.eventName || ""}
+              onChange={(v) => onUpdateProp("eventName", v)}
+              placeholder="e.g. onboarding_cta_tap"
+            />
+          </PropRow>
+        )}
+        {p.action === "REQUEST_NOTIFICATIONS" && (
+          <PropRow label="On Deny">
+            <PropSelect
+              value={p.onDenyAction || "continue"}
+              onChange={(v) => onUpdateProp("onDenyAction", v)}
+              options={[
+                { value: "continue", label: "Continue to next" },
+                { value: "stay", label: "Stay on screen" },
+              ]}
+            />
+          </PropRow>
+        )}
+        {p.action === "REQUEST_TRACKING" && (
+          <PropRow label="On Deny">
+            <PropSelect
+              value={p.onDenyAction || "continue"}
+              onChange={(v) => onUpdateProp("onDenyAction", v)}
+              options={[
+                { value: "continue", label: "Continue to next" },
+                { value: "stay", label: "Stay on screen" },
+              ]}
             />
           </PropRow>
         )}

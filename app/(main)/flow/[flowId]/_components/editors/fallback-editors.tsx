@@ -377,6 +377,11 @@ export function getFallbackEditors(
             onChange={(v) => onUpdateProp("fieldKey", v)}
           />
         </PropField>
+        <PropToggle
+          value={p.required || false}
+          onChange={(v) => onUpdateProp("required", v)}
+          label="Required"
+        />
         <SectionLabel>Options</SectionLabel>
         {p.options?.map((opt: { id: string; label: string }, i: number) => (
           <div key={opt.id} className="mt-1.5">
@@ -404,6 +409,27 @@ export function getFallbackEditors(
           <PropInput
             value={p.fieldKey}
             onChange={(v) => onUpdateProp("fieldKey", v)}
+          />
+        </PropField>
+        <PropToggle
+          value={p.required || false}
+          onChange={(v) => onUpdateProp("required", v)}
+          label="Required"
+        />
+        <PropField label="Min Selections">
+          <PropInput
+            value={p.minSelections ?? ""}
+            onChange={(v) => onUpdateProp("minSelections", v ? Number(v) : undefined)}
+            type="number"
+            placeholder="0"
+          />
+        </PropField>
+        <PropField label="Max Selections">
+          <PropInput
+            value={p.maxSelections ?? ""}
+            onChange={(v) => onUpdateProp("maxSelections", v ? Number(v) : undefined)}
+            type="number"
+            placeholder="No limit"
           />
         </PropField>
         <SectionLabel>Options</SectionLabel>

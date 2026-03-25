@@ -37,6 +37,15 @@ export const componentTypeEnum = z.enum([
   // Navigation
   "PROGRESS_BAR",
   "PAGE_INDICATOR",
+  // Layout
+  "STACK",
+  "FOOTER",
+  "TAB_BUTTON",
+  // Rich
+  "CAROUSEL",
+  "SOCIAL_PROOF",
+  "FEATURE_LIST",
+  "AWARD",
 ]);
 
 export const buttonActionEnum = z.enum([
@@ -44,7 +53,13 @@ export const buttonActionEnum = z.enum([
   "PREV_SCREEN",
   "SKIP_FLOW",
   "OPEN_URL",
+  "DEEP_LINK",
   "CUSTOM_EVENT",
+  "DISMISS",
+  "CLOSE_FLOW",
+  "REQUEST_NOTIFICATIONS",
+  "REQUEST_TRACKING",
+  "RESTORE_PURCHASES",
 ]);
 
 export const transitionAnimationEnum = z.enum([
@@ -136,15 +151,24 @@ export const buttonStyleSchema = z.object({
 export const buttonPropsSchema = z.object({
   label: z.string().min(1, "Button label is required").max(50, "Button label must be under 50 characters"),
   action: buttonActionEnum,
+  actionTarget: z.enum(["", "first", "last", "specific"]).optional(),
+  actionTargetScreenId: z.string().min(1).optional(),
   url: z.string().url("Must be a valid URL").optional(), // required when action is OPEN_URL
+  deepLinkUrl: z.string().min(1).optional(),
   eventName: z.string().max(100).optional(), // required when action is CUSTOM_EVENT
   style: buttonStyleSchema.optional(),
 }).refine(
   (data) => data.action !== "OPEN_URL" || (data.url && data.url.length > 0),
   { message: "URL is required when action is OPEN_URL", path: ["url"] }
 ).refine(
+  (data) => data.action !== "DEEP_LINK" || (data.deepLinkUrl && data.deepLinkUrl.length > 0),
+  { message: "Deep link URL is required when action is DEEP_LINK", path: ["deepLinkUrl"] }
+).refine(
   (data) => data.action !== "CUSTOM_EVENT" || (data.eventName && data.eventName.length > 0),
   { message: "Event name is required when action is CUSTOM_EVENT", path: ["eventName"] }
+).refine(
+  (data) => data.actionTarget !== "specific" || (data.actionTargetScreenId && data.actionTargetScreenId.length > 0),
+  { message: "A target screen ID is required when action target is specific", path: ["actionTargetScreenId"] }
 );
 
 export const textInputPropsSchema = z.object({
@@ -201,6 +225,85 @@ export const pageIndicatorPropsSchema = z.object({
   size: z.number().min(4).max(20).optional(),
 });
 
+export const stackPropsSchema = z.object({
+  direction: z.enum(["vertical", "horizontal"]).optional(),
+  gap: z.number().min(0).max(100).optional(),
+  padding: z.number().min(0).max(100).optional(),
+  backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  borderRadius: z.number().min(0).max(999).optional(),
+});
+
+export const footerPropsSchema = z.object({
+  text: z.string().min(1).max(200),
+  textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  fontSize: z.number().min(8).max(48).optional(),
+  backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  showDivider: z.boolean().optional(),
+});
+
+export const tabButtonPropsSchema = z.object({
+  tabs: z.array(z.object({
+    id: z.string().min(1),
+    label: z.string().min(1).max(50),
+    active: z.boolean().optional(),
+  })).min(1).max(5),
+  activeColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  inactiveColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+});
+
+export const carouselPropsSchema = z.object({
+  variant: z.enum(["image", "card"]).optional(),
+  items: z.array(z.object({
+    id: z.string().min(1),
+    imageSrc: z.string().url().optional(),
+    title: z.string().max(100).optional(),
+    subtitle: z.string().max(200).optional(),
+  })).min(1).max(20),
+  height: z.number().min(1).max(2000).optional(),
+  borderRadius: z.number().min(0).max(999).optional(),
+  showDots: z.boolean().optional(),
+});
+
+export const socialProofReviewSchema = z.object({
+  id: z.string().min(1),
+  author: z.string().min(1).max(100),
+  rating: z.number().min(0).max(5),
+  text: z.string().max(500).optional(),
+  avatar: z.string().url().optional(),
+});
+
+export const socialProofPropsSchema = z.object({
+  rating: z.number().min(0).max(5).optional(),
+  totalReviews: z.number().min(0).optional(),
+  reviews: z.array(socialProofReviewSchema).max(20).optional(),
+  showStars: z.boolean().optional(),
+  compact: z.boolean().optional(),
+});
+
+export const featureItemSchema = z.object({
+  id: z.string().min(1),
+  icon: z.string().optional(),
+  label: z.string().min(1).max(200),
+});
+
+export const featureListPropsSchema = z.object({
+  title: z.string().max(100).optional(),
+  features: z.array(featureItemSchema).min(1).max(20),
+  iconColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+});
+
+export const awardPropsSchema = z.object({
+  variant: z.enum(["badge", "laurel", "minimal"]).optional(),
+  title: z.string().min(1).max(100),
+  subtitle: z.string().max(200).optional(),
+  issuer: z.string().max(100).optional(),
+  iconSrc: z.string().url().optional(),
+  showLaurels: z.boolean().optional(),
+  backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+});
+
 // ========== Component Schema ==========
 // Uses a discriminated union so each component type
 // validates against its own specific props.
@@ -229,12 +332,6 @@ export const componentSchema = z.discriminatedUnion("type", [
     type: z.literal("VIDEO"),
     order: z.number().int().min(0),
     props: videoPropsSchema,
-  }),
-  z.object({
-    id: z.string().min(1),
-    type: z.literal("ICON"),
-    order: z.number().int().min(0),
-    props: iconPropsSchema,
   }),
   z.object({
     id: z.string().min(1),
@@ -290,7 +387,73 @@ export const componentSchema = z.discriminatedUnion("type", [
     order: z.number().int().min(0),
     props: pageIndicatorPropsSchema,
   }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("STACK"),
+    order: z.number().int().min(0),
+    props: stackPropsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("FOOTER"),
+    order: z.number().int().min(0),
+    props: footerPropsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("TAB_BUTTON"),
+    order: z.number().int().min(0),
+    props: tabButtonPropsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("CAROUSEL"),
+    order: z.number().int().min(0),
+    props: carouselPropsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("SOCIAL_PROOF"),
+    order: z.number().int().min(0),
+    props: socialProofPropsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("FEATURE_LIST"),
+    order: z.number().int().min(0),
+    props: featureListPropsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("AWARD"),
+    order: z.number().int().min(0),
+    props: awardPropsSchema,
+  }),
 ]);
+
+export const ruleOperatorEnum = z.enum([
+  "equals",
+  "not_equals",
+  "contains",
+  "not_contains",
+  "is_set",
+  "is_not_set",
+]);
+
+export const branchRuleSchema = z.object({
+  id: z.string().min(1),
+  fieldKey: z.string().min(1).max(50).regex(/^[a-zA-Z0-9_]+$/),
+  operator: ruleOperatorEnum,
+  value: z.union([z.string(), z.array(z.string())]).optional(),
+  targetScreenId: z.string().min(1),
+});
+
+export const skipConditionSchema = z.object({
+  id: z.string().min(1),
+  fieldKey: z.string().min(1).max(50).regex(/^[a-zA-Z0-9_]+$/),
+  operator: ruleOperatorEnum,
+  value: z.union([z.string(), z.array(z.string())]).optional(),
+});
 
 // ========== Screen Schema ==========
 
@@ -311,6 +474,8 @@ export const screenSchema = z.object({
   order: z.number().int().min(0),
   style: screenStyleSchema.optional(),
   components: z.array(componentSchema).max(20, "A screen can have at most 20 components"),
+  branchRules: z.array(branchRuleSchema).max(20).optional(),
+  skipWhen: z.array(skipConditionSchema).max(20).optional(),
 });
 
 // ========== Flow Config ==========

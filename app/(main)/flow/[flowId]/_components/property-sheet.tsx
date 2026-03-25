@@ -2,7 +2,7 @@
 
 import React from "react";
 import { X, Trash2, ChevronRight } from "lucide-react";
-import type { FlowComponent } from "@/lib/types";
+import type { FlowComponent, Screen } from "@/lib/types";
 import { COMPONENT_TYPES, COLOR_MAP } from "../_lib/constants";
 import { ComponentPropertyEditor } from "./component-property-editor";
 import { AnimationPropertyEditor } from "./animation-property-editor";
@@ -22,6 +22,7 @@ export function PropertySheet({
   onDelete,
   onUpdateProp,
   onUpdateAnimation,
+  screens,
 }: {
   open: boolean;
   component: FlowComponent | null;
@@ -29,6 +30,7 @@ export function PropertySheet({
   onDelete?: () => void;
   onUpdateProp?: (key: string, value: unknown) => void;
   onUpdateAnimation?: (anim: ComponentAnimation) => void;
+  screens?: Screen[];
 }) {
   const meta = component
     ? COMPONENT_TYPES.find((c) => c.type === component.type)
@@ -85,6 +87,7 @@ export function PropertySheet({
             <ComponentPropertyEditor
               component={component}
               onUpdateProp={onUpdateProp}
+              screens={screens}
             />
           </div>
         ) : (

@@ -3,7 +3,7 @@
 import prisma from "@/lib/prisma"; // adjust to your setup
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { randomBytes, createHash } from "crypto";
+import { generateApiKey } from "@/lib/api-keys";
 
 export async function createFlow(projectId: string, data: { name: string; slug: string }) {
   const { userId } = await auth();
@@ -25,19 +25,6 @@ export async function createFlow(projectId: string, data: { name: string; slug: 
 
   revalidatePath(`/project/${projectId}`);
   return flow;
-}
-
-function generateApiKey(environment: "DEVELOPMENT" | "PRODUCTION"): {
-  rawKey: string;
-  hashedKey: string;
-  prefix: string;
-} {
-  const envPrefix = environment === "PRODUCTION" ? "ob_live_" : "ob_test_";
-  const random = randomBytes(24).toString("base64url"); // 32 chars
-  const rawKey = envPrefix + random;
-  const prefix = rawKey.slice(0, envPrefix.length + 6); // e.g. "ob_live_abc123"
-  const hashedKey = createHash("sha256").update(rawKey).digest("hex");
-  return { rawKey, hashedKey, prefix };
 }
 
 export async function createApiKey(

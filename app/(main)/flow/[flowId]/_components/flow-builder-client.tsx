@@ -50,10 +50,11 @@ import { TemplatePalette, QuickFlowTemplates } from "./template-picker";
 import { ALL_TEMPLATES, type TemplateDefinition } from "../_lib/templates";
 
 import { DeviceFrame } from "./device-frame";
-import { 
-  SidebarTabButtons, 
-  IndicatorSettingsPanel, 
+import {
+  SidebarTabButtons,
+  IndicatorSettingsPanel,
   ScreenStyleSection,
+  ScreenLogicPanel,
   BackIcon,
   type IndicatorSettings,
   mergeIndicator,
@@ -635,6 +636,55 @@ export function FlowBuilderClient({
     (config.screens.length - 1) * SCREEN_GAP;
   const canvasStartX = -totalCanvasWidth / 2;
 
+  /* ─── Branch connections: buttons targeting specific screens ──── */
+  const branchConnections = useMemo(() => {
+    const connections: {
+      fromScreenIndex: number;
+      toScreenIndex: number;
+      label: string;
+      source: "button" | "rule" | "skip";
+    }[] = [];
+
+    const screenIdToIndex = new Map(
+      config.screens.map((s, i) => [s.id, i])
+    );
+
+    config.screens.forEach((screen, fromIdx) => {
+      // Button-level branches
+      screen.components.forEach((comp) => {
+        if (comp.type !== "BUTTON") return;
+        const p = comp.props as Record<string, any>;
+        if (p.action === "NEXT_SCREEN" && p.actionTarget === "specific" && p.actionTargetScreenId) {
+          const toIdx = screenIdToIndex.get(p.actionTargetScreenId);
+          if (toIdx !== undefined && toIdx !== fromIdx) {
+            connections.push({
+              fromScreenIndex: fromIdx,
+              toScreenIndex: toIdx,
+              label: p.label || "Button",
+              source: "button",
+            });
+          }
+        }
+      });
+
+      // Screen-level branch rules
+      screen.branchRules?.forEach((rule) => {
+        if (!rule.targetScreenId) return;
+        const toIdx = screenIdToIndex.get(rule.targetScreenId);
+        if (toIdx !== undefined && toIdx !== fromIdx) {
+          connections.push({
+            fromScreenIndex: fromIdx,
+            toScreenIndex: toIdx,
+            label: `${rule.fieldKey} ${rule.operator}`,
+            source: "rule",
+          });
+        }
+      });
+    });
+
+    return connections;
+  }, [config.screens]);
+
   const duplicateScreen = useCallback(
     (index: number) => {
       updateConfig((prev) => {
@@ -785,6 +835,31 @@ export function FlowBuilderClient({
                     });
                   }}
                 />
+
+                <ScreenLogicPanel
+                  currentScreen={currentScreen}
+                  allScreens={config.screens}
+                  onUpdateBranchRules={(rules) => {
+                    updateConfig((prev) => {
+                      const screens = [...prev.screens];
+                      screens[selectedScreenIndex] = {
+                        ...screens[selectedScreenIndex],
+                        branchRules: rules,
+                      };
+                      return { ...prev, screens };
+                    });
+                  }}
+                  onUpdateSkipConditions={(conditions) => {
+                    updateConfig((prev) => {
+                      const screens = [...prev.screens];
+                      screens[selectedScreenIndex] = {
+                        ...screens[selectedScreenIndex],
+                        skipWhen: conditions,
+                      };
+                      return { ...prev, screens };
+                    });
+                  }}
+                />
               </div>
             )}
           </div>
@@ -872,6 +947,120 @@ export function FlowBuilderClient({
               transition: canvas.isPanning || canvas.isDraggingPhone ? "none" : "transform 0.15s ease-out",
             }}
           >
+            {/* Branch connection arrows (buttons targeting specific screens) */}
+            {branchConnections.length > 0 && (
+              <svg
+                className="absolute pointer-events-none"
+                style={{
+                  left: 0,
+                  top: -frame.frameHeight / 2,
+                  width: totalCanvasWidth + 200,
+                  height: frame.frameHeight + 160,
+                  overflow: "visible",
+                }}
+              >
+                <defs>
+                  <marker
+                    id="branch-arrow"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="6"
+                    refY="4"
+                    orient="auto"
+                  >
+                    <path d="M 0 1 L 6 4 L 0 7" fill="none" stroke="rgba(168,85,247,0.6)" strokeWidth="1.5" />
+                  </marker>
+                  <marker
+                    id="branch-arrow-back"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="6"
+                    refY="4"
+                    orient="auto"
+                  >
+                    <path d="M 0 1 L 6 4 L 0 7" fill="none" stroke="rgba(251,146,60,0.6)" strokeWidth="1.5" />
+                  </marker>
+                  <marker
+                    id="branch-arrow-rule"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="6"
+                    refY="4"
+                    orient="auto"
+                  >
+                    <path d="M 0 1 L 6 4 L 0 7" fill="none" stroke="rgba(34,211,238,0.6)" strokeWidth="1.5" />
+                  </marker>
+                </defs>
+                {branchConnections.map((conn, i) => {
+                  const fromX = canvasStartX + conn.fromScreenIndex * (frame.frameWidth + SCREEN_GAP) + frame.frameWidth / 2;
+                  const toX = canvasStartX + conn.toScreenIndex * (frame.frameWidth + SCREEN_GAP) + frame.frameWidth / 2;
+                  const isForward = conn.toScreenIndex > conn.fromScreenIndex;
+                  const arcY = isForward
+                    ? frame.frameHeight + 40 + i * 28
+                    : -30 - i * 28;
+                  // Color by source: purple for buttons, cyan for rules, orange for backward
+                  const color = !isForward
+                    ? "rgba(251,146,60,0.5)"
+                    : conn.source === "rule"
+                      ? "rgba(34,211,238,0.5)"
+                      : "rgba(168,85,247,0.5)";
+                  const textColor = !isForward
+                    ? "rgba(251,146,60,0.8)"
+                    : conn.source === "rule"
+                      ? "rgba(34,211,238,0.8)"
+                      : "rgba(168,85,247,0.8)";
+                  const marker = !isForward
+                    ? "url(#branch-arrow-back)"
+                    : conn.source === "rule"
+                      ? "url(#branch-arrow-rule)"
+                      : "url(#branch-arrow)";
+                  const startY = isForward ? frame.frameHeight : 0;
+                  const endY = startY;
+                  const cpY = arcY;
+                  const prefix = conn.source === "rule" ? "IF " : "";
+
+                  return (
+                    <g key={`branch-${i}`}>
+                      <path
+                        d={`M ${fromX} ${startY} C ${fromX} ${cpY}, ${toX} ${cpY}, ${toX} ${endY}`}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={2}
+                        strokeDasharray={conn.source === "rule" ? "4 3" : "6 4"}
+                        markerEnd={marker}
+                      />
+                      {/* Label on the branch */}
+                      <rect
+                        x={(fromX + toX) / 2 - 36}
+                        y={cpY - 10}
+                        width={72}
+                        height={20}
+                        rx={6}
+                        fill="rgba(0,0,0,0.7)"
+                        stroke={color}
+                        strokeWidth={1}
+                      />
+                      <text
+                        x={(fromX + toX) / 2}
+                        y={cpY + 1}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill={textColor}
+                        fontSize="9"
+                        fontWeight="600"
+                        fontFamily="inherit"
+                      >
+                        {(() => {
+                          const full = prefix + conn.label;
+                          return full.length > 10 ? full.slice(0, 9) + "…" : full;
+                        })()}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            )}
+
             {/* All screens laid out horizontally */}
             <div className="absolute flex items-start" style={{ top: -frame.frameHeight / 2 }}>
               {config.screens.map((screen, idx) => {
@@ -1001,6 +1190,7 @@ export function FlowBuilderClient({
         onUpdateProp={
           selectedComponent ? (key, value) => updateComponentProp(selectedComponent.id, key, value) : undefined
         }
+        screens={config.screens}
       />
       
       <TabStyleSidebar

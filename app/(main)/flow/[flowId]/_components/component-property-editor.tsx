@@ -1,5 +1,5 @@
 import React from "react";
-import type { FlowComponent } from "@/lib/types";
+import type { FlowComponent, Screen } from "@/lib/types";
 import { StackEditor } from "./editors/stack-editor";
 import { FooterEditor } from "./editors/footer-editor";
 import { TextEditor } from "./editors/text-editor";
@@ -12,9 +12,11 @@ import { getFallbackEditors } from "./editors/fallback-editors";
 export function ComponentPropertyEditor({
   component,
   onUpdateProp,
+  screens,
 }: {
   component: FlowComponent;
   onUpdateProp: (key: string, value: unknown) => void;
+  screens?: Screen[];
 }) {
   if (component.type === "STACK") return <StackEditor component={component} onUpdateProp={onUpdateProp} />;
   if (component.type === "FOOTER") return <FooterEditor component={component} onUpdateProp={onUpdateProp} />;
@@ -22,7 +24,7 @@ export function ComponentPropertyEditor({
   if (component.type === "IMAGE") return <ImageEditor component={component} onUpdateProp={onUpdateProp} />;
   if (component.type === "VIDEO") return <VideoEditor component={component} onUpdateProp={onUpdateProp} />;
   if (component.type === "ICON_LIBRARY") return <IconLibraryEditor component={component} onUpdateProp={onUpdateProp} />;
-  if (component.type === "BUTTON") return <ButtonEditor component={component} onUpdateProp={onUpdateProp} />;
+  if (component.type === "BUTTON") return <ButtonEditor component={component} onUpdateProp={onUpdateProp} screens={screens} />;
 
   const fallbackEditors = getFallbackEditors(component, onUpdateProp);
   return (

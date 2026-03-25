@@ -163,7 +163,13 @@ export type ButtonAction =
   | "PREV_SCREEN"
   | "SKIP_FLOW"
   | "OPEN_URL"
-  | "CUSTOM_EVENT";
+  | "DEEP_LINK"
+  | "CUSTOM_EVENT"
+  | "DISMISS"
+  | "CLOSE_FLOW"
+  | "REQUEST_NOTIFICATIONS"
+  | "REQUEST_TRACKING"
+  | "RESTORE_PURCHASES";
 
 export type TransitionAnimation = "slide" | "fade" | "none";
 
@@ -227,7 +233,10 @@ export interface ButtonStyle {
 export interface ButtonProps {
   label: string;
   action: ButtonAction;
+  actionTarget?: "" | "first" | "last" | "specific";
+  actionTargetScreenId?: string;
   url?: string;
+  deepLinkUrl?: string;
   eventName?: string;
   style?: ButtonStyle;
 }
@@ -413,6 +422,31 @@ export type FlowComponent =
   | (FlowComponentBase & { type: "FEATURE_LIST"; props: FeatureListProps })
   | (FlowComponentBase & { type: "AWARD"; props: AwardProps });
 
+// Flow logic
+
+export type RuleOperator =
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "not_contains"
+  | "is_set"
+  | "is_not_set";
+
+export interface BranchRule {
+  id: string;
+  fieldKey: string;
+  operator: RuleOperator;
+  value?: string | string[];
+  targetScreenId: string;
+}
+
+export interface SkipCondition {
+  id: string;
+  fieldKey: string;
+  operator: RuleOperator;
+  value?: string | string[];
+}
+
 // Screen and config
 
 export interface ScreenStyle {
@@ -432,7 +466,9 @@ export interface Screen {
   order: number;
   style?: ScreenStyle;
   components: FlowComponent[];
-  animation?: ComponentAnimation;  
+  animation?: ComponentAnimation;
+  branchRules?: BranchRule[];
+  skipWhen?: SkipCondition[];
 }
 
 export interface ComponentConfig {

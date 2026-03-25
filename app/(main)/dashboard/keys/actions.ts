@@ -3,7 +3,7 @@
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { randomBytes, createHash } from "crypto";
+import { generateApiKey } from "@/lib/api-keys";
 
 export async function getAllKeys() {
   const { userId } = await auth();
@@ -32,11 +32,7 @@ export async function createApiKey(
   });
   if (!project) throw new Error("Project not found");
 
-  const envPrefix = data.environment === "PRODUCTION" ? "ob_live_" : "ob_test_";
-  const random = randomBytes(24).toString("base64url");
-  const rawKey = envPrefix + random;
-  const prefix = rawKey.slice(0, envPrefix.length + 6);
-  const hashedKey = createHash("sha256").update(rawKey).digest("hex");
+  const { rawKey, prefix, hashedKey } = generateApiKey(data.environment);
 
   await prisma.apiKey.create({
     data: {
