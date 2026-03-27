@@ -20,6 +20,37 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Figma Import
+
+For production-style Figma import, configure OAuth in your local environment:
+
+```bash
+FIGMA_CLIENT_ID=your_figma_oauth_client_id
+FIGMA_CLIENT_SECRET=your_figma_oauth_client_secret
+FIGMA_REDIRECT_URI=http://localhost:3000/api/figma/callback
+```
+
+You can place them in `.env.local` before starting the app.
+
+Optional:
+
+```bash
+FIGMA_TOKEN_ENCRYPTION_KEY=some_long_random_server_secret
+FIGMA_OAUTH_SCOPES=file_content:read,current_user:read
+```
+
+`FIGMA_OAUTH_SCOPES` lets you override the requested OAuth scopes if your Figma app is configured differently. The default is `file_content:read,current_user:read`.
+
+If Figma redirects back with `Invalid scopes for app`, update your OAuth app in Figma so it allows the scopes you request here, or set `FIGMA_OAUTH_SCOPES` to an exact subset of the scopes enabled for that app.
+
+For internal testing only, the importer also accepts:
+
+```bash
+FIGMA_ACCESS_TOKEN=your_figma_pat
+```
+
+`FIGMA_SECRET_TOKEN` is treated as a legacy fallback name for `FIGMA_CLIENT_SECRET`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

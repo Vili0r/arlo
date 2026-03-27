@@ -22,23 +22,28 @@ import type {
   ArloFlowRendererProps,
 } from "./types";
 
-const IMPORTED_CODE_SCREEN_KEY = "__arlo_imported_code__";
+const IMPORTED_SCREEN_KEYS = new Set([
+  "__arlo_imported_code__",
+  "__arlo_imported_figma__",
+]);
 
-function isImportedCodePayload(
+function isImportedPreviewPayload(
   value: unknown
-): value is { kind: "imported-code"; version: 1; previewScreen?: Screen } {
+): value is { kind: "imported-code" | "imported-figma"; version: 1; previewScreen?: Screen } {
   return Boolean(
     value &&
       typeof value === "object" &&
       !Array.isArray(value) &&
-      (value as { kind?: unknown }).kind === "imported-code" &&
+      ["imported-code", "imported-figma"].includes(
+        String((value as { kind?: unknown }).kind ?? "")
+      ) &&
       (value as { version?: unknown }).version === 1
   );
 }
 
-function getImportedCodePreviewScreen(screen: Screen): Screen | null {
-  if (screen.customScreenKey !== IMPORTED_CODE_SCREEN_KEY) return null;
-  return isImportedCodePayload(screen.customPayload) && screen.customPayload.previewScreen
+function getImportedPreviewScreen(screen: Screen): Screen | null {
+  if (!screen.customScreenKey || !IMPORTED_SCREEN_KEYS.has(screen.customScreenKey)) return null;
+  return isImportedPreviewPayload(screen.customPayload) && screen.customPayload.previewScreen
     ? screen.customPayload.previewScreen
     : null;
 }
@@ -464,7 +469,7 @@ export function ArloFlowRenderer({
 
   if (snapshot.currentScreen.customScreenKey) {
     const registeredScreen = registry?.getScreen(snapshot.currentScreen.customScreenKey);
-    const importedPreviewScreen = getImportedCodePreviewScreen(snapshot.currentScreen);
+    const importedPreviewScreen = getImportedPreviewScreen(snapshot.currentScreen);
 
     if (registeredScreen) {
       return (

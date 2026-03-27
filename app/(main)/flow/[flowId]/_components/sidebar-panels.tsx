@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { SIDEBAR_TABS, type SidebarTab } from "../_lib/constants";
 import type { Screen, BranchRule, SkipCondition, RuleOperator } from "@/lib/types";
-import { getImportedCodePayload } from "../_lib/imported-code-screen";
+import { getImportedScreenPayload } from "../_lib/imported-screen";
 
 /* ── TYPES ── */
 export type BackButtonStyle = "chevron" | "arrow" | "x" | "none";
@@ -523,7 +523,7 @@ export function ScreenLogicPanel({
   onUpdateBranchRules,
   onUpdateSkipConditions,
   onUpdateCustomScreen,
-  onEditImportedCode,
+  onEditImportedSource,
 }: {
   currentScreen: Screen;
   allScreens: Screen[];
@@ -531,15 +531,17 @@ export function ScreenLogicPanel({
   onUpdateBranchRules: (rules: BranchRule[]) => void;
   onUpdateSkipConditions: (conditions: SkipCondition[]) => void;
   onUpdateCustomScreen: (patch: { customScreenKey?: string; customPayload?: Record<string, unknown> | undefined }) => void;
-  onEditImportedCode?: () => void;
+  onEditImportedSource?: () => void;
 }) {
   const fieldKeys = getFieldKeys(currentScreen);
   const branchRules = currentScreen.branchRules || [];
   const skipConditions = currentScreen.skipWhen || [];
   const otherScreens = allScreens.filter((s) => s.id !== currentScreen.id);
+  const importedPayload = getImportedScreenPayload(currentScreen);
   const selectedNativeScreen =
-    screenRegistryKeys.find((entry) => entry.key === currentScreen.customScreenKey) || null;
-  const importedCodePayload = getImportedCodePayload(currentScreen);
+    !importedPayload
+      ? screenRegistryKeys.find((entry) => entry.key === currentScreen.customScreenKey) || null
+      : null;
   const [customPayloadInput, setCustomPayloadInput] = useState(
     JSON.stringify((currentScreen as any).customPayload || {}, null, 2)
   );
@@ -600,30 +602,45 @@ export function ScreenLogicPanel({
         <div className="flex items-center gap-1.5">
           <AppWindow size={12} className="text-fuchsia-400/60" />
           <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-            {importedCodePayload ? "Code-backed Import" : "Native Screen"}
+            {importedPayload
+              ? importedPayload.kind === "imported-code"
+                ? "Code-backed Import"
+                : "Figma-backed Import"
+              : "Native Screen"}
           </span>
         </div>
-        {importedCodePayload ? (
+        {importedPayload ? (
           <div className="rounded-lg border border-fuchsia-500/20 bg-fuchsia-500/8 px-3 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-fuchsia-200/80">
               Imported Source
             </p>
             <p className="mt-2 text-[11px] leading-relaxed text-white/65">
-              {importedCodePayload.componentName} is stored as a code-backed screen with a generated preview. Update the source code to refresh this screen in place.
+              {importedPayload.kind === "imported-code"
+                ? `${importedPayload.componentName} is stored as a code-backed screen with a generated preview. Update the source code to refresh this screen in place.`
+                : `${importedPayload.nodeName} is stored as a Figma-backed screen with a generated preview. Refresh the source to rebuild this screen in place.`}
             </p>
             <div className="mt-3 flex items-center gap-2 text-[10px] text-white/40 uppercase tracking-wider">
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">
-                {importedCodePayload.framework === "react-native" ? "React Native" : "React"}
+                {importedPayload.kind === "imported-code"
+                  ? importedPayload.framework === "react-native"
+                    ? "React Native"
+                    : "React"
+                  : importedPayload.fileName}
               </span>
-              <span>{importedCodePayload.previewScreen.components.length} preview blocks</span>
+              <span>{importedPayload.previewScreen.components.length} preview blocks</span>
             </div>
-            {onEditImportedCode ? (
+            {importedPayload.kind === "imported-figma" ? (
+              <div className="mt-3 text-[11px] text-white/45">
+                Last synced {new Date(importedPayload.lastSyncedAt).toLocaleString()}
+              </div>
+            ) : null}
+            {onEditImportedSource ? (
               <button
                 type="button"
-                onClick={onEditImportedCode}
+                onClick={onEditImportedSource}
                 className="mt-3 inline-flex items-center rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-[11px] font-medium text-white/80 transition hover:bg-white/[0.08] hover:text-white"
               >
-                Edit source code
+                {importedPayload.kind === "imported-code" ? "Edit source code" : "Refresh Figma import"}
               </button>
             ) : null}
           </div>

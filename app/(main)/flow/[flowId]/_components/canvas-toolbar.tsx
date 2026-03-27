@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Search,
   Code2,
+  PenTool,
   Minus,
   Plus,
   Maximize2,
@@ -62,7 +63,9 @@ export function CanvasToolbar({
   onSaveDraft,
   onPublish,
   onImportCode,
+  onImportFigma,
   importCodeLabel = "Import Code",
+  importFigmaLabel = "Import Figma",
 }: {
   zoom: number;
   screenName: string;
@@ -78,7 +81,9 @@ export function CanvasToolbar({
   onSaveDraft: () => void;
   onPublish: () => void;
   onImportCode: () => void;
+  onImportFigma: () => void;
   importCodeLabel?: string;
+  importFigmaLabel?: string;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
@@ -164,6 +169,13 @@ export function CanvasToolbar({
 
         {/* ── Top-right actions — icon-only ── */}
         <div className="absolute top-4 right-4 flex items-center gap-1.5 z-20">
+          <button
+            onClick={onImportFigma}
+            aria-label={importFigmaLabel}
+            className="p-2 text-white/60 hover:text-white hover:bg-white/[0.06] rounded-lg border border-white/[0.1] backdrop-blur-md transition-colors cursor-pointer"
+          >
+            <PenTool size={14} />
+          </button>
           <button
             onClick={onImportCode}
             aria-label={importCodeLabel}
@@ -326,6 +338,17 @@ export function CanvasToolbar({
               </div>
 
               <div className="my-1 h-px bg-white/[0.08]" />
+
+              <button
+                onClick={() => {
+                  onImportFigma();
+                  setDesktopMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-white/70 transition-colors hover:bg-white/[0.06] hover:text-white cursor-pointer"
+              >
+                <PenTool size={14} />
+                {importFigmaLabel}
+              </button>
 
               <button
                 onClick={() => {

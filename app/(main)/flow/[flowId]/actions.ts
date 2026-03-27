@@ -1,8 +1,23 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { Prisma } from "@/app/generated/prisma/client";
 import prisma from "@/lib/prisma";
 import type { FlowConfig } from "@/lib/types";
+import {
+  buildFigmaApiHeaders,
+  buildFigmaFallbackHeaders,
+  getFigmaAuthMode,
+  getFigmaConnectionStatusForUser,
+  getUsableFigmaAccessToken,
+} from "@/lib/figma-oauth";
+import {
+  buildFigmaImport,
+  collectFigmaImageNodeIds,
+  parseFigmaSource,
+  type FigmaNodesResponse,
+  type ParsedFigmaImport,
+} from "./_lib/figma-import";
 
 /* ── helpers ──────────────────────────────────────────── */
 
@@ -21,6 +36,32 @@ async function requireFlowAccess(flowId: string, userId: string) {
     throw new Error("Flow not found or access denied");
   }
   return flow;
+}
+
+const FIGMA_API_BASE_URL = "https://api.figma.com/v1";
+async function fetchFigmaJson<T>(path: string, headers: HeadersInit): Promise<T> {
+  const response = await fetch(`${FIGMA_API_BASE_URL}${path}`, {
+    headers,
+    cache: "no-store",
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | { err?: string; message?: string }
+    | null;
+
+  if (!response.ok) {
+    const message =
+      payload?.err ||
+      payload?.message ||
+      `Figma request failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+
+  return payload as T;
+}
+
+function toPrismaJson(value: FlowConfig): Prisma.InputJsonValue {
+  return value as unknown as Prisma.InputJsonValue;
 }
 
 /* ── Save Draft ──────────────────────────────────────── */
@@ -46,7 +87,7 @@ export async function saveDraft(input: {
     data: {
       flowId: flow.id,
       version: nextVersion,
-      config: input.config as any, // Prisma Json type
+      config: toPrismaJson(input.config),
       changelog: input.changelog ?? `Draft v${nextVersion}`,
     },
   });
@@ -82,7 +123,7 @@ export async function autoSaveDraft(input: {
     // Update existing draft version in-place
     await prisma.flowVersion.update({
       where: { id: latestUnpublished.id },
-      data: { config: input.config as any },
+      data: { config: toPrismaJson(input.config) },
     });
 
     await prisma.flow.update({
@@ -106,7 +147,7 @@ export async function autoSaveDraft(input: {
     data: {
       flowId: flow.id,
       version: nextVersion,
-      config: input.config as any,
+      config: toPrismaJson(input.config),
       changelog: "Auto-saved draft",
     },
   });
@@ -137,7 +178,7 @@ export async function publishFlow(input: {
     data: {
       flowId: flow.id,
       version: nextVersion,
-      config: input.config as any,
+      config: toPrismaJson(input.config),
       changelog: input.changelog ?? `Published v${nextVersion}`,
       publishedAt: new Date(),
     },
@@ -240,5 +281,85 @@ export async function loadLatestVersion(flowId: string): Promise<{
     versionId: latest.id,
     version: latest.version,
     status: latest.flow.status,
+  };
+}
+
+export async function fetchFigmaImportPreview(input: {
+  flowId: string;
+  source: string;
+}): Promise<ParsedFigmaImport> {
+  const userId = await requireUser();
+  await requireFlowAccess(input.flowId, userId);
+
+  const parsedSource = parseFigmaSource(input.source);
+  const authMode = getFigmaAuthMode();
+  const tokenResult =
+    authMode === "oauth"
+      ? await getUsableFigmaAccessToken(userId)
+      : authMode === "token"
+        ? { mode: "token" as const, accessToken: "" }
+        : null;
+
+  if (!tokenResult) {
+    throw new Error("Figma import is not configured. Add OAuth credentials or a server access token.");
+  }
+
+  const figmaHeaders =
+    tokenResult.mode === "oauth"
+      ? buildFigmaApiHeaders(tokenResult.accessToken)
+      : buildFigmaFallbackHeaders();
+
+  const fileResponse = await fetchFigmaJson<FigmaNodesResponse>(
+    `/files/${parsedSource.fileKey}/nodes?ids=${encodeURIComponent(parsedSource.nodeId)}`,
+    figmaHeaders,
+  );
+
+  const rootNode = fileResponse.nodes[parsedSource.nodeId]?.document;
+  if (!rootNode) {
+    throw new Error("That Figma node could not be loaded. Check that the URL points to a valid frame or layer you can access.");
+  }
+
+  const imageNodeIds = collectFigmaImageNodeIds(rootNode);
+  let imageUrls: Record<string, string> | undefined;
+
+  if (imageNodeIds.length > 0) {
+    const imagesResponse = await fetchFigmaJson<{ images?: Record<string, string | null> }>(
+      `/images/${parsedSource.fileKey}?ids=${encodeURIComponent(imageNodeIds.join(","))}&format=png&use_absolute_bounds=true`,
+      figmaHeaders,
+    );
+
+    imageUrls = Object.fromEntries(
+      Object.entries(imagesResponse.images ?? {}).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0,
+      ),
+    );
+  }
+
+  return buildFigmaImport({
+    fileKey: parsedSource.fileKey,
+    nodeId: parsedSource.nodeId,
+    sourceUrl: parsedSource.sourceUrl,
+    response: fileResponse,
+    imageUrls,
+  });
+}
+
+export async function getFigmaConnectionStatus(input: {
+  flowId: string;
+}): Promise<{
+  mode: "oauth" | "token" | "none";
+  connected: boolean;
+  accountLabel: string | null;
+  expiresAt: string | null;
+  connectUrl: string | null;
+}> {
+  const userId = await requireUser();
+  await requireFlowAccess(input.flowId, userId);
+
+  const status = await getFigmaConnectionStatusForUser(userId);
+
+  return {
+    ...status,
+    connectUrl: status.mode === "oauth" ? `/api/figma/connect?flowId=${encodeURIComponent(input.flowId)}` : null,
   };
 }

@@ -49,8 +49,9 @@ import { saveDraft, autoSaveDraft, publishFlow, getFlow } from "../actions";
 import { TemplatePalette, QuickFlowTemplates } from "./template-picker";
 import { ALL_TEMPLATES, type TemplateDefinition } from "../_lib/templates";
 import type { ImportMode } from "../_lib/code-import";
-import { getImportedCodePayload } from "../_lib/imported-code-screen";
+import { getImportedScreenPayload } from "../_lib/imported-screen";
 import { CodeImportDialog } from "./code-import-dialog";
+import { FigmaImportDialog } from "./figma-import-dialog";
 import { ImportedCodePreview } from "./imported-code-preview";
 
 import { DeviceFrame } from "./device-frame";
@@ -82,11 +83,13 @@ export function FlowBuilderClient({
   initialData,
   initialProjectId,
   registryKeys,
+  initialOpenImportSource = null,
 }: {
   flowId: string;
   initialData: FlowConfig | null;
   initialProjectId: string | null;
   registryKeys: { id: string; key: string; type: "SCREEN" | "COMPONENT"; description: string | null }[];
+  initialOpenImportSource?: "figma" | null;
 }) {
   const router = useRouter();
   const [projectId, setProjectId] = useState<string | null>(initialProjectId);
@@ -116,6 +119,7 @@ export function FlowBuilderClient({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [tabSidebarOpen, setTabSidebarOpen] = useState(false);
   const [codeImportOpen, setCodeImportOpen] = useState(false);
+  const [figmaImportOpen, setFigmaImportOpen] = useState(initialOpenImportSource === "figma");
 
   const [selectedDevice, setSelectedDevice] = useState<DevicePreset>(
     ALL_DEVICES.find((d) => d.id === DEFAULT_DEVICE_ID) || ALL_DEVICES[0],
@@ -130,7 +134,11 @@ export function FlowBuilderClient({
 
   const currentScreen = config.screens[selectedScreenIndex];
   const selectedComponent = currentScreen?.components.find((c) => c.id === selectedComponentId);
-  const currentImportedCodePayload = currentScreen ? getImportedCodePayload(currentScreen) : null;
+  const currentImportedPayload = currentScreen ? getImportedScreenPayload(currentScreen) : null;
+  const currentImportedCodePayload =
+    currentImportedPayload?.kind === "imported-code" ? currentImportedPayload : null;
+  const currentImportedFigmaPayload =
+    currentImportedPayload?.kind === "imported-figma" ? currentImportedPayload : null;
   const isEditingImportedScreen = Boolean(currentImportedCodePayload);
   const codeImportLabel = isEditingImportedScreen ? "Edit Code" : "Import Code";
   const codeImportDialogTitle = isEditingImportedScreen
@@ -140,6 +148,15 @@ export function FlowBuilderClient({
     ? `Edit the stored source for ${currentImportedCodePayload?.componentName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and refresh its read-only preview.`
     : "Paste a component or upload a `.tsx`, `.jsx`, `.ts`, or `.js` file. Arlo will store it as a code-backed screen and keep a read-only preview in the builder.";
   const codeImportSubmitLabel = isEditingImportedScreen ? "Update screen" : "Import to builder";
+  const isEditingImportedFigmaScreen = Boolean(currentImportedFigmaPayload);
+  const figmaImportLabel = isEditingImportedFigmaScreen ? "Update Figma" : "Import Figma";
+  const figmaImportDialogTitle = isEditingImportedFigmaScreen
+    ? "Update imported Figma frame"
+    : "Import a Figma frame";
+  const figmaImportDialogDescription = isEditingImportedFigmaScreen
+    ? `Refresh the stored Figma source for ${currentImportedFigmaPayload?.nodeName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and rebuild its preview.`
+    : "Paste a Figma frame URL with a node-id. Arlo will fetch the frame, map supported layers, and keep a read-only preview in the builder.";
+  const figmaImportSubmitLabel = isEditingImportedFigmaScreen ? "Update screen" : "Import to builder";
   const screenRegistryKeys = registryKeys.filter((entry) => entry.type === "SCREEN");
   const frame = getFrameDimensions(selectedDevice, orientation);
 
@@ -148,6 +165,12 @@ export function FlowBuilderClient({
   useEffect(() => {
     if (selectedComponentId) setSheetOpen(true);
   }, [selectedComponentId]);
+
+  useEffect(() => {
+    if (initialOpenImportSource === "figma") {
+      router.replace(`/flow/${flowId}`);
+    }
+  }, [flowId, initialOpenImportSource, router]);
 
   // — Save draft handler —
   const handleSaveDraft = useCallback(async () => {
@@ -540,10 +563,10 @@ export function FlowBuilderClient({
   /* ─── Per-screen content renderer ──── */
   const renderScreenContent = useCallback(
     (screen: typeof config.screens[number], screenIdx: number) => {
-      const importedCodePayload = getImportedCodePayload(screen);
-      const previewScreen = importedCodePayload?.previewScreen;
+      const importedPayload = getImportedScreenPayload(screen);
+      const previewScreen = importedPayload?.previewScreen;
       const previewSource = previewScreen ?? screen;
-      const importedPreviewTree = importedCodePayload?.previewTree ?? [];
+      const importedPreviewTree = importedPayload?.previewTree ?? [];
       const hasImportedPreviewTree = importedPreviewTree.length > 0;
       const sorted = previewSource?.components.length
         ? [...previewSource.components].sort((a, b) => a.order - b.order)
@@ -652,12 +675,12 @@ export function FlowBuilderClient({
                       key={comp.id}
                       component={comp}
                       isSelected={
-                        importedCodePayload
+                        importedPayload
                           ? false
                           : screenIdx === selectedScreenIndex && comp.id === selectedComponentId
                       }
                       onSelect={() => {
-                        if (importedCodePayload) return;
+                        if (importedPayload) return;
                         setSelectedScreenIndex(screenIdx);
                         setSelectedComponentId(comp.id);
                       }}
@@ -678,12 +701,12 @@ export function FlowBuilderClient({
                   key={comp.id}
                   component={comp}
                   isSelected={
-                    importedCodePayload
+                    importedPayload
                       ? false
                       : screenIdx === selectedScreenIndex && comp.id === selectedComponentId
                   }
                   onSelect={() => {
-                    if (importedCodePayload) return;
+                    if (importedPayload) return;
                     setSelectedScreenIndex(screenIdx);
                     setSelectedComponentId(comp.id);
                   }}
@@ -908,7 +931,13 @@ export function FlowBuilderClient({
                   currentScreen={currentScreen}
                   allScreens={config.screens}
                   screenRegistryKeys={screenRegistryKeys}
-                  onEditImportedCode={() => setCodeImportOpen(true)}
+                  onEditImportedSource={() => {
+                    if (currentImportedFigmaPayload) {
+                      setFigmaImportOpen(true);
+                      return;
+                    }
+                    setCodeImportOpen(true);
+                  }}
                   onUpdateBranchRules={(rules) => {
                     updateConfig((prev) => {
                       const screens = [...prev.screens];
@@ -978,7 +1007,7 @@ export function FlowBuilderClient({
           screenName={currentScreen?.name || "Untitled"}
           screenIndex={selectedScreenIndex}
           totalScreens={config.screens.length}
-          componentCount={currentImportedCodePayload?.previewScreen.components.length || currentScreen?.components.length || 0}
+          componentCount={currentImportedPayload?.previewScreen.components.length || currentScreen?.components.length || 0}
           onZoomIn={canvas.zoomIn}
           onZoomOut={canvas.zoomOut}
           onResetZoom={canvas.resetZoom}
@@ -1007,7 +1036,9 @@ export function FlowBuilderClient({
           onSaveDraft={handleSaveDraft}
           onPublish={handlePublish}
           onImportCode={() => setCodeImportOpen(true)}
+          onImportFigma={() => setFigmaImportOpen(true)}
           importCodeLabel={codeImportLabel}
+          importFigmaLabel={figmaImportLabel}
         />
 
         {codeImportOpen ? (
@@ -1022,6 +1053,23 @@ export function FlowBuilderClient({
             title={codeImportDialogTitle}
             description={codeImportDialogDescription}
             submitLabel={codeImportSubmitLabel}
+            onImport={handleImportScreen}
+          />
+        ) : null}
+
+        {figmaImportOpen ? (
+          <FigmaImportDialog
+            open={figmaImportOpen}
+            onOpenChange={setFigmaImportOpen}
+            flowId={flowId}
+            currentScreenName={currentScreen?.name || "Untitled"}
+            initialSource={currentImportedFigmaPayload?.sourceUrl}
+            initialImport={currentImportedFigmaPayload}
+            defaultMode={currentImportedFigmaPayload ? "replace" : "append"}
+            lockMode={Boolean(currentImportedFigmaPayload)}
+            title={figmaImportDialogTitle}
+            description={figmaImportDialogDescription}
+            submitLabel={figmaImportSubmitLabel}
             onImport={handleImportScreen}
           />
         ) : null}

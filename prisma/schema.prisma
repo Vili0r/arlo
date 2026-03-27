@@ -133,3 +133,21 @@ enum RegistryKeyType {
   SCREEN
   COMPONENT
 }
+
+model FigmaConnection {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  figmaUserId           String?
+  figmaHandle           String?
+  figmaEmail            String?
+  figmaAvatarUrl        String?
+  accessTokenCiphertext String
+  refreshTokenCiphertext String
+  tokenType             String   @default("bearer")
+  expiresAt             DateTime
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+  @@map("figma_connections")
+}

@@ -19,9 +19,10 @@ import {
   AppWindow,
   Puzzle,
   FileCode2,
+  PenTool,
 } from "lucide-react";
 import type { Screen, FlowComponent } from "@/lib/types";
-import { getImportedCodePayload } from "../_lib/imported-code-screen";
+import { getImportedScreenPayload } from "../_lib/imported-screen";
 
 /* ─────────────────────────────────────────────
    ICON MAP — component type → tiny icon
@@ -65,11 +66,11 @@ export function MiniScreenThumbnail({
   isSelected: boolean;
   onClick?: () => void;
 }) {
-  const importedCodePayload = getImportedCodePayload(screen);
-  const sourceScreen = importedCodePayload?.previewScreen ?? screen;
+  const importedPayload = getImportedScreenPayload(screen);
+  const sourceScreen = importedPayload?.previewScreen ?? screen;
   const bgColor = sourceScreen.style?.backgroundColor || "#FFFFFF";
   const components = [...sourceScreen.components].sort((a, b) => a.order - b.order);
-  const hasNativeScreen = Boolean(screen.customScreenKey);
+  const hasNativeScreen = Boolean(screen.customScreenKey) && !importedPayload;
 
   return (
     <div
@@ -90,6 +91,14 @@ export function MiniScreenThumbnail({
               <div className="px-[2px] py-[1px] rounded-full bg-fuchsia-500/20 border border-fuchsia-500/30">
                 <AppWindow size={4} className="text-fuchsia-500/80" />
               </div>
+            ) : importedPayload?.kind === "imported-figma" ? (
+              <div className="px-[2px] py-[1px] rounded-full bg-sky-500/20 border border-sky-500/30">
+                <PenTool size={4} className="text-sky-400/80" />
+              </div>
+            ) : importedPayload?.kind === "imported-code" ? (
+              <div className="px-[2px] py-[1px] rounded-full bg-fuchsia-500/20 border border-fuchsia-500/30">
+                <FileCode2 size={4} className="text-fuchsia-500/80" />
+              </div>
             ) : null}
             <div className="w-[16px] h-[4px] rounded-full bg-black/25" />
           </div>
@@ -99,13 +108,25 @@ export function MiniScreenThumbnail({
         {/* Component previews */}
         {components.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
-            {importedCodePayload ? (
+            {importedPayload ? (
               <div className="flex flex-col items-center gap-[3px]">
-                <div className="w-[18px] h-[18px] rounded-[4px] bg-fuchsia-500/10 border border-fuchsia-500/20 flex items-center justify-center">
-                  <FileCode2 size={8} className="text-fuchsia-500/70" />
+                <div className={`w-[18px] h-[18px] rounded-[4px] border flex items-center justify-center ${
+                  importedPayload.kind === "imported-figma"
+                    ? "bg-sky-500/10 border-sky-500/20"
+                    : "bg-fuchsia-500/10 border-fuchsia-500/20"
+                }`}>
+                  {importedPayload.kind === "imported-figma" ? (
+                    <PenTool size={8} className="text-sky-400/70" />
+                  ) : (
+                    <FileCode2 size={8} className="text-fuchsia-500/70" />
+                  )}
                 </div>
-                <div className="w-[30px] h-[2px] rounded-full bg-fuchsia-500/15" />
-                <div className="w-[20px] h-[2px] rounded-full bg-fuchsia-500/10" />
+                <div className={`w-[30px] h-[2px] rounded-full ${
+                  importedPayload.kind === "imported-figma" ? "bg-sky-500/15" : "bg-fuchsia-500/15"
+                }`} />
+                <div className={`w-[20px] h-[2px] rounded-full ${
+                  importedPayload.kind === "imported-figma" ? "bg-sky-500/10" : "bg-fuchsia-500/10"
+                }`} />
               </div>
             ) : (
               <Smartphone size={10} className="text-gray-300/60" />

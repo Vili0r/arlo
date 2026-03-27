@@ -50,11 +50,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Screen, FlowComponent } from "@/lib/types";
 import { COMPONENT_TYPES } from "../_lib/constants";
-import { getImportedCodePayload } from "../_lib/imported-code-screen";
+import { getImportedScreenPayload } from "../_lib/imported-screen";
 
 function getScreenSignals(screen: Screen) {
-  const importedCodePayload = getImportedCodePayload(screen);
-  const sourceScreen = importedCodePayload?.previewScreen ?? screen;
+  const importedPayload = getImportedScreenPayload(screen);
+  const sourceScreen = importedPayload?.previewScreen ?? screen;
   const components = [...sourceScreen.components].sort((a, b) => a.order - b.order);
   const previewLabels = Array.from(
     new Set(
@@ -65,11 +65,15 @@ function getScreenSignals(screen: Screen) {
   ).slice(0, 3);
 
   return {
-    previewLabels: importedCodePayload ? ["Code-backed preview", ...previewLabels].slice(0, 3) : previewLabels,
+    previewLabels: importedPayload
+      ? [importedPayload.kind === "imported-code" ? "Code-backed preview" : "Figma-backed preview", ...previewLabels].slice(0, 3)
+      : previewLabels,
+    layerCount: components.length,
     hasPinnedFooter: components.some((component) => (component.props as { position?: string }).position === "bottom"),
     hasQuestions: components.some((component) => ["SINGLE_SELECT", "MULTI_SELECT", "TEXT_INPUT", "SLIDER"].includes(component.type)),
     hasCustomComponent: components.some((component) => component.type === "CUSTOM_COMPONENT"),
-    hasNativeScreen: Boolean((screen as Screen & { customScreenKey?: string | null }).customScreenKey),
+    importedSource: importedPayload?.kind === "imported-code" ? "Code" : importedPayload?.kind === "imported-figma" ? "Figma" : null,
+    hasNativeScreen: Boolean((screen as Screen & { customScreenKey?: string | null }).customScreenKey) && !importedPayload,
   };
 }
 
@@ -416,8 +420,13 @@ function SortableScreenRow({
                 <>
                   <div className="mt-1 flex flex-wrap items-center gap-1">
                     <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 text-[9px] text-white/26">
-                      {screen.components.length} layers
+                      {screenSignals.layerCount} layers
                     </span>
+                    {screenSignals.importedSource && (
+                      <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-1.5 py-0.5 text-[9px] text-fuchsia-300/80">
+                        {screenSignals.importedSource}
+                      </span>
+                    )}
                     {screenSignals.hasQuestions && (
                       <span className="rounded-full border border-blue-400/20 bg-blue-400/10 px-1.5 py-0.5 text-[9px] text-blue-300/80">
                         Inputs
