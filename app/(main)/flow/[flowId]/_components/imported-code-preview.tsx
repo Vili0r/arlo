@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { icons, Smile } from "lucide-react";
 import type { ImportedPreviewNode } from "../_lib/code-import";
 import { resolveImportedPreviewClassName } from "../_lib/imported-code-preview-styles";
@@ -128,14 +128,74 @@ function renderPreviewNode(
   );
 }
 
+function getRootPixelWidth(nodes: ImportedPreviewNode[]): number | null {
+  const root = nodes[0];
+  if (!root || root.kind !== "element") return null;
+  const w = root.style?.width;
+  return typeof w === "number" && w > 0 ? w : null;
+}
+
+function getRootPixelHeight(nodes: ImportedPreviewNode[]): number | null {
+  const root = nodes[0];
+  if (!root || root.kind !== "element") return null;
+  const h = root.style?.minHeight ?? root.style?.height;
+  return typeof h === "number" && h > 0 ? h : null;
+}
+
 export function ImportedCodePreview({
   nodes,
 }: {
   nodes: ImportedPreviewNode[];
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  const designWidth = getRootPixelWidth(nodes);
+  const designHeight = getRootPixelHeight(nodes);
+
+  useEffect(() => {
+    if (!designWidth) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const update = () => {
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      if (cw === 0 || ch === 0) return;
+
+      let s = cw / designWidth;
+      if (designHeight) {
+        s = Math.min(s, ch / designHeight);
+      }
+      setScale(Math.min(s, 1));
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [designWidth, designHeight]);
+
   return (
-    <div style={{ minHeight: "100%" }}>
-      {nodes.map((node, index) => renderPreviewNode(node, index))}
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        style={{
+          transformOrigin: "top center",
+          transform: designWidth ? `scale(${scale})` : undefined,
+        }}
+      >
+        {nodes.map((node, index) => renderPreviewNode(node, index))}
+      </div>
     </div>
   );
 }

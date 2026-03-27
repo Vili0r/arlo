@@ -159,10 +159,20 @@ function normalizeNodeId(raw: string): string {
   return decoded.includes(":") ? decoded : decoded.replace(/-/g, ":");
 }
 
+function formatNodeIdForUrl(nodeId: string): string {
+  return nodeId.replace(/:/g, "-");
+}
+
+function buildSourceUrlForNode(sourceUrl: string, nodeId: string): string {
+  const url = new URL(sourceUrl);
+  url.searchParams.set("node-id", formatNodeIdForUrl(nodeId));
+  return url.toString();
+}
+
 export function parseFigmaSource(raw: string): ParsedFigmaSource {
   const trimmed = raw.trim();
   if (!trimmed) {
-    throw new Error("Paste a Figma frame URL before importing.");
+    throw new Error("Paste a Figma URL before importing.");
   }
 
   let parsedUrl: URL;
@@ -208,6 +218,20 @@ function isFrameLike(node: FigmaNode): boolean {
     "VECTOR",
     "STAR",
     "POLYGON",
+  ].includes(node.type);
+}
+
+function isImportContainerNode(node: FigmaNode): boolean {
+  return ["CANVAS", "SECTION"].includes(node.type);
+}
+
+function isImportScreenCandidate(node: FigmaNode): boolean {
+  return [
+    "FRAME",
+    "GROUP",
+    "INSTANCE",
+    "COMPONENT",
+    "COMPONENT_SET",
   ].includes(node.type);
 }
 
@@ -714,8 +738,8 @@ function buildTextPreviewNode(
       color: colorToCss(findVisiblePaint(node.fills, (paint) => paint.type === "SOLID")?.color) ?? "#111827",
       fontSize: node.style?.fontSize,
       fontWeight: node.style?.fontWeight,
-      lineHeight: node.style?.lineHeightPx,
-      letterSpacing: node.style?.letterSpacing,
+      lineHeight: node.style?.lineHeightPx ? `${node.style.lineHeightPx}px` : undefined,
+      letterSpacing: node.style?.letterSpacing ? `${node.style.letterSpacing}px` : undefined,
       fontFamily: node.style?.fontFamily,
       fontStyle: node.style?.italic ? "italic" : undefined,
       textAlign:
@@ -780,15 +804,33 @@ function buildPreviewNode(
   };
 }
 
-export function buildFigmaImport(input: BuildFigmaImportInput): ParsedFigmaImport {
-  const nodeEntry = input.response.nodes[input.nodeId];
-  const root = nodeEntry?.document;
-
-  if (!root) {
-    throw new Error("That Figma node could not be found. Make sure the URL includes a valid node-id.");
+function collectImportRoots(root: FigmaNode): FigmaNode[] {
+  if (!isImportContainerNode(root)) {
+    return [root];
   }
 
-  const warnings: string[] = [];
+  const roots: FigmaNode[] = [];
+
+  for (const child of collectVisibleChildren(root)) {
+    if (isImportContainerNode(child)) {
+      roots.push(...collectImportRoots(child));
+      continue;
+    }
+
+    if (isImportScreenCandidate(child)) {
+      roots.push(child);
+    }
+  }
+
+  return roots.length > 0 ? roots : [root];
+}
+
+function buildSingleFigmaImport(
+  input: BuildFigmaImportInput,
+  root: FigmaNode,
+  warnings: string[],
+  lastSyncedAt: string,
+): ParsedFigmaImport | null {
   const components: FlowComponent[] = [];
   collectMappedComponents(root, components, input.imageUrls);
 
@@ -796,25 +838,17 @@ export function buildFigmaImport(input: BuildFigmaImportInput): ParsedFigmaImpor
   const previewTree = previewRoot ? [previewRoot] : [];
 
   if (previewTree.length === 0 && components.length === 0) {
-    throw new Error("No supported content was found in that Figma frame.");
-  }
-
-  if (collectVisibleChildren(root).some((child) => Boolean(getImagePaint(child))) && !input.imageUrls) {
-    warnings.push("Image fills could not be resolved, so some image layers may appear as placeholders.");
-  }
-
-  if (Object.values(input.imageUrls ?? {}).length > 0) {
-    warnings.push("Figma-hosted image URLs can expire over time. Re-import if preview images disappear.");
+    return null;
   }
 
   return {
     fileKey: input.fileKey,
-    nodeId: input.nodeId,
+    nodeId: root.id,
     nodeName: root.name,
     fileName: input.response.name,
-    lastSyncedAt: new Date().toISOString(),
-    sourceUrl: input.sourceUrl,
-    warnings,
+    lastSyncedAt,
+    sourceUrl: buildSourceUrlForNode(input.sourceUrl, root.id),
+    warnings: [...warnings],
     previewTree,
     screen: {
       id: createId("screen"),
@@ -824,4 +858,38 @@ export function buildFigmaImport(input: BuildFigmaImportInput): ParsedFigmaImpor
       components,
     },
   };
+}
+
+export function buildFigmaImport(input: BuildFigmaImportInput): ParsedFigmaImport {
+  return buildFigmaImports(input)[0]!;
+}
+
+export function buildFigmaImports(input: BuildFigmaImportInput): ParsedFigmaImport[] {
+  const nodeEntry = input.response.nodes[input.nodeId];
+  const root = nodeEntry?.document;
+
+  if (!root) {
+    throw new Error("That Figma node could not be found. Make sure the URL includes a valid node-id.");
+  }
+
+  const warnings: string[] = [];
+
+  if (collectVisibleChildren(root).some((child) => Boolean(getImagePaint(child))) && !input.imageUrls) {
+    warnings.push("Image fills could not be resolved, so some image layers may appear as placeholders.");
+  }
+
+  if (Object.values(input.imageUrls ?? {}).length > 0) {
+    warnings.push("Figma-hosted image URLs can expire over time. Re-import if preview images disappear.");
+  }
+
+  const lastSyncedAt = new Date().toISOString();
+  const imports = collectImportRoots(root)
+    .map((importRoot) => buildSingleFigmaImport(input, importRoot, warnings, lastSyncedAt))
+    .filter((value): value is ParsedFigmaImport => Boolean(value));
+
+  if (imports.length === 0) {
+    throw new Error("No supported content was found in that Figma selection.");
+  }
+
+  return imports;
 }

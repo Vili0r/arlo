@@ -39,7 +39,7 @@ interface FigmaImportDialogProps {
   title?: string;
   description?: string;
   submitLabel?: string;
-  onImport: (payload: { screen: Screen; mode: ImportMode }) => void;
+  onImport: (payload: { screens: Screen[]; mode: ImportMode }) => void;
 }
 
 interface FigmaConnectionStatus {
@@ -73,25 +73,40 @@ export function FigmaImportDialog({
   initialImport,
   defaultMode = "append",
   lockMode = false,
-  title = "Import a Figma frame",
-  description = "Paste a Figma frame URL that includes a node-id. Arlo will fetch the frame, generate a read-only preview, and store the source metadata so you can re-sync it later.",
+  title = "Import from Figma",
+  description = "Paste a Figma frame, section, or page URL that includes a node-id. Arlo will fetch the selection, generate a read-only preview, and store per-screen source metadata so you can re-sync imported screens later.",
   submitLabel = "Import to builder",
   onImport,
 }: FigmaImportDialogProps) {
   const [source, setSource] = useState(initialSource ?? "");
   const [mode, setMode] = useState<ImportMode>(defaultMode);
-  const [resolvedImport, setResolvedImport] = useState<ParsedFigmaImport | null>(
-    initialImport ? payloadToParsedImport(initialImport) : null,
+  const [resolvedImports, setResolvedImports] = useState<ParsedFigmaImport[]>(
+    initialImport ? [payloadToParsedImport(initialImport)] : [],
   );
+  const [loadedSource, setLoadedSource] = useState<string | null>(() => {
+    const value = (initialSource ?? initialImport?.sourceUrl ?? "").trim();
+    return value ? value : null;
+  });
   const [connectionStatus, setConnectionStatus] = useState<FigmaConnectionStatus | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const primaryImport = resolvedImports[0] ?? null;
+  const totalMappedLayers = useMemo(
+    () => resolvedImports.reduce((count, item) => count + item.screen.components.length, 0),
+    [resolvedImports],
+  );
+  const totalPreviewRoots = useMemo(
+    () => resolvedImports.reduce((count, item) => count + item.previewTree.length, 0),
+    [resolvedImports],
+  );
+  const requiresSingleScreenForUpdate = lockMode && resolvedImports.length > 1;
+
   const isPreviewStale = useMemo(() => {
-    if (!resolvedImport) return false;
-    return resolvedImport.sourceUrl.trim() !== source.trim();
-  }, [resolvedImport, source]);
+    if (!loadedSource) return false;
+    return loadedSource !== source.trim();
+  }, [loadedSource, source]);
 
   const needsOAuthConnection = connectionStatus?.mode === "oauth" && !connectionStatus.connected;
 
@@ -121,11 +136,12 @@ export function FigmaImportDialog({
             flowId,
             source,
           });
-          setResolvedImport(imported);
+          setResolvedImports(imported);
+          setLoadedSource(source.trim());
           setError(null);
         } catch (nextError) {
           const message =
-            nextError instanceof Error ? nextError.message : "Unable to load that Figma frame.";
+            nextError instanceof Error ? nextError.message : "Unable to load that Figma selection.";
           setError(message);
           if (message.includes("Connect your Figma account")) {
             setConnectionStatus((current) =>
@@ -138,11 +154,11 @@ export function FigmaImportDialog({
   }
 
   function handleImport() {
-    if (!resolvedImport || isPreviewStale) return;
+    if (resolvedImports.length === 0 || isPreviewStale || requiresSingleScreenForUpdate) return;
 
     startTransition(() => {
-      const imported = createImportedFigmaScreen(resolvedImport);
-      onImport({ screen: imported.screen, mode });
+      const screens = resolvedImports.map((item) => createImportedFigmaScreen(item).screen);
+      onImport({ screens, mode });
       onOpenChange(false);
     });
   }
@@ -167,10 +183,10 @@ export function FigmaImportDialog({
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">
-                      Frame Source
+                      Figma Source
                     </p>
                     <p className="mt-1 text-sm leading-6 text-white/45">
-                      Use a share link for a specific frame or layer. The URL must include a `node-id`.
+                      Use a share link for a specific frame, section, or page. The URL must include a `node-id`.
                     </p>
                   </div>
                   <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/45">
@@ -250,39 +266,48 @@ export function FigmaImportDialog({
                   >
                     {isPending ? (
                       <Loader2 size={15} className="animate-spin" />
-                    ) : resolvedImport ? (
+                    ) : resolvedImports.length > 0 ? (
                       <RefreshCcw size={15} />
                     ) : (
                       <PenTool size={15} />
                     )}
-                    {resolvedImport ? "Refresh preview" : "Load preview"}
+                    {resolvedImports.length > 0 ? "Refresh preview" : "Load preview"}
                   </Button>
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
                   <div className="flex items-center gap-2">
-                    {resolvedImport && !isPreviewStale && !error ? (
+                    {resolvedImports.length > 0 && !isPreviewStale && !error ? (
                       <CheckCircle2 size={16} className="text-emerald-400" />
                     ) : (
                       <AlertTriangle size={16} className="text-amber-400" />
                     )}
                     <p className="text-sm font-medium text-white">
-                      {resolvedImport && !isPreviewStale && !error
+                      {resolvedImports.length > 0 && !isPreviewStale && !error
                         ? "Ready to import"
                         : isPreviewStale
                           ? "Preview needs refresh"
-                          : "Load a Figma frame"}
+                          : "Load a Figma selection"}
                     </p>
                   </div>
 
                   <div className="mt-3 space-y-2 text-sm text-white/60">
                     {error ? (
                       <p>{error}</p>
-                    ) : resolvedImport ? (
+                    ) : primaryImport ? (
                       <>
                         <p>
-                          Loaded <span className="font-medium text-white/80">{resolvedImport.nodeName}</span> from{" "}
-                          <span className="font-medium text-white/80">{resolvedImport.fileName}</span>.
+                          {resolvedImports.length === 1 ? (
+                            <>
+                              Loaded <span className="font-medium text-white/80">{primaryImport.nodeName}</span> from{" "}
+                              <span className="font-medium text-white/80">{primaryImport.fileName}</span>.
+                            </>
+                          ) : (
+                            <>
+                              Loaded <span className="font-medium text-white/80">{resolvedImports.length} screens</span> from{" "}
+                              <span className="font-medium text-white/80">{primaryImport.fileName}</span>.
+                            </>
+                          )}
                         </p>
                         {isPreviewStale ? (
                           <p className="text-amber-300/80">
@@ -291,35 +316,37 @@ export function FigmaImportDialog({
                         ) : null}
                         <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] uppercase tracking-[0.18em] text-white/35">
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
-                            {resolvedImport.screen.components.length} mapped layers
+                            {totalMappedLayers} mapped layers
                           </span>
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
-                            {resolvedImport.previewTree.length} preview root{resolvedImport.previewTree.length === 1 ? "" : "s"}
+                            {totalPreviewRoots} preview root{totalPreviewRoots === 1 ? "" : "s"}
                           </span>
                         </div>
                       </>
                     ) : (
                       <p>
-                        Arlo will fetch the selected node, map supported layers into builder-friendly content, and keep the original Figma source attached for re-syncs.
+                        Arlo will fetch the selected node, map supported layers into builder-friendly content, and keep direct Figma links attached for later re-syncs.
                       </p>
                     )}
                   </div>
                 </div>
               </div>
 
-              {resolvedImport ? (
+              {primaryImport ? (
                 <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">
-                        Imported Frame
+                        {resolvedImports.length === 1 ? "Imported Screen" : "Imported Screens"}
                       </p>
                       <p className="mt-1 text-sm text-white/50">
-                        {resolvedImport.nodeName}
+                        {resolvedImports.length === 1
+                          ? primaryImport.nodeName
+                          : `${resolvedImports.length} screens ready to import`}
                       </p>
                     </div>
                     <a
-                      href={resolvedImport.sourceUrl}
+                      href={loadedSource ?? primaryImport.sourceUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] text-white/65 transition hover:bg-white/[0.06] hover:text-white"
@@ -329,21 +356,39 @@ export function FigmaImportDialog({
                     </a>
                   </div>
 
-                  {resolvedImport.warnings.length > 0 ? (
+                  {resolvedImports.length > 1 ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-white/60">
+                      <p className="font-medium text-white/80">Screens in this import</p>
+                      <div className="mt-3 space-y-2">
+                        {resolvedImports.slice(0, 8).map((item) => (
+                          <div key={item.nodeId} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                            {item.screen.name}
+                          </div>
+                        ))}
+                        {resolvedImports.length > 8 ? (
+                          <p className="text-white/40">+{resolvedImports.length - 8} more screens</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {primaryImport.warnings.length > 0 ? (
                     <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-4">
                       <div className="flex items-center gap-2 text-amber-200">
                         <AlertTriangle size={16} />
                         <p className="text-sm font-medium">Import warnings</p>
                       </div>
                       <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-100/80">
-                        {resolvedImport.warnings.map((warning) => (
+                        {primaryImport.warnings.map((warning) => (
                           <li key={warning}>{warning}</li>
                         ))}
                       </ul>
                     </div>
                   ) : (
                     <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-4 text-sm text-emerald-100/85">
-                      The frame mapped cleanly. You can import it as a read-only, Figma-backed screen.
+                      {resolvedImports.length === 1
+                        ? "The screen mapped cleanly. You can import it as a read-only, Figma-backed screen."
+                        : "These screens mapped cleanly. You can import them as read-only, Figma-backed screens."}
                     </div>
                   )}
                 </div>
@@ -357,12 +402,19 @@ export function FigmaImportDialog({
                     {lockMode ? "Update Target" : "Import Into"}
                   </p>
                   {lockMode ? (
-                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                      <p className="text-base font-medium text-white">Replace current screen</p>
-                      <p className="mt-1 text-sm leading-6 text-white/45">
-                        Re-syncs <span className="font-medium text-white/80">{currentScreenName || "this screen"}</span> in place with the latest mapped preview.
-                      </p>
-                    </div>
+                    <>
+                      <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <p className="text-base font-medium text-white">Replace current screen</p>
+                        <p className="mt-1 text-sm leading-6 text-white/45">
+                          Re-syncs <span className="font-medium text-white/80">{currentScreenName || "this screen"}</span> in place with the latest mapped preview.
+                        </p>
+                      </div>
+                      {requiresSingleScreenForUpdate ? (
+                        <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-4 text-sm leading-6 text-amber-100/85">
+                          Updating an existing imported screen requires a link that resolves to exactly one screen. Paste a direct frame link instead of a page link.
+                        </div>
+                      ) : null}
+                    </>
                   ) : (
                     <div className="mt-3 space-y-2">
                       <button
@@ -379,7 +431,7 @@ export function FigmaImportDialog({
                           <div className="min-w-0">
                             <p className="break-words text-base font-medium">Create new screen</p>
                             <p className={`mt-1 break-words text-sm leading-6 ${mode === "append" ? "text-black/70" : "text-white/45"}`}>
-                              Keeps your current screen untouched and adds a new Figma-backed one.
+                              Keeps your current screen untouched and adds the imported Figma screen{resolvedImports.length === 1 ? "" : "s"}.
                             </p>
                           </div>
                         </div>
@@ -398,7 +450,15 @@ export function FigmaImportDialog({
                           <div className="min-w-0">
                             <p className="break-words text-base font-medium">Replace current screen</p>
                             <p className={`mt-1 break-words text-sm leading-6 ${mode === "replace" ? "text-black/70" : "text-white/45"}`}>
-                              Overwrites <span className="font-medium">{currentScreenName || "this screen"}</span> while preserving its place in the flow.
+                              {resolvedImports.length > 1 ? (
+                                <>
+                                  Replaces <span className="font-medium">{currentScreenName || "this screen"}</span> with the first imported screen and adds the rest after it.
+                                </>
+                              ) : (
+                                <>
+                                  Overwrites <span className="font-medium">{currentScreenName || "this screen"}</span> while preserving its place in the flow.
+                                </>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -413,13 +473,13 @@ export function FigmaImportDialog({
                     <p className="text-sm font-medium text-white">What gets stored</p>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-white/60">
-                    Arlo stores the selected Figma URL, file metadata, warnings, and a generated preview screen. The imported result stays read-only in the builder, similar to code import.
+                    Arlo stores each imported screen with its direct Figma node URL, file metadata, warnings, and generated preview screen. The imported result stays read-only in the builder, similar to code import.
                   </p>
-                  {resolvedImport ? (
+                  {primaryImport ? (
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-white/55">
                       Last synced:{" "}
                       <span className="font-medium text-white/75">
-                        {new Date(resolvedImport.lastSyncedAt).toLocaleString()}
+                        {new Date(primaryImport.lastSyncedAt).toLocaleString()}
                       </span>
                     </div>
                   ) : null}
@@ -441,7 +501,7 @@ export function FigmaImportDialog({
           <Button
             type="button"
             onClick={handleImport}
-            disabled={!resolvedImport || isPreviewStale || isPending}
+            disabled={resolvedImports.length === 0 || isPreviewStale || isPending || requiresSingleScreenForUpdate}
             className="rounded-xl bg-white text-black hover:bg-white/90"
           >
             {isPending ? <Loader2 size={15} className="animate-spin" /> : null}

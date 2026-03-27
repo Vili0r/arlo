@@ -22,6 +22,7 @@ export const DeviceFrame = memo(function DeviceFrame({
   screenContent,
   progressBar,
   screenBgColor = "#FFFFFF",
+  showSystemChrome = true,
 }: {
   device: DevicePreset;
   orientation: Orientation;
@@ -29,6 +30,7 @@ export const DeviceFrame = memo(function DeviceFrame({
   screenContent: React.ReactNode;
   progressBar: React.ReactNode;
   screenBgColor?: string;
+  showSystemChrome?: boolean;
 }) {
   const isLandscape = orientation === "landscape";
   const spec = device.frame;
@@ -123,10 +125,14 @@ export const DeviceFrame = memo(function DeviceFrame({
         className="w-full h-full overflow-hidden flex flex-col relative"
         style={{ borderRadius: frame.innerRadius, backgroundColor: screenBgColor }}
       >
-        <StatusBar device={device} frame={frame} isLandscape={isLandscape} screenBgColor={screenBgColor} />
+        {showSystemChrome ? (
+          <StatusBar device={device} frame={frame} isLandscape={isLandscape} screenBgColor={screenBgColor} />
+        ) : null}
         {screenContent}
         {progressBar}
-        <HomeArea device={device} frame={frame} isLandscape={isLandscape} screenBgColor={screenBgColor} />
+        {showSystemChrome ? (
+          <HomeArea device={device} frame={frame} isLandscape={isLandscape} screenBgColor={screenBgColor} />
+        ) : null}
       </div>
     </div>
   );

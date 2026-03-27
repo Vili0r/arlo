@@ -27,7 +27,7 @@ interface CodeImportDialogProps {
   title?: string;
   description?: string;
   submitLabel?: string;
-  onImport: (payload: { screen: Screen; mode: ImportMode }) => void;
+  onImport: (payload: { screens: Screen[]; mode: ImportMode }) => void;
 }
 
 const SAMPLE_NATIVE = `import { View, Text, TextInput, Pressable } from "react-native";
@@ -98,7 +98,7 @@ export function CodeImportDialog({
 
     startTransition(() => {
       const imported = createImportedCodeScreen(code, framework);
-      onImport({ screen: imported.screen, mode });
+      onImport({ screens: [imported.screen], mode });
       onOpenChange(false);
     });
   }

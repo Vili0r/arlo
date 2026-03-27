@@ -12,7 +12,7 @@ import {
   getUsableFigmaAccessToken,
 } from "@/lib/figma-oauth";
 import {
-  buildFigmaImport,
+  buildFigmaImports,
   collectFigmaImageNodeIds,
   parseFigmaSource,
   type FigmaNodesResponse,
@@ -287,7 +287,7 @@ export async function loadLatestVersion(flowId: string): Promise<{
 export async function fetchFigmaImportPreview(input: {
   flowId: string;
   source: string;
-}): Promise<ParsedFigmaImport> {
+}): Promise<ParsedFigmaImport[]> {
   const userId = await requireUser();
   await requireFlowAccess(input.flowId, userId);
 
@@ -335,7 +335,7 @@ export async function fetchFigmaImportPreview(input: {
     );
   }
 
-  return buildFigmaImport({
+  return buildFigmaImports({
     fileKey: parsedSource.fileKey,
     nodeId: parsedSource.nodeId,
     sourceUrl: parsedSource.sourceUrl,

@@ -27,6 +27,54 @@ export async function createFlow(projectId: string, data: { name: string; slug: 
   return flow;
 }
 
+export async function deleteFlow(projectId: string, flowId: string) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+  });
+  if (!project) throw new Error("Project not found");
+
+  const flow = await prisma.flow.findFirst({
+    where: {
+      id: flowId,
+      projectId,
+    },
+    select: {
+      id: true,
+      publishedVersionId: true,
+    },
+  });
+  if (!flow) throw new Error("Flow not found");
+
+  await prisma.$transaction(async (tx) => {
+    if (flow.publishedVersionId) {
+      await tx.flow.update({
+        where: { id: flowId },
+        data: {
+          publishedVersionId: null,
+        },
+      });
+    }
+
+    await tx.placement.deleteMany({
+      where: { flowId },
+    });
+
+    await tx.flowVersion.deleteMany({
+      where: { flowId },
+    });
+
+    await tx.flow.delete({
+      where: { id: flowId },
+    });
+  });
+
+  revalidatePath(`/dashboard/project/${projectId}`);
+  revalidatePath(`/flow/${flowId}`);
+}
+
 export async function createApiKey(
   projectId: string,
   data: { name: string; environment: "DEVELOPMENT" | "PRODUCTION" }

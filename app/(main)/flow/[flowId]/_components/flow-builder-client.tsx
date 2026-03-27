@@ -151,11 +151,11 @@ export function FlowBuilderClient({
   const isEditingImportedFigmaScreen = Boolean(currentImportedFigmaPayload);
   const figmaImportLabel = isEditingImportedFigmaScreen ? "Update Figma" : "Import Figma";
   const figmaImportDialogTitle = isEditingImportedFigmaScreen
-    ? "Update imported Figma frame"
-    : "Import a Figma frame";
+    ? "Update imported Figma screen"
+    : "Import from Figma";
   const figmaImportDialogDescription = isEditingImportedFigmaScreen
     ? `Refresh the stored Figma source for ${currentImportedFigmaPayload?.nodeName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and rebuild its preview.`
-    : "Paste a Figma frame URL with a node-id. Arlo will fetch the frame, map supported layers, and keep a read-only preview in the builder.";
+    : "Paste a Figma frame, section, or page URL with a node-id. Arlo will fetch the selection, map supported layers, and keep read-only Figma-backed screens in the builder.";
   const figmaImportSubmitLabel = isEditingImportedFigmaScreen ? "Update screen" : "Import to builder";
   const screenRegistryKeys = registryKeys.filter((entry) => entry.type === "SCREEN");
   const frame = getFrameDimensions(selectedDevice, orientation);
@@ -528,27 +528,35 @@ export function FlowBuilderClient({
   );
 
   const handleImportScreen = useCallback(
-    ({ screen, mode }: { screen: FlowConfig["screens"][number]; mode: ImportMode }) => {
+    ({ screens: importedScreens, mode }: { screens: FlowConfig["screens"]; mode: ImportMode }) => {
+      if (importedScreens.length === 0) return;
+
       if (mode === "replace") {
         updateConfig((prev) => {
           const screens = [...prev.screens];
           const existing = screens[selectedScreenIndex];
-          screens[selectedScreenIndex] = {
+          const nextScreens = importedScreens.map((screen, index) => ({
             ...screen,
-            id: existing.id,
-            order: existing.order,
+            id: index === 0 ? existing.id : screen.id,
+          }));
+          screens.splice(selectedScreenIndex, 1, ...nextScreens);
+          return {
+            ...prev,
+            screens: screens.map((screen, index) => ({
+              ...screen,
+              order: index,
+            })),
           };
-          return { ...prev, screens };
         });
       } else {
         updateConfig((prev) => ({
           ...prev,
           screens: [
             ...prev.screens,
-            {
+            ...importedScreens.map((screen, index) => ({
               ...screen,
-              order: prev.screens.length,
-            },
+              order: prev.screens.length + index,
+            })),
           ],
         }));
         setSelectedScreenIndex(config.screens.length);
@@ -568,6 +576,8 @@ export function FlowBuilderClient({
       const previewSource = previewScreen ?? screen;
       const importedPreviewTree = importedPayload?.previewTree ?? [];
       const hasImportedPreviewTree = importedPreviewTree.length > 0;
+      const isImportedFigmaPreview =
+        importedPayload?.kind === "imported-figma" && hasImportedPreviewTree;
       const sorted = previewSource?.components.length
         ? [...previewSource.components].sort((a, b) => a.order - b.order)
         : [];
@@ -612,7 +622,7 @@ export function FlowBuilderClient({
           onMouseDown={(e) => e.stopPropagation()}
         >
           {/* ── Top indicator: back button + progress line ── */}
-          {indicator.visible && (
+          {!isImportedFigmaPreview && indicator.visible && (
             <div
               className="flex items-center gap-2.5 shrink-0"
               style={{
@@ -655,11 +665,21 @@ export function FlowBuilderClient({
 
           {/* ── Scrollable main content ── */}
           <div
-            className="flex-1 overflow-y-auto"
-            style={{ padding: hasImportedPreviewTree ? 0 : padding }}
+            className="flex-1"
+            style={{
+              padding: hasImportedPreviewTree ? 0 : padding,
+              overflowY: isImportedFigmaPreview ? "hidden" : "auto",
+              height: isImportedFigmaPreview ? "100%" : undefined,
+            }}
           >
             {hasImportedPreviewTree ? (
-              <ImportedCodePreview nodes={importedPreviewTree} />
+              isImportedFigmaPreview ? (
+                <div className="flex h-full w-full items-center justify-center overflow-hidden">
+                  <ImportedCodePreview nodes={importedPreviewTree} />
+                </div>
+              ) : (
+                <ImportedCodePreview nodes={importedPreviewTree} />
+              )
             ) : sorted.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
                 <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
@@ -1004,17 +1024,12 @@ export function FlowBuilderClient({
       >
         <CanvasToolbar
           zoom={canvas.zoom}
-          screenName={currentScreen?.name || "Untitled"}
-          screenIndex={selectedScreenIndex}
-          totalScreens={config.screens.length}
-          componentCount={currentImportedPayload?.previewScreen.components.length || currentScreen?.components.length || 0}
-          onZoomIn={canvas.zoomIn}
-          onZoomOut={canvas.zoomOut}
-          onResetZoom={canvas.resetZoom}
-          onResetView={canvas.resetView}
           onBack={() =>
             router.push(`/dashboard/project/${projectId}`)
           }
+          screenName={currentScreen?.name || "Untitled"}
+          screenIndex={selectedScreenIndex}
+          totalScreens={config.screens.length}
           selectedDevice={selectedDevice}
           orientation={orientation}
           fullScreenView={fullScreenView}
@@ -1027,6 +1042,10 @@ export function FlowBuilderClient({
             canvas.resetView();
           }}
           onToggleFullScreen={() => setFullScreenView((p) => !p)}
+          onZoomIn={canvas.zoomIn}
+          onZoomOut={canvas.zoomOut}
+          onResetZoom={canvas.resetZoom}
+          onResetView={canvas.resetView}
           canUndo={history.canUndo}
           canRedo={history.canRedo}
           onUndo={history.undo}
@@ -1296,6 +1315,7 @@ export function FlowBuilderClient({
                               screenContent={renderScreenContent(screen, idx)}
                               progressBar={null}
                               screenBgColor={screen.style?.backgroundColor || "#FFFFFF"}
+                              showSystemChrome={getImportedScreenPayload(screen)?.kind !== "imported-figma"}
                             />
                           </div>
                         </ContextMenuTrigger>

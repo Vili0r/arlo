@@ -8,7 +8,7 @@ const FIGMA_TOKEN_URL = "https://api.figma.com/v1/oauth/token";
 const FIGMA_REFRESH_URL = "https://api.figma.com/v1/oauth/refresh";
 
 export const FIGMA_OAUTH_STATE_COOKIE = "arlo_figma_oauth_state";
-const DEFAULT_FIGMA_OAUTH_SCOPES = ["file_content:read", "current_user:read"] as const;
+const DEFAULT_FIGMA_OAUTH_SCOPES = ["file_content:read"] as const;
 
 type FigmaAuthMode = "oauth" | "token" | "none";
 
