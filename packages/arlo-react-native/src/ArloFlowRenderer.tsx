@@ -22,6 +22,27 @@ import type {
   ArloFlowRendererProps,
 } from "./types";
 
+const IMPORTED_CODE_SCREEN_KEY = "__arlo_imported_code__";
+
+function isImportedCodePayload(
+  value: unknown
+): value is { kind: "imported-code"; version: 1; previewScreen?: Screen } {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      (value as { kind?: unknown }).kind === "imported-code" &&
+      (value as { version?: unknown }).version === 1
+  );
+}
+
+function getImportedCodePreviewScreen(screen: Screen): Screen | null {
+  if (screen.customScreenKey !== IMPORTED_CODE_SCREEN_KEY) return null;
+  return isImportedCodePayload(screen.customPayload) && screen.customPayload.previewScreen
+    ? screen.customPayload.previewScreen
+    : null;
+}
+
 function getScreenContainerStyle(screen: Screen) {
   return {
     backgroundColor: screen.style?.backgroundColor ?? "#0b0b0d",
@@ -443,6 +464,7 @@ export function ArloFlowRenderer({
 
   if (snapshot.currentScreen.customScreenKey) {
     const registeredScreen = registry?.getScreen(snapshot.currentScreen.customScreenKey);
+    const importedPreviewScreen = getImportedCodePreviewScreen(snapshot.currentScreen);
 
     if (registeredScreen) {
       return (
@@ -453,6 +475,42 @@ export function ArloFlowRenderer({
             screen: snapshot.currentScreen,
           })}
         </>
+      );
+    }
+
+    if (importedPreviewScreen) {
+      const previewComponents = [...(importedPreviewScreen.components ?? [])].sort(
+        (a, b) => a.order - b.order
+      );
+      const previewContext: ArloComponentRenderContext = {
+        ...context,
+        onValueChange: () => undefined,
+        onPressButton: async () => undefined,
+      };
+
+      return (
+        <ScrollView
+          contentContainerStyle={[
+            styles.container,
+            getScreenContainerStyle(importedPreviewScreen),
+          ]}
+        >
+          {previewComponents.map((component) => {
+            const customRenderer = componentRenderers?.[component.type] as
+              | ArloComponentRendererMap[typeof component.type]
+              | undefined;
+
+            const content = customRenderer
+              ? customRenderer(component as never, previewContext as never)
+              : renderDefaultComponent(component, previewContext, registry);
+
+            if (content === null) {
+              return null;
+            }
+
+            return <View key={component.id}>{content}</View>;
+          })}
+        </ScrollView>
       );
     }
 

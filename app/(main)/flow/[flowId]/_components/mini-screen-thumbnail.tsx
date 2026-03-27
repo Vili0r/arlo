@@ -18,8 +18,10 @@ import {
   Square,
   AppWindow,
   Puzzle,
+  FileCode2,
 } from "lucide-react";
 import type { Screen, FlowComponent } from "@/lib/types";
+import { getImportedCodePayload } from "../_lib/imported-code-screen";
 
 /* ─────────────────────────────────────────────
    ICON MAP — component type → tiny icon
@@ -63,8 +65,10 @@ export function MiniScreenThumbnail({
   isSelected: boolean;
   onClick?: () => void;
 }) {
-  const bgColor = screen.style?.backgroundColor || "#FFFFFF";
-  const components = [...screen.components].sort((a, b) => a.order - b.order);
+  const importedCodePayload = getImportedCodePayload(screen);
+  const sourceScreen = importedCodePayload?.previewScreen ?? screen;
+  const bgColor = sourceScreen.style?.backgroundColor || "#FFFFFF";
+  const components = [...sourceScreen.components].sort((a, b) => a.order - b.order);
   const hasNativeScreen = Boolean(screen.customScreenKey);
 
   return (
@@ -95,7 +99,17 @@ export function MiniScreenThumbnail({
         {/* Component previews */}
         {components.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
-            <Smartphone size={10} className="text-gray-300/60" />
+            {importedCodePayload ? (
+              <div className="flex flex-col items-center gap-[3px]">
+                <div className="w-[18px] h-[18px] rounded-[4px] bg-fuchsia-500/10 border border-fuchsia-500/20 flex items-center justify-center">
+                  <FileCode2 size={8} className="text-fuchsia-500/70" />
+                </div>
+                <div className="w-[30px] h-[2px] rounded-full bg-fuchsia-500/15" />
+                <div className="w-[20px] h-[2px] rounded-full bg-fuchsia-500/10" />
+              </div>
+            ) : (
+              <Smartphone size={10} className="text-gray-300/60" />
+            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col gap-[1.5px] overflow-hidden">

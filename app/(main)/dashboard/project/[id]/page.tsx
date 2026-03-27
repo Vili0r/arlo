@@ -40,6 +40,8 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
     notFound();
   }
 
+  const placements = project.placements ?? [];
+  const registryKeys = project.registryKeys ?? [];
   const flowCount = project.flows.length;
   const keyCount = project.apiKeys.length;
   const publishedFlows = project.flows.filter((f) => f.status === "PUBLISHED");
@@ -198,6 +200,7 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
                     Generate Key
                   </button>
                 </div>
+
               </div>
 
               <div className="px-5 py-3 bg-[#0c0c0c] border-t border-[#1a1a1a] flex items-center justify-between">
@@ -210,6 +213,83 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
                 </button>
               </div>
             </section>
+
+            {flowCount > 0 && (
+              <section className="bg-white/[0.03] border border-white/[0.08] rounded-xl overflow-hidden">
+                <div className="p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-white">
+                      All Flows
+                    </h3>
+                    <CreateFlowButton projectId={project.id} />
+                  </div>
+
+                  <div className="grid gap-3">
+                    {project.flows.map((flow) => (
+                      <Link
+                        key={flow.id}
+                        href={`/flow/${flow.id}`}
+                        className="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.08] rounded-xl hover:border-white/[0.15] hover:bg-white/[0.04] transition-all group"
+                      >
+                        <div className="w-9 h-9 rounded-lg bg-[#1a1a1a] border border-[#1f1f1f] flex items-center justify-center">
+                          <Layers
+                            size={15}
+                            className="text-orange-400/80"
+                          />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-white truncate">
+                              {flow.name}
+                            </span>
+                            <code className="text-[10px] font-mono text-[#444]">
+                              {flow.slug}
+                            </code>
+                          </div>
+                          <span className="text-[11px] text-[#444]">
+                            {flow._count?.versions ?? 0} version
+                            {flow._count?.versions !== 1 ? "s" : ""} · Updated{" "}
+                            {new Date(flow.updatedAt).toLocaleDateString(
+                              undefined,
+                              {
+                                month: "short",
+                                day: "numeric",
+                              }
+                            )}
+                          </span>
+                        </div>
+
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-semibold ${
+                            flow.status === "PUBLISHED"
+                              ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-400"
+                              : flow.status === "ARCHIVED"
+                              ? "bg-[#0a0a0a] border-[#1f1f1f] text-[#444]"
+                              : "bg-[#0a0a0a] border-[#1f1f1f] text-[#666]"
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              flow.status === "PUBLISHED"
+                                ? "bg-emerald-400"
+                                : "bg-[#444]"
+                            }`}
+                          />
+                          {flow.status.charAt(0) +
+                            flow.status.slice(1).toLowerCase()}
+                        </span>
+
+                        <ArrowRight
+                          size={14}
+                          className="text-[#333] group-hover:text-white transition-colors"
+                        />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
           </div>
 
           {/* ── Right Column ── */}
@@ -237,7 +317,7 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
 
             <PlacementsCard
               projectId={project.id}
-              placements={project.placements.map((placement) => ({
+              placements={placements.map((placement) => ({
                 id: placement.id,
                 key: placement.key,
                 name: placement.name,
@@ -259,7 +339,7 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
 
             <RegistryKeysCard
               projectId={project.id}
-              registryKeys={project.registryKeys.map((entry) => ({
+              registryKeys={registryKeys.map((entry) => ({
                 id: entry.id,
                 key: entry.key,
                 type: entry.type,
@@ -292,71 +372,6 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
           </div>
         </div>
 
-        {/* ── Empty State: Create First Flow ── */}
-        {flowCount > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">All Flows</h2>
-              <CreateFlowButton projectId={project.id} />
-            </div>
-
-            <div className="grid gap-3">
-              {project.flows.map((flow) => (
-                <Link
-                  key={flow.id}
-                  href={`/flow/${flow.id}`}
-                  className="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.08] rounded-xl hover:border-white/[0.15] hover:bg-white/[0.04] transition-all group"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-[#1a1a1a] border border-[#1f1f1f] flex items-center justify-center">
-                    <Layers size={15} className="text-orange-400/80" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-white truncate">
-                        {flow.name}
-                      </span>
-                      <code className="text-[10px] font-mono text-[#444]">
-                        {flow.slug}
-                      </code>
-                    </div>
-                    <span className="text-[11px] text-[#444]">
-                      {flow._count?.versions ?? 0} version{flow._count?.versions !== 1 ? "s" : ""} · Updated{" "}
-                      {new Date(flow.updatedAt).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </span>
-                  </div>
-
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-semibold ${
-                      flow.status === "PUBLISHED"
-                        ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-400"
-                        : flow.status === "ARCHIVED"
-                        ? "bg-[#0a0a0a] border-[#1f1f1f] text-[#444]"
-                        : "bg-[#0a0a0a] border-[#1f1f1f] text-[#666]"
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        flow.status === "PUBLISHED"
-                          ? "bg-emerald-400"
-                          : "bg-[#444]"
-                      }`}
-                    />
-                    {flow.status.charAt(0) + flow.status.slice(1).toLowerCase()}
-                  </span>
-
-                  <ArrowRight
-                    size={14}
-                    className="text-[#333] group-hover:text-white transition-colors"
-                  />
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
       </div>
     </div>
   );

@@ -48,6 +48,10 @@ import { useKeyboardShortcuts } from "../_lib/use-keyboard-shortcuts";
 import { saveDraft, autoSaveDraft, publishFlow, getFlow } from "../actions";
 import { TemplatePalette, QuickFlowTemplates } from "./template-picker";
 import { ALL_TEMPLATES, type TemplateDefinition } from "../_lib/templates";
+import type { ImportMode } from "../_lib/code-import";
+import { getImportedCodePayload } from "../_lib/imported-code-screen";
+import { CodeImportDialog } from "./code-import-dialog";
+import { ImportedCodePreview } from "./imported-code-preview";
 
 import { DeviceFrame } from "./device-frame";
 import {
@@ -111,6 +115,7 @@ export function FlowBuilderClient({
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [tabSidebarOpen, setTabSidebarOpen] = useState(false);
+  const [codeImportOpen, setCodeImportOpen] = useState(false);
 
   const [selectedDevice, setSelectedDevice] = useState<DevicePreset>(
     ALL_DEVICES.find((d) => d.id === DEFAULT_DEVICE_ID) || ALL_DEVICES[0],
@@ -125,6 +130,16 @@ export function FlowBuilderClient({
 
   const currentScreen = config.screens[selectedScreenIndex];
   const selectedComponent = currentScreen?.components.find((c) => c.id === selectedComponentId);
+  const currentImportedCodePayload = currentScreen ? getImportedCodePayload(currentScreen) : null;
+  const isEditingImportedScreen = Boolean(currentImportedCodePayload);
+  const codeImportLabel = isEditingImportedScreen ? "Edit Code" : "Import Code";
+  const codeImportDialogTitle = isEditingImportedScreen
+    ? "Update imported code"
+    : "Import React or React Native code";
+  const codeImportDialogDescription = isEditingImportedScreen
+    ? `Edit the stored source for ${currentImportedCodePayload?.componentName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and refresh its read-only preview.`
+    : "Paste a component or upload a `.tsx`, `.jsx`, `.ts`, or `.js` file. Arlo will store it as a code-backed screen and keep a read-only preview in the builder.";
+  const codeImportSubmitLabel = isEditingImportedScreen ? "Update screen" : "Import to builder";
   const screenRegistryKeys = registryKeys.filter((entry) => entry.type === "SCREEN");
   const frame = getFrameDimensions(selectedDevice, orientation);
 
@@ -489,11 +504,49 @@ export function FlowBuilderClient({
     [config.screens.length, updateConfig],
   );
 
+  const handleImportScreen = useCallback(
+    ({ screen, mode }: { screen: FlowConfig["screens"][number]; mode: ImportMode }) => {
+      if (mode === "replace") {
+        updateConfig((prev) => {
+          const screens = [...prev.screens];
+          const existing = screens[selectedScreenIndex];
+          screens[selectedScreenIndex] = {
+            ...screen,
+            id: existing.id,
+            order: existing.order,
+          };
+          return { ...prev, screens };
+        });
+      } else {
+        updateConfig((prev) => ({
+          ...prev,
+          screens: [
+            ...prev.screens,
+            {
+              ...screen,
+              order: prev.screens.length,
+            },
+          ],
+        }));
+        setSelectedScreenIndex(config.screens.length);
+      }
+
+      setSelectedComponentId(null);
+      setActiveTab("screens");
+    },
+    [config.screens.length, selectedScreenIndex, updateConfig],
+  );
+
   /* ─── Per-screen content renderer ──── */
   const renderScreenContent = useCallback(
     (screen: typeof config.screens[number], screenIdx: number) => {
-      const sorted = screen?.components.length
-        ? [...screen.components].sort((a, b) => a.order - b.order)
+      const importedCodePayload = getImportedCodePayload(screen);
+      const previewScreen = importedCodePayload?.previewScreen;
+      const previewSource = previewScreen ?? screen;
+      const importedPreviewTree = importedCodePayload?.previewTree ?? [];
+      const hasImportedPreviewTree = importedPreviewTree.length > 0;
+      const sorted = previewSource?.components.length
+        ? [...previewSource.components].sort((a, b) => a.order - b.order)
         : [];
 
       // Split into main content vs bottom-pinned components
@@ -504,8 +557,8 @@ export function FlowBuilderClient({
         (c) => (c.props as any)?.position === "bottom",
       );
 
-      const bgColor = screen?.style?.backgroundColor || "#FFFFFF";
-      const padding = screen?.style?.padding ?? 24;
+      const bgColor = previewSource?.style?.backgroundColor || "#FFFFFF";
+      const padding = previewSource?.style?.padding ?? 24;
       const totalScreens = config.screens.length;
       const progress = totalScreens > 1 ? ((screenIdx + 1) / totalScreens) * 100 : 100;
       const dark = isDarkColor(bgColor);
@@ -513,7 +566,7 @@ export function FlowBuilderClient({
       // Merge global + per-screen indicator settings
       const indicator = mergeIndicator(
         (config.settings as any)?.indicator,
-        (screen as any)?.indicator,
+        (previewSource as any)?.indicator,
       );
 
       // Resolve colours: use explicit colours or auto-adapt to bg
@@ -580,9 +633,11 @@ export function FlowBuilderClient({
           {/* ── Scrollable main content ── */}
           <div
             className="flex-1 overflow-y-auto"
-            style={{ padding }}
+            style={{ padding: hasImportedPreviewTree ? 0 : padding }}
           >
-            {sorted.length === 0 ? (
+            {hasImportedPreviewTree ? (
+              <ImportedCodePreview nodes={importedPreviewTree} />
+            ) : sorted.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
                 <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
                   <Smartphone size={20} className="text-gray-300" />
@@ -591,16 +646,21 @@ export function FlowBuilderClient({
                 <p className="text-xs text-gray-300 mt-1">Add components from the sidebar</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
-                {mainComponents.map((comp) => (
-                  <PhonePreviewComponent
-                    key={comp.id}
-                    component={comp}
-                    isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
-                    onSelect={() => {
-                      setSelectedScreenIndex(screenIdx);
-                      setSelectedComponentId(comp.id);
-                    }}
+                <div className="flex flex-col gap-3">
+                  {mainComponents.map((comp) => (
+                    <PhonePreviewComponent
+                      key={comp.id}
+                      component={comp}
+                      isSelected={
+                        importedCodePayload
+                          ? false
+                          : screenIdx === selectedScreenIndex && comp.id === selectedComponentId
+                      }
+                      onSelect={() => {
+                        if (importedCodePayload) return;
+                        setSelectedScreenIndex(screenIdx);
+                        setSelectedComponentId(comp.id);
+                      }}
                   />
                 ))}
               </div>
@@ -617,8 +677,13 @@ export function FlowBuilderClient({
                 <PhonePreviewComponent
                   key={comp.id}
                   component={comp}
-                  isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
+                  isSelected={
+                    importedCodePayload
+                      ? false
+                      : screenIdx === selectedScreenIndex && comp.id === selectedComponentId
+                  }
                   onSelect={() => {
+                    if (importedCodePayload) return;
                     setSelectedScreenIndex(screenIdx);
                     setSelectedComponentId(comp.id);
                   }}
@@ -843,6 +908,7 @@ export function FlowBuilderClient({
                   currentScreen={currentScreen}
                   allScreens={config.screens}
                   screenRegistryKeys={screenRegistryKeys}
+                  onEditImportedCode={() => setCodeImportOpen(true)}
                   onUpdateBranchRules={(rules) => {
                     updateConfig((prev) => {
                       const screens = [...prev.screens];
@@ -912,7 +978,7 @@ export function FlowBuilderClient({
           screenName={currentScreen?.name || "Untitled"}
           screenIndex={selectedScreenIndex}
           totalScreens={config.screens.length}
-          componentCount={currentScreen?.components.length || 0}
+          componentCount={currentImportedCodePayload?.previewScreen.components.length || currentScreen?.components.length || 0}
           onZoomIn={canvas.zoomIn}
           onZoomOut={canvas.zoomOut}
           onResetZoom={canvas.resetZoom}
@@ -940,7 +1006,25 @@ export function FlowBuilderClient({
           saveState={saveState}
           onSaveDraft={handleSaveDraft}
           onPublish={handlePublish}
+          onImportCode={() => setCodeImportOpen(true)}
+          importCodeLabel={codeImportLabel}
         />
+
+        {codeImportOpen ? (
+          <CodeImportDialog
+            open={codeImportOpen}
+            onOpenChange={setCodeImportOpen}
+            currentScreenName={currentScreen?.name || "Untitled"}
+            initialCode={currentImportedCodePayload?.sourceCode}
+            initialFramework={currentImportedCodePayload?.framework ?? "auto"}
+            defaultMode={currentImportedCodePayload ? "replace" : "append"}
+            lockMode={Boolean(currentImportedCodePayload)}
+            title={codeImportDialogTitle}
+            description={codeImportDialogDescription}
+            submitLabel={codeImportSubmitLabel}
+            onImport={handleImportScreen}
+          />
+        ) : null}
 
         {/* World layer */}
         <div

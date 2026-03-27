@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { SIDEBAR_TABS, type SidebarTab } from "../_lib/constants";
 import type { Screen, BranchRule, SkipCondition, RuleOperator } from "@/lib/types";
+import { getImportedCodePayload } from "../_lib/imported-code-screen";
 
 /* ── TYPES ── */
 export type BackButtonStyle = "chevron" | "arrow" | "x" | "none";
@@ -522,6 +523,7 @@ export function ScreenLogicPanel({
   onUpdateBranchRules,
   onUpdateSkipConditions,
   onUpdateCustomScreen,
+  onEditImportedCode,
 }: {
   currentScreen: Screen;
   allScreens: Screen[];
@@ -529,6 +531,7 @@ export function ScreenLogicPanel({
   onUpdateBranchRules: (rules: BranchRule[]) => void;
   onUpdateSkipConditions: (conditions: SkipCondition[]) => void;
   onUpdateCustomScreen: (patch: { customScreenKey?: string; customPayload?: Record<string, unknown> | undefined }) => void;
+  onEditImportedCode?: () => void;
 }) {
   const fieldKeys = getFieldKeys(currentScreen);
   const branchRules = currentScreen.branchRules || [];
@@ -536,6 +539,7 @@ export function ScreenLogicPanel({
   const otherScreens = allScreens.filter((s) => s.id !== currentScreen.id);
   const selectedNativeScreen =
     screenRegistryKeys.find((entry) => entry.key === currentScreen.customScreenKey) || null;
+  const importedCodePayload = getImportedCodePayload(currentScreen);
   const [customPayloadInput, setCustomPayloadInput] = useState(
     JSON.stringify((currentScreen as any).customPayload || {}, null, 2)
   );
@@ -596,67 +600,95 @@ export function ScreenLogicPanel({
         <div className="flex items-center gap-1.5">
           <AppWindow size={12} className="text-fuchsia-400/60" />
           <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-            Native Screen
+            {importedCodePayload ? "Code-backed Import" : "Native Screen"}
           </span>
         </div>
-        <p className="text-[10px] text-white/25 leading-relaxed">
-          Link this step to a host-app screen registry key when you want the app to render a native screen here.
-        </p>
-
-        <select
-          value={currentScreen.customScreenKey || ""}
-          onChange={(e) =>
-            onUpdateCustomScreen({
-              customScreenKey: e.target.value || undefined,
-              customPayload: (currentScreen as any).customPayload || undefined,
-            })
-          }
-          className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-[11px] text-white/70 focus:outline-none focus:border-white/[0.2] appearance-none cursor-pointer"
-        >
-          <option value="">Use canvas-rendered screen</option>
-          {screenRegistryKeys.map((entry) => (
-            <option key={entry.id} value={entry.key}>
-              {entry.key}
-            </option>
-          ))}
-        </select>
-
-        {selectedNativeScreen?.description ? (
-          <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
-              Registry Notes
+        {importedCodePayload ? (
+          <div className="rounded-lg border border-fuchsia-500/20 bg-fuchsia-500/8 px-3 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-fuchsia-200/80">
+              Imported Source
             </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-white/50">
-              {selectedNativeScreen.description}
+            <p className="mt-2 text-[11px] leading-relaxed text-white/65">
+              {importedCodePayload.componentName} is stored as a code-backed screen with a generated preview. Update the source code to refresh this screen in place.
             </p>
+            <div className="mt-3 flex items-center gap-2 text-[10px] text-white/40 uppercase tracking-wider">
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">
+                {importedCodePayload.framework === "react-native" ? "React Native" : "React"}
+              </span>
+              <span>{importedCodePayload.previewScreen.components.length} preview blocks</span>
+            </div>
+            {onEditImportedCode ? (
+              <button
+                type="button"
+                onClick={onEditImportedCode}
+                className="mt-3 inline-flex items-center rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-[11px] font-medium text-white/80 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                Edit source code
+              </button>
+            ) : null}
           </div>
-        ) : null}
-
-        <textarea
-          value={customPayloadInput}
-          onChange={(e) => {
-            const nextValue = e.target.value;
-            setCustomPayloadInput(nextValue);
-            try {
-              const parsed = nextValue.trim() ? JSON.parse(nextValue) : {};
-              onUpdateCustomScreen({
-                customScreenKey: currentScreen.customScreenKey,
-                customPayload: parsed,
-              });
-              setCustomPayloadError(null);
-            } catch {
-              setCustomPayloadError("Payload must be valid JSON before it can be applied.");
-            }
-          }}
-          placeholder='Optional JSON payload for the native screen, e.g. { "offer": "annual" }'
-          className="w-full min-h-[96px] bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-2 text-[11px] text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/[0.2] resize-none"
-        />
-        {customPayloadError ? (
-          <p className="text-[11px] text-rose-300/80">{customPayloadError}</p>
         ) : (
-          <p className="text-[11px] text-white/25">
-            Sent to the host app when this screen resolves through the native registry.
-          </p>
+          <>
+            <p className="text-[10px] text-white/25 leading-relaxed">
+              Link this step to a host-app screen registry key when you want the app to render a native screen here.
+            </p>
+
+            <select
+              value={currentScreen.customScreenKey || ""}
+              onChange={(e) =>
+                onUpdateCustomScreen({
+                  customScreenKey: e.target.value || undefined,
+                  customPayload: (currentScreen as any).customPayload || undefined,
+                })
+              }
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-[11px] text-white/70 focus:outline-none focus:border-white/[0.2] appearance-none cursor-pointer"
+            >
+              <option value="">Use canvas-rendered screen</option>
+              {screenRegistryKeys.map((entry) => (
+                <option key={entry.id} value={entry.key}>
+                  {entry.key}
+                </option>
+              ))}
+            </select>
+
+            {selectedNativeScreen?.description ? (
+              <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                  Registry Notes
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-white/50">
+                  {selectedNativeScreen.description}
+                </p>
+              </div>
+            ) : null}
+
+            <textarea
+              value={customPayloadInput}
+              onChange={(e) => {
+                const nextValue = e.target.value;
+                setCustomPayloadInput(nextValue);
+                try {
+                  const parsed = nextValue.trim() ? JSON.parse(nextValue) : {};
+                  onUpdateCustomScreen({
+                    customScreenKey: currentScreen.customScreenKey,
+                    customPayload: parsed,
+                  });
+                  setCustomPayloadError(null);
+                } catch {
+                  setCustomPayloadError("Payload must be valid JSON before it can be applied.");
+                }
+              }}
+              placeholder='Optional JSON payload for the native screen, e.g. { "offer": "annual" }'
+              className="w-full min-h-[96px] bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-2 text-[11px] text-white/70 placeholder:text-white/20 focus:outline-none focus:border-white/[0.2] resize-none"
+            />
+            {customPayloadError ? (
+              <p className="text-[11px] text-rose-300/80">{customPayloadError}</p>
+            ) : (
+              <p className="text-[11px] text-white/25">
+                Sent to the host app when this screen resolves through the native registry.
+              </p>
+            )}
+          </>
         )}
       </div>
 

@@ -7,6 +7,27 @@ import prisma from "@/lib/prisma";
 import { createProjectSchema, updateProjectSchema } from "@/lib/validations";
 import { projectListInclude, projectDetailInclude } from "@/lib/types";
 
+type ProjectPlacement = {
+  id: string;
+  key: string;
+  name: string | null;
+  createdAt: Date;
+  flow: {
+    id: string;
+    name: string;
+    slug: string;
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  };
+};
+
+type ProjectRegistryKey = {
+  id: string;
+  key: string;
+  type: "SCREEN" | "COMPONENT";
+  description: string | null;
+  createdAt: Date;
+};
+
 export async function getProjects() {
   const { userId } = await auth();
 
@@ -42,7 +63,49 @@ export async function getProject(projectId: string) {
     throw new Error("Project not found");
   }
 
-  return project;
+  const runtimePrisma = prisma as typeof prisma & {
+    placement?: {
+      findMany: (args: unknown) => Promise<ProjectPlacement[]>;
+    };
+    customRegistryKey?: {
+      findMany: (args: unknown) => Promise<ProjectRegistryKey[]>;
+    };
+  };
+
+  const [placements, registryKeys] = await Promise.all([
+    runtimePrisma.placement
+      ? runtimePrisma.placement.findMany({
+          where: { projectId },
+          include: {
+            flow: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                status: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        })
+      : Promise.resolve<ProjectPlacement[]>([]),
+    runtimePrisma.customRegistryKey
+      ? runtimePrisma.customRegistryKey.findMany({
+          where: { projectId },
+          orderBy: {
+            createdAt: "desc",
+          },
+        })
+      : Promise.resolve<ProjectRegistryKey[]>([]),
+  ]);
+
+  return {
+    ...project,
+    placements,
+    registryKeys,
+  };
 }
 
 export async function createProject(formData: FormData) {

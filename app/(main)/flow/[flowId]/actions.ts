@@ -180,16 +180,31 @@ export async function getFlow(flowId: string): Promise<{
     orderBy: { version: "desc" },
   });
 
-  const registryKeys = await prisma.customRegistryKey.findMany({
-    where: { projectId: flow.projectId },
-    orderBy: [{ type: "asc" }, { key: "asc" }],
-    select: {
-      id: true,
-      key: true,
-      type: true,
-      description: true,
-    },
-  });
+  const runtimePrisma = prisma as typeof prisma & {
+    customRegistryKey?: {
+      findMany: (args: unknown) => Promise<
+        {
+          id: string;
+          key: string;
+          type: "SCREEN" | "COMPONENT";
+          description: string | null;
+        }[]
+      >;
+    };
+  };
+
+  const registryKeys = runtimePrisma.customRegistryKey
+    ? await runtimePrisma.customRegistryKey.findMany({
+        where: { projectId: flow.projectId },
+        orderBy: [{ type: "asc" }, { key: "asc" }],
+        select: {
+          id: true,
+          key: true,
+          type: true,
+          description: true,
+        },
+      })
+    : [];
 
   return {
     flowId: flow.id,

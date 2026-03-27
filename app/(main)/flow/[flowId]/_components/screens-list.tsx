@@ -50,14 +50,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Screen, FlowComponent } from "@/lib/types";
 import { COMPONENT_TYPES } from "../_lib/constants";
+import { getImportedCodePayload } from "../_lib/imported-code-screen";
 
 function getScreenSignals(screen: Screen) {
-  const components = [...screen.components].sort((a, b) => a.order - b.order);
+  const importedCodePayload = getImportedCodePayload(screen);
+  const sourceScreen = importedCodePayload?.previewScreen ?? screen;
+  const components = [...sourceScreen.components].sort((a, b) => a.order - b.order);
+  const previewLabels = Array.from(
+    new Set(
+      components.map(
+        (component) => COMPONENT_TYPES.find((entry) => entry.type === component.type)?.label || component.type,
+      ),
+    ),
+  ).slice(0, 3);
 
   return {
-    previewLabels: components
-      .slice(0, 3)
-      .map((component) => COMPONENT_TYPES.find((entry) => entry.type === component.type)?.label || component.type),
+    previewLabels: importedCodePayload ? ["Code-backed preview", ...previewLabels].slice(0, 3) : previewLabels,
     hasPinnedFooter: components.some((component) => (component.props as { position?: string }).position === "bottom"),
     hasQuestions: components.some((component) => ["SINGLE_SELECT", "MULTI_SELECT", "TEXT_INPUT", "SLIDER"].includes(component.type)),
     hasCustomComponent: components.some((component) => component.type === "CUSTOM_COMPONENT"),
