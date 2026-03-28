@@ -323,9 +323,11 @@ export function IndicatorSettingsPanel({
 export function ScreenStyleSection({
   currentScreen,
   onUpdateStyle,
+  onUpdateLayoutMode,
 }: {
   currentScreen: any;
   onUpdateStyle: (patch: any) => void;
+  onUpdateLayoutMode?: (mode: "auto" | "absolute") => void;
 }) {
   if (!currentScreen) return null;
 
@@ -401,6 +403,31 @@ export function ScreenStyleSection({
           </span>
         </div>
       </div>
+
+      {onUpdateLayoutMode ? (
+        <div className="space-y-2">
+          <span className="text-[11px] text-white/50">Layout Mode</span>
+          <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
+            {(["auto", "absolute"] as const).map((mode) => {
+              const active = (currentScreen.layoutMode || "auto") === mode;
+
+              return (
+                <button
+                  key={mode}
+                  onClick={() => onUpdateLayoutMode(mode)}
+                  className={`rounded-lg px-2.5 py-2 text-[11px] font-medium capitalize transition-colors ${
+                    active
+                      ? "bg-blue-500 text-white"
+                      : "text-white/50 hover:bg-white/[0.05] hover:text-white/80"
+                  }`}
+                >
+                  {mode}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -59,6 +59,36 @@ function getScreenContainerStyle(screen: Screen) {
   } as const;
 }
 
+function getComponentWrapperStyle(component: FlowComponent, isAbsoluteScreen: boolean) {
+  const layout = component.layout;
+
+  if (!layout) {
+    return isAbsoluteScreen ? { position: "absolute" as const, zIndex: component.order } : styles.componentBlock;
+  }
+
+  const baseStyle = {
+    display: layout.visible === false ? ("none" as const) : ("flex" as const),
+    zIndex: layout.zIndex ?? component.order,
+  };
+
+  if (!isAbsoluteScreen && layout.position !== "absolute") {
+    return {
+      ...styles.componentBlock,
+      ...baseStyle,
+    };
+  }
+
+  return {
+    ...baseStyle,
+    position: "absolute" as const,
+    left: layout.x ?? 0,
+    top: layout.y ?? 0,
+    width: layout.width,
+    height: layout.height,
+    transform: layout.rotation ? [{ rotate: `${layout.rotation}deg` }] : undefined,
+  };
+}
+
 function coerceStringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -534,6 +564,50 @@ export function ArloFlowRenderer({
     );
   }
 
+  if (snapshot.currentScreen.layoutMode === "absolute") {
+    return (
+      <View
+        style={[
+          styles.absoluteContainer,
+          getScreenContainerStyle(snapshot.currentScreen),
+        ]}
+      >
+        {sortedComponents.map((component) => {
+          const customRenderer = componentRenderers?.[component.type] as
+            | ArloComponentRendererMap[typeof component.type]
+            | undefined;
+
+          const content = customRenderer
+            ? customRenderer(component as never, context as never)
+            : renderDefaultComponent(component, context, registry);
+
+          if (content === null) {
+            return (
+              <View key={component.id} style={styles.unsupported}>
+                {unsupportedComponent ? (
+                  unsupportedComponent(component)
+                ) : (
+                  <Text style={styles.unsupportedText}>
+                    Unsupported component: {component.type}
+                  </Text>
+                )}
+              </View>
+            );
+          }
+
+          return (
+            <View
+              key={component.id}
+              style={getComponentWrapperStyle(component, true)}
+            >
+              {content}
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       contentContainerStyle={[
@@ -565,7 +639,7 @@ export function ArloFlowRenderer({
         }
 
         return (
-          <View key={component.id} style={styles.componentBlock}>
+          <View key={component.id} style={getComponentWrapperStyle(component, false)}>
             {content}
           </View>
         );
@@ -581,6 +655,11 @@ const styles = StyleSheet.create({
   },
   componentBlock: {
     width: "100%",
+  },
+  absoluteContainer: {
+    flex: 1,
+    position: "relative",
+    overflow: "hidden",
   },
   fieldGroup: {
     gap: 8,

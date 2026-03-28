@@ -3,6 +3,7 @@ import { z } from "zod";
 export const transitionAnimationSchema = z.enum(["slide", "fade", "none"]);
 export const textAlignSchema = z.enum(["left", "center", "right"]);
 export const fontWeightSchema = z.enum(["normal", "medium", "semibold", "bold"]);
+export const constraintAnchorSchema = z.enum(["min", "max", "center", "stretch"]);
 export const buttonActionSchema = z.enum([
   "NEXT_SCREEN",
   "PREV_SCREEN",
@@ -278,9 +279,29 @@ export const customComponentPropsSchema = z.object({
   payload: z.record(z.string(), z.unknown()).optional(),
 });
 
+export const componentConstraintsSchema = z.object({
+  horizontal: constraintAnchorSchema.optional(),
+  vertical: constraintAnchorSchema.optional(),
+  keepAspectRatio: z.boolean().optional(),
+});
+
+export const componentLayoutSchema = z.object({
+  position: z.enum(["flow", "absolute"]).optional(),
+  x: z.number().finite().optional(),
+  y: z.number().finite().optional(),
+  width: z.number().finite().positive().optional(),
+  height: z.number().finite().positive().optional(),
+  rotation: z.number().finite().optional(),
+  zIndex: z.number().int().optional(),
+  visible: z.boolean().optional(),
+  locked: z.boolean().optional(),
+  constraints: componentConstraintsSchema.optional(),
+});
+
 const componentBaseSchema = z.object({
   id: z.string().min(1),
   order: z.number().int().min(0),
+  layout: componentLayoutSchema.optional(),
 });
 
 export const flowComponentSchema = z.discriminatedUnion("type", [
@@ -337,6 +358,7 @@ export const screenSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(50),
   order: z.number().int().min(0),
+  layoutMode: z.enum(["auto", "absolute"]).optional(),
   style: screenStyleSchema.optional(),
   customScreenKey: z.string().min(1).max(100).optional(),
   customPayload: z.record(z.string(), z.unknown()).optional(),

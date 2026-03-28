@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { hashApiKey } from "@/lib/api-keys";
 import { flowConfigSchema } from "@/lib/validations";
-import type { SDKErrorResponse, SDKFlowResponse } from "@/lib/types";
+import type { FlowConfig, SDKErrorResponse, SDKFlowResponse } from "@/lib/types";
 
 export class SDKRouteError extends Error {
   readonly status: number;
@@ -81,7 +81,7 @@ export function buildSDKFlowResponse(input: {
     flow: {
       slug: input.slug,
       version: input.version,
-      config: parsedConfig.data,
+      config: input.config as FlowConfig,
     },
   };
 }

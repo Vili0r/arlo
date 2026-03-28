@@ -407,12 +407,34 @@ export interface CustomComponentProps {
   payload?: Record<string, unknown>;
 }
 
+export type ConstraintAnchor = "min" | "max" | "center" | "stretch";
+
+export interface ComponentConstraints {
+  horizontal?: ConstraintAnchor;
+  vertical?: ConstraintAnchor;
+  keepAspectRatio?: boolean;
+}
+
+export interface ComponentLayout {
+  position?: "flow" | "absolute";
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  zIndex?: number;
+  visible?: boolean;
+  locked?: boolean;
+  constraints?: ComponentConstraints;
+}
+
 // Component union — discriminated by type
 
 interface FlowComponentBase {
   id: string;
   order: number;
   animation?: ComponentAnimation;
+  layout?: ComponentLayout;
 }
 
 export type FlowComponent =
@@ -480,6 +502,7 @@ export interface Screen {
   id: string;
   name: string;
   order: number;
+  layoutMode?: "auto" | "absolute";
   style?: ScreenStyle;
   customScreenKey?: string;
   customPayload?: Record<string, unknown>;

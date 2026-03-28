@@ -23,7 +23,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { FlowConfig, FlowComponent } from "@/lib/types";
 import { SIDEBAR_TABS, type SidebarTab } from "../_lib/constants";
@@ -49,10 +49,17 @@ import { saveDraft, autoSaveDraft, publishFlow, promoteDevelopmentToProduction }
 import { TemplatePalette, QuickFlowTemplates } from "./template-picker";
 import { ALL_TEMPLATES, type TemplateDefinition } from "../_lib/templates";
 import type { ImportMode } from "../_lib/code-import";
-import { getImportedScreenPayload } from "../_lib/imported-screen";
 import { CodeImportDialog } from "./code-import-dialog";
 import { FigmaImportDialog } from "./figma-import-dialog";
-import { ImportedCodePreview } from "./imported-code-preview";
+import {
+  appendComponentNode,
+  compileEditorDocument,
+  duplicateNodeInScreen,
+  flowConfigToEditorDocument,
+  getComponentNode,
+  removeNodeFromScreen,
+  type EditorDocument,
+} from "../_lib/editor-document";
 
 import { DeviceFrame } from "./device-frame";
 import {
@@ -80,7 +87,7 @@ function isDarkColor(hex: string): boolean {
 
 export function FlowBuilderClient({
   flowId,
-  initialData,
+  initialDocument,
   initialProjectId,
   initialDevelopmentVersion,
   initialProductionVersion,
@@ -88,7 +95,7 @@ export function FlowBuilderClient({
   initialOpenImportSource = null,
 }: {
   flowId: string;
-  initialData: FlowConfig | null;
+  initialDocument: EditorDocument | null;
   initialProjectId: string | null;
   initialDevelopmentVersion: { id: string; version: number } | null;
   initialProductionVersion: { id: string; version: number } | null;
@@ -96,7 +103,7 @@ export function FlowBuilderClient({
   initialOpenImportSource?: "figma" | null;
 }) {
   const router = useRouter();
-  const [projectId, setProjectId] = useState<string | null>(initialProjectId);
+  const projectId = initialProjectId;
   const canvas = useCanvas();
 
   const defaultConfig: FlowConfig = {
@@ -135,24 +142,29 @@ export function FlowBuilderClient({
 
   const [copiedComponent, setCopiedComponent] = useState<FlowComponent | null>(null);
   const [copiedStyles, setCopiedStyles] = useState<Record<string, unknown> | null>(null);
-  const history = useHistory<FlowConfig>(initialData || defaultConfig);
-  const config = history.state;
+  const defaultDocument = useMemo(() => flowConfigToEditorDocument(defaultConfig), []);
+  const history = useHistory<EditorDocument>(initialDocument || defaultDocument);
+  const document = history.state;
+  const config = useMemo(() => compileEditorDocument(document), [document]);
 
+  const currentScreenDoc = document.screens[selectedScreenIndex];
   const currentScreen = config.screens[selectedScreenIndex];
-  const selectedComponent = currentScreen?.components.find((c) => c.id === selectedComponentId);
-  const currentImportedPayload = currentScreen ? getImportedScreenPayload(currentScreen) : null;
+  const selectedComponentNode = currentScreenDoc
+    ? getComponentNode(currentScreenDoc, selectedComponentId)
+    : null;
+  const selectedComponent = selectedComponentNode?.component ?? null;
   const currentImportedCodePayload =
-    currentImportedPayload?.kind === "imported-code" ? currentImportedPayload : null;
+    currentScreenDoc?.source.kind === "imported-code" ? currentScreenDoc.source : null;
   const currentImportedFigmaPayload =
-    currentImportedPayload?.kind === "imported-figma" ? currentImportedPayload : null;
+    currentScreenDoc?.source.kind === "imported-figma" ? currentScreenDoc.source : null;
   const isEditingImportedScreen = Boolean(currentImportedCodePayload);
   const codeImportLabel = isEditingImportedScreen ? "Edit Code" : "Import Code";
   const codeImportDialogTitle = isEditingImportedScreen
     ? "Update imported code"
     : "Import React or React Native code";
   const codeImportDialogDescription = isEditingImportedScreen
-    ? `Edit the stored source for ${currentImportedCodePayload?.componentName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and refresh its read-only preview.`
-    : "Paste a component or upload a `.tsx`, `.jsx`, `.ts`, or `.js` file. Arlo will store it as a code-backed screen and keep a read-only preview in the builder.";
+    ? `Edit the stored source for ${currentImportedCodePayload?.componentName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and keep it editable on the canvas.`
+    : "Paste a component or upload a `.tsx`, `.jsx`, `.ts`, or `.js` file. Arlo will normalize supported elements into editable builder layers and preserve the original source for future updates.";
   const codeImportSubmitLabel = isEditingImportedScreen ? "Update screen" : "Import to builder";
   const isEditingImportedFigmaScreen = Boolean(currentImportedFigmaPayload);
   const figmaImportLabel = isEditingImportedFigmaScreen ? "Update Figma" : "Import Figma";
@@ -160,13 +172,33 @@ export function FlowBuilderClient({
     ? "Update imported Figma screen"
     : "Import from Figma";
   const figmaImportDialogDescription = isEditingImportedFigmaScreen
-    ? `Refresh the stored Figma source for ${currentImportedFigmaPayload?.nodeName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and rebuild its preview.`
-    : "Paste a Figma frame, section, or page URL with a node-id. Arlo will fetch the selection, map supported layers, and keep read-only Figma-backed screens in the builder.";
+    ? `Refresh the stored Figma source for ${currentImportedFigmaPayload?.nodeName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and keep the imported layers editable.`
+    : "Paste a Figma frame, section, or page URL with a node-id. Arlo will fetch the selection, normalize supported layers, and preserve the source metadata for future updates.";
   const figmaImportSubmitLabel = isEditingImportedFigmaScreen ? "Update screen" : "Import to builder";
   const screenRegistryKeys = registryKeys.filter((entry) => entry.type === "SCREEN");
   const frame = getFrameDimensions(selectedDevice, orientation);
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const dragStateRef = useRef<{
+    screenIndex: number;
+    nodeId: string;
+    startClientX: number;
+    startClientY: number;
+    startX: number;
+    startY: number;
+    width: number;
+    height: number;
+    moved: boolean;
+  } | null>(null);
+  const [dragGuides, setDragGuides] = useState<{
+    screenIndex: number | null;
+    vertical: number | null;
+    horizontal: number | null;
+  }>({
+    screenIndex: null,
+    vertical: null,
+    horizontal: null,
+  });
 
   useEffect(() => {
     if (selectedComponentId) setSheetOpen(true);
@@ -183,7 +215,7 @@ export function FlowBuilderClient({
     if (!flowId || !history.isDirty) return;
     setSaveState("saving");
     try {
-      await saveDraft({ flowId, config: history.state });
+      await saveDraft({ flowId, document: history.state });
       history.markSaved();
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
@@ -201,7 +233,7 @@ export function FlowBuilderClient({
     try {
       const result = await publishFlow({
         flowId,
-        config: history.state,
+        document: history.state,
         environment: "DEVELOPMENT",
       });
       setDevelopmentVersion({
@@ -213,29 +245,6 @@ export function FlowBuilderClient({
       setTimeout(() => setSaveState("idle"), 2000);
     } catch (err) {
       console.error("Publish failed:", err);
-      setSaveState("error");
-      setTimeout(() => setSaveState("idle"), 3000);
-    }
-  }, [flowId, history]);
-
-  const handlePublishProduction = useCallback(async () => {
-    if (!flowId) return;
-    setSaveState("saving");
-    try {
-      const result = await publishFlow({
-        flowId,
-        config: history.state,
-        environment: "PRODUCTION",
-      });
-      setProductionVersion({
-        id: result.versionId,
-        version: result.version,
-      });
-      history.markSaved();
-      setSaveState("saved");
-      setTimeout(() => setSaveState("idle"), 2000);
-    } catch (err) {
-      console.error("Production publish failed:", err);
       setSaveState("error");
       setTimeout(() => setSaveState("idle"), 3000);
     }
@@ -268,7 +277,7 @@ export function FlowBuilderClient({
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(async () => {
       try {
-        await autoSaveDraft({ flowId, config: history.state });
+        await autoSaveDraft({ flowId, document: history.state });
         history.markSaved();
       } catch {
         // Silent fail for auto-save — user can still manually save
@@ -302,6 +311,157 @@ export function FlowBuilderClient({
     setTimeout(() => setSelectedComponentId(null), 200);
   }, []);
 
+  const beginAbsoluteDrag = useCallback(
+    (event: React.MouseEvent, screenIndex: number, nodeId: string) => {
+      const screen = document.screens[screenIndex];
+      const node = screen ? getComponentNode(screen, nodeId) : null;
+      if (!screen || screen.layoutMode !== "absolute" || !node || node.locked) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      setSelectedScreenIndex(screenIndex);
+      setSelectedComponentId(nodeId);
+      setSheetOpen(true);
+
+      dragStateRef.current = {
+        screenIndex,
+        nodeId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: node.transform.x,
+        startY: node.transform.y,
+        width: node.transform.width ?? 0,
+        height: node.transform.height ?? 0,
+        moved: false,
+      };
+    },
+    [document.screens],
+  );
+
+  useEffect(() => {
+    const handlePointerMove = (event: MouseEvent) => {
+      const dragState = dragStateRef.current;
+      if (!dragState) return;
+
+      const screen = document.screens[dragState.screenIndex];
+      if (!screen) return;
+
+      const deltaX = (event.clientX - dragState.startClientX) / canvas.zoom;
+      const deltaY = (event.clientY - dragState.startClientY) / canvas.zoom;
+      let nextX = Math.round(dragState.startX + deltaX);
+      let nextY = Math.round(dragState.startY + deltaY);
+
+      const maxX = Math.max(0, screen.artboard.width - dragState.width);
+      const maxY = Math.max(0, screen.artboard.height - dragState.height);
+      const verticalGuides = [
+        { line: 0, position: 0 },
+        {
+          line: screen.artboard.width / 2,
+          position: Math.round(screen.artboard.width / 2 - dragState.width / 2),
+        },
+        {
+          line: screen.artboard.width,
+          position: Math.round(maxX),
+        },
+      ];
+      const horizontalGuides = [
+        { line: 0, position: 0 },
+        {
+          line: screen.artboard.height / 2,
+          position: Math.round(screen.artboard.height / 2 - dragState.height / 2),
+        },
+        {
+          line: screen.artboard.height,
+          position: Math.round(maxY),
+        },
+      ];
+
+      let activeVerticalGuide: number | null = null;
+      let activeHorizontalGuide: number | null = null;
+
+      for (const guide of verticalGuides) {
+        if (Math.abs(nextX - guide.position) <= 8) {
+          nextX = guide.position;
+          activeVerticalGuide = guide.line;
+          break;
+        }
+      }
+
+      for (const guide of horizontalGuides) {
+        if (Math.abs(nextY - guide.position) <= 8) {
+          nextY = guide.position;
+          activeHorizontalGuide = guide.line;
+          break;
+        }
+      }
+
+      nextX = Math.max(0, Math.min(nextX, maxX));
+      nextY = Math.max(0, Math.min(nextY, maxY));
+      dragState.moved = true;
+
+      history.set(
+        (prev) => ({
+          ...prev,
+          screens: prev.screens.map((currentScreen, screenIndex) => {
+            if (screenIndex !== dragState.screenIndex) return currentScreen;
+            const node = currentScreen.nodes[dragState.nodeId];
+            if (!node || node.kind !== "component") return currentScreen;
+
+            return {
+              ...currentScreen,
+              nodes: {
+                ...currentScreen.nodes,
+                [dragState.nodeId]: {
+                  ...node,
+                  transform: {
+                    ...node.transform,
+                    x: nextX,
+                    y: nextY,
+                  },
+                },
+              },
+            };
+          }),
+        }),
+        { batch: true },
+      );
+
+      setDragGuides({
+        screenIndex: dragState.screenIndex,
+        vertical: activeVerticalGuide,
+        horizontal: activeHorizontalGuide,
+      });
+    };
+
+    const handlePointerUp = () => {
+      const dragState = dragStateRef.current;
+      if (!dragState) return;
+
+      dragStateRef.current = null;
+      setDragGuides({
+        screenIndex: null,
+        vertical: null,
+        horizontal: null,
+      });
+
+      if (!dragState.moved) return;
+
+      history.set((prev) => ({
+        ...prev,
+        screens: [...prev.screens],
+      }));
+    };
+
+    window.addEventListener("mousemove", handlePointerMove);
+    window.addEventListener("mouseup", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handlePointerMove);
+      window.removeEventListener("mouseup", handlePointerUp);
+    };
+  }, [canvas.zoom, document.screens, history]);
+
   const updateConfig = history.set;
 
   const addComponent = useCallback(
@@ -313,12 +473,12 @@ export function FlowBuilderClient({
  
       updateConfig((prev) => {
         const screens = [...prev.screens];
-        const screen = { ...screens[selectedScreenIndex] };
-        screen.components = [
-          ...screen.components,
-          createDefaultComponent(type, screen.components.length),
-        ];
-        screens[selectedScreenIndex] = screen;
+        const screen = screens[selectedScreenIndex];
+        if (!screen) return prev;
+        screens[selectedScreenIndex] = appendComponentNode(
+          screen,
+          createDefaultComponent(type, screen.rootNodeIds.length),
+        );
         return { ...prev, screens };
       });
       setActiveTab("screens");
@@ -330,11 +490,9 @@ export function FlowBuilderClient({
     (componentId: string) => {
       updateConfig((prev) => {
         const screens = [...prev.screens];
-        const screen = { ...screens[selectedScreenIndex] };
-        screen.components = screen.components
-          .filter((c) => c.id !== componentId)
-          .map((c, i) => ({ ...c, order: i }));
-        screens[selectedScreenIndex] = screen;
+        const screen = screens[selectedScreenIndex];
+        if (!screen) return prev;
+        screens[selectedScreenIndex] = removeNodeFromScreen(screen, componentId);
         return { ...prev, screens };
       });
       closeSheet();
@@ -345,31 +503,50 @@ export function FlowBuilderClient({
   const updateComponentProp = useCallback(
     (componentId: string, key: string, value: unknown) => {
       updateConfig((prev) => {
-        const screens = [...prev.screens];
-        const screen = { ...screens[selectedScreenIndex] };
-        screen.components = screen.components.map((c) =>
-          c.id === componentId ? ({ ...c, props: { ...c.props, [key]: value } } as typeof c) : c,
-        );
-        screens[selectedScreenIndex] = screen;
-        return { ...prev, screens };
+        return {
+          ...prev,
+          screens: prev.screens.map((screen, index) => {
+            if (index !== selectedScreenIndex) return screen;
+            const node = screen.nodes[componentId];
+            if (!node || node.kind !== "component") return screen;
+
+            return {
+              ...screen,
+              nodes: {
+                ...screen.nodes,
+                [componentId]: {
+                  ...node,
+                  name:
+                    key === "label" || key === "content" || key === "text"
+                      ? String(value || node.name)
+                      : node.name,
+                  component: {
+                    ...node.component,
+                    props: { ...node.component.props, [key]: value },
+                  } as FlowComponent,
+                },
+              },
+            };
+          }),
+        };
       });
     },
     [selectedScreenIndex, updateConfig],
   );
 
  const handleTabPresetSelect = useCallback(
-    (preset: import("./tab-style-sidebar").TabPreset) => {
+   (preset: import("./tab-style-sidebar").TabPreset) => {
       updateConfig((prev) => {
         const screens = [...prev.screens];
-        const screen = { ...screens[selectedScreenIndex] };
+        const screen = screens[selectedScreenIndex];
+        if (!screen) return prev;
         const comp = {
           id: `comp_${Date.now()}`,
           type: "TAB_BUTTON" as const,
-          order: screen.components.length,
+          order: screen.rootNodeIds.length,
           props: presetToTabComponentProps(preset),
         } as FlowComponent;
-        screen.components = [...screen.components, comp];
-        screens[selectedScreenIndex] = screen;
+        screens[selectedScreenIndex] = appendComponentNode(screen, comp);
         return { ...prev, screens };
       });
       setActiveTab("screens");
@@ -384,7 +561,7 @@ export function FlowBuilderClient({
       hasCopiedStyles: copiedStyles !== null,
 
       onRename: (componentId: string) => {
-        const comp = currentScreen?.components.find((c) => c.id === componentId);
+        const comp = currentScreenDoc ? getComponentNode(currentScreenDoc, componentId)?.component : null;
         if (!comp) return;
         const label = "label" in comp.props ? (comp.props.label as string) : comp.type;
         const newName = window.prompt("Rename component", label);
@@ -396,22 +573,15 @@ export function FlowBuilderClient({
       onDuplicate: (componentId: string) => {
         updateConfig((prev) => {
           const screens = [...prev.screens];
-          const screen = { ...screens[selectedScreenIndex] };
-          const source = screen.components.find((c) => c.id === componentId);
-          if (!source) return prev;
-          const clone = {
-            ...structuredClone(source),
-            id: `comp_${Date.now()}`,
-            order: screen.components.length,
-          };
-          screen.components = [...screen.components, clone];
-          screens[selectedScreenIndex] = screen;
+          const screen = screens[selectedScreenIndex];
+          if (!screen) return prev;
+          screens[selectedScreenIndex] = duplicateNodeInScreen(screen, componentId);
           return { ...prev, screens };
         });
       },
 
       onCopy: (componentId: string) => {
-        const comp = currentScreen?.components.find((c) => c.id === componentId);
+        const comp = currentScreenDoc ? getComponentNode(currentScreenDoc, componentId)?.component : null;
         if (comp) setCopiedComponent(structuredClone(comp));
       },
 
@@ -419,35 +589,48 @@ export function FlowBuilderClient({
         if (!copiedComponent) return;
         updateConfig((prev) => {
           const screens = [...prev.screens];
-          const screen = { ...screens[screenIndex] };
+          const screen = screens[screenIndex];
+          if (!screen) return prev;
           const pasted = {
             ...structuredClone(copiedComponent),
             id: `comp_${Date.now()}`,
-            order: screen.components.length,
+            order: screen.rootNodeIds.length,
           };
-          screen.components = [...screen.components, pasted];
-          screens[screenIndex] = screen;
+          screens[screenIndex] = appendComponentNode(screen, pasted);
           return { ...prev, screens };
         });
       },
 
       onCopyStyles: (componentId: string) => {
-        const comp = currentScreen?.components.find((c) => c.id === componentId);
+        const comp = currentScreenDoc ? getComponentNode(currentScreenDoc, componentId)?.component : null;
         if (comp) setCopiedStyles(structuredClone(comp.props) as Record<string, unknown>);
       },
 
       onPasteStyles: (componentId: string) => {
         if (!copiedStyles) return;
         updateConfig((prev) => {
-          const screens = [...prev.screens];
-          const screen = { ...screens[selectedScreenIndex] };
-          screen.components = screen.components.map((c) =>
-            c.id === componentId
-              ? ({ ...c, props: { ...c.props, ...copiedStyles } } as typeof c)
-              : c,
-          );
-          screens[selectedScreenIndex] = screen;
-          return { ...prev, screens };
+          return {
+            ...prev,
+            screens: prev.screens.map((screen, index) => {
+              if (index !== selectedScreenIndex) return screen;
+              const node = screen.nodes[componentId];
+              if (!node || node.kind !== "component") return screen;
+
+              return {
+                ...screen,
+                nodes: {
+                  ...screen.nodes,
+                  [componentId]: {
+                    ...node,
+                    component: {
+                      ...node.component,
+                      props: { ...node.component.props, ...copiedStyles },
+                    } as FlowComponent,
+                  },
+                },
+              };
+            }),
+          };
         });
       },
 
@@ -458,7 +641,7 @@ export function FlowBuilderClient({
     [
       copiedComponent,
       copiedStyles,
-      currentScreen,
+      currentScreenDoc,
       selectedScreenIndex,
       updateConfig,
       updateComponentProp,
@@ -467,23 +650,27 @@ export function FlowBuilderClient({
   );
 
   const addScreen = useCallback(() => {
-    const order = config.screens.length;
+    const order = document.screens.length;
     updateConfig((prev) => ({
       ...prev,
       screens: [
         ...prev.screens,
-        {
-          id: `screen_${Date.now()}`,
-          name: `Screen ${order + 1}`,
-          order,
-          style: { backgroundColor: "#FFFFFF", padding: 24 },
-          components: [],
-        },
+        flowConfigToEditorDocument({
+          screens: [
+            {
+              id: `screen_${Date.now()}`,
+              name: `Screen ${order + 1}`,
+              order,
+              style: { backgroundColor: "#FFFFFF", padding: 24 },
+              components: [],
+            },
+          ],
+        }).screens[0]!,
       ],
     }));
-    setSelectedScreenIndex(config.screens.length);
+    setSelectedScreenIndex(document.screens.length);
     setSelectedComponentId(null);
-  }, [config.screens.length, updateConfig]);
+  }, [document.screens.length, updateConfig]);
 
   const deleteScreen = useCallback(
     (index: number) => {
@@ -518,14 +705,27 @@ export function FlowBuilderClient({
     (screenIndex: number, fromIndex: number, toIndex: number) => {
       updateConfig((prev) => {
         const screens = [...prev.screens];
-        const screen = { ...screens[screenIndex] };
-        const sorted = [...screen.components].sort((a, b) => a.order - b.order);
-        const reordered = arrayMove(sorted, fromIndex, toIndex).map((c, i) => ({
-          ...c,
-          order: i,
-        }));
-        screen.components = reordered;
-        screens[screenIndex] = screen;
+        const screen = screens[screenIndex];
+        if (!screen) return prev;
+        const reorderedNodeIds = arrayMove(screen.rootNodeIds, fromIndex, toIndex);
+        screens[screenIndex] = {
+          ...screen,
+          rootNodeIds: reorderedNodeIds,
+          nodes: Object.fromEntries(
+            Object.entries(screen.nodes).map(([nodeId, node]) => [
+              nodeId,
+              reorderedNodeIds.includes(nodeId)
+                ? {
+                    ...node,
+                    transform: {
+                      ...node.transform,
+                      zIndex: reorderedNodeIds.indexOf(nodeId),
+                    },
+                  }
+                : node,
+            ]),
+          ) as typeof screen.nodes,
+        };
         return { ...prev, screens };
       });
     },
@@ -543,17 +743,20 @@ export function FlowBuilderClient({
   const handleUseTemplate = useCallback(
     (template: TemplateDefinition) => {
       const screen = template.build();
-      screen.order = config.screens.length;
+      screen.order = document.screens.length;
+      const editorScreen = flowConfigToEditorDocument({
+        screens: [screen],
+      }).screens[0]!;
 
       updateConfig((prev) => ({
         ...prev,
-        screens: [...prev.screens, screen],
+        screens: [...prev.screens, editorScreen],
       }));
-      setSelectedScreenIndex(config.screens.length);
+      setSelectedScreenIndex(document.screens.length);
       setSelectedComponentId(null);
       setActiveTab("add");
     },
-    [config.screens.length, updateConfig],
+    [document.screens.length, updateConfig],
   );
 
   // Quick Start flow builder — generates multiple screens at once
@@ -567,30 +770,38 @@ export function FlowBuilderClient({
         .filter(Boolean)
         .map((screen, i) => ({
           ...screen!,
-          order: config.screens.length + i,
+          order: document.screens.length + i,
         }));
 
       if (newScreens.length === 0) return;
 
+      const editorScreens = flowConfigToEditorDocument({
+        screens: newScreens,
+      }).screens;
+
       updateConfig((prev) => ({
         ...prev,
-        screens: [...prev.screens, ...newScreens],
+        screens: [...prev.screens, ...editorScreens],
       }));
-      setSelectedScreenIndex(config.screens.length);
+      setSelectedScreenIndex(document.screens.length);
       setSelectedComponentId(null);
     },
-    [config.screens.length, updateConfig],
+    [document.screens.length, updateConfig],
   );
 
   const handleImportScreen = useCallback(
     ({ screens: importedScreens, mode }: { screens: FlowConfig["screens"]; mode: ImportMode }) => {
       if (importedScreens.length === 0) return;
 
+      const importedEditorScreens = flowConfigToEditorDocument({
+        screens: importedScreens.map((screen, index) => ({ ...screen, order: index })),
+      }).screens;
+
       if (mode === "replace") {
         updateConfig((prev) => {
           const screens = [...prev.screens];
           const existing = screens[selectedScreenIndex];
-          const nextScreens = importedScreens.map((screen, index) => ({
+          const nextScreens = importedEditorScreens.map((screen, index) => ({
             ...screen,
             id: index === 0 ? existing.id : screen.id,
           }));
@@ -608,7 +819,7 @@ export function FlowBuilderClient({
           ...prev,
           screens: [
             ...prev.screens,
-            ...importedScreens.map((screen, index) => ({
+            ...importedEditorScreens.map((screen, index) => ({
               ...screen,
               order: prev.screens.length + index,
             })),
@@ -626,15 +837,8 @@ export function FlowBuilderClient({
   /* ─── Per-screen content renderer ──── */
   const renderScreenContent = useCallback(
     (screen: typeof config.screens[number], screenIdx: number) => {
-      const importedPayload = getImportedScreenPayload(screen);
-      const previewScreen = importedPayload?.previewScreen;
-      const previewSource = previewScreen ?? screen;
-      const importedPreviewTree = importedPayload?.previewTree ?? [];
-      const hasImportedPreviewTree = importedPreviewTree.length > 0;
-      const isImportedFigmaPreview =
-        importedPayload?.kind === "imported-figma" && hasImportedPreviewTree;
-      const sorted = previewSource?.components.length
-        ? [...previewSource.components].sort((a, b) => a.order - b.order)
+      const sorted = screen?.components.length
+        ? [...screen.components].sort((a, b) => a.order - b.order)
         : [];
 
       // Split into main content vs bottom-pinned components
@@ -645,8 +849,8 @@ export function FlowBuilderClient({
         (c) => (c.props as any)?.position === "bottom",
       );
 
-      const bgColor = previewSource?.style?.backgroundColor || "#FFFFFF";
-      const padding = previewSource?.style?.padding ?? 24;
+      const bgColor = screen?.style?.backgroundColor || "#FFFFFF";
+      const padding = screen?.style?.padding ?? 24;
       const totalScreens = config.screens.length;
       const progress = totalScreens > 1 ? ((screenIdx + 1) / totalScreens) * 100 : 100;
       const dark = isDarkColor(bgColor);
@@ -654,7 +858,7 @@ export function FlowBuilderClient({
       // Merge global + per-screen indicator settings
       const indicator = mergeIndicator(
         (config.settings as any)?.indicator,
-        (previewSource as any)?.indicator,
+        (screen as any)?.indicator,
       );
 
       // Resolve colours: use explicit colours or auto-adapt to bg
@@ -677,7 +881,7 @@ export function FlowBuilderClient({
           onMouseDown={(e) => e.stopPropagation()}
         >
           {/* ── Top indicator: back button + progress line ── */}
-          {!isImportedFigmaPreview && indicator.visible && (
+          {indicator.visible && (
             <div
               className="flex items-center gap-2.5 shrink-0"
               style={{
@@ -722,20 +926,11 @@ export function FlowBuilderClient({
           <div
             className="flex-1"
             style={{
-              padding: hasImportedPreviewTree ? 0 : padding,
-              overflowY: isImportedFigmaPreview ? "hidden" : "auto",
-              height: isImportedFigmaPreview ? "100%" : undefined,
+              padding: screen.layoutMode === "absolute" ? 0 : padding,
+              overflowY: screen.layoutMode === "absolute" ? "hidden" : "auto",
             }}
           >
-            {hasImportedPreviewTree ? (
-              isImportedFigmaPreview ? (
-                <div className="flex h-full w-full items-center justify-center overflow-hidden">
-                  <ImportedCodePreview nodes={importedPreviewTree} />
-                </div>
-              ) : (
-                <ImportedCodePreview nodes={importedPreviewTree} />
-              )
-            ) : sorted.length === 0 ? (
+            {sorted.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
                 <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
                   <Smartphone size={20} className="text-gray-300" />
@@ -743,22 +938,70 @@ export function FlowBuilderClient({
                 <p className="text-sm font-medium text-gray-400">No components yet</p>
                 <p className="text-xs text-gray-300 mt-1">Add components from the sidebar</p>
               </div>
+            ) : screen.layoutMode === "absolute" ? (
+              <div className="relative h-full w-full overflow-hidden">
+                <div
+                  className="absolute"
+                  style={{
+                    inset: padding,
+                  }}
+                >
+                  {dragGuides.screenIndex === screenIdx && dragGuides.vertical !== null ? (
+                    <div
+                      className="absolute top-0 bottom-0 w-px bg-blue-500/70 pointer-events-none"
+                      style={{ left: dragGuides.vertical }}
+                    />
+                  ) : null}
+                  {dragGuides.screenIndex === screenIdx && dragGuides.horizontal !== null ? (
+                    <div
+                      className="absolute left-0 right-0 h-px bg-blue-500/70 pointer-events-none"
+                      style={{ top: dragGuides.horizontal }}
+                    />
+                  ) : null}
+
+                  {sorted.map((comp) => {
+                    const layout = comp.layout;
+
+                    return (
+                      <div
+                        key={comp.id}
+                        className="absolute"
+                        style={{
+                          left: layout?.x ?? 0,
+                          top: layout?.y ?? 0,
+                          width: layout?.width,
+                          height: layout?.height,
+                          zIndex: layout?.zIndex ?? comp.order,
+                          transform: layout?.rotation ? `rotate(${layout.rotation}deg)` : undefined,
+                          display: layout?.visible === false ? "none" : undefined,
+                          cursor: "grab",
+                        }}
+                        onMouseDown={(event) => beginAbsoluteDrag(event, screenIdx, comp.id)}
+                      >
+                        <PhonePreviewComponent
+                          component={comp}
+                          isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
+                          onSelect={() => {
+                            setSelectedScreenIndex(screenIdx);
+                            setSelectedComponentId(comp.id);
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
-                <div className="flex flex-col gap-3">
-                  {mainComponents.map((comp) => (
-                    <PhonePreviewComponent
-                      key={comp.id}
-                      component={comp}
-                      isSelected={
-                        importedPayload
-                          ? false
-                          : screenIdx === selectedScreenIndex && comp.id === selectedComponentId
-                      }
-                      onSelect={() => {
-                        if (importedPayload) return;
-                        setSelectedScreenIndex(screenIdx);
-                        setSelectedComponentId(comp.id);
-                      }}
+              <div className="flex flex-col gap-3">
+                {mainComponents.map((comp) => (
+                  <PhonePreviewComponent
+                    key={comp.id}
+                    component={comp}
+                    isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
+                    onSelect={() => {
+                      setSelectedScreenIndex(screenIdx);
+                      setSelectedComponentId(comp.id);
+                    }}
                   />
                 ))}
               </div>
@@ -766,7 +1009,7 @@ export function FlowBuilderClient({
           </div>
 
           {/* ── Bottom-pinned components ── */}
-          {bottomComponents.length > 0 && (
+          {screen.layoutMode !== "absolute" && bottomComponents.length > 0 && (
             <div
               className="shrink-0 flex flex-col gap-2"
               style={{ padding: `12px ${padding}px ${padding}px` }}
@@ -775,13 +1018,8 @@ export function FlowBuilderClient({
                 <PhonePreviewComponent
                   key={comp.id}
                   component={comp}
-                  isSelected={
-                    importedPayload
-                      ? false
-                      : screenIdx === selectedScreenIndex && comp.id === selectedComponentId
-                  }
+                  isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
                   onSelect={() => {
-                    if (importedPayload) return;
                     setSelectedScreenIndex(screenIdx);
                     setSelectedComponentId(comp.id);
                   }}
@@ -792,7 +1030,16 @@ export function FlowBuilderClient({
         </div>
       );
     },
-    [selectedScreenIndex, selectedComponentId, config.screens.length, config.settings],
+    [
+      beginAbsoluteDrag,
+      dragGuides.horizontal,
+      dragGuides.screenIndex,
+      dragGuides.vertical,
+      selectedScreenIndex,
+      selectedComponentId,
+      config.screens.length,
+      config.settings,
+    ],
   );
 
   /* ─── Canvas layout constants ──── */
@@ -1000,6 +1247,47 @@ export function FlowBuilderClient({
                       return { ...prev, screens };
                     });
                   }}
+                  onUpdateLayoutMode={(layoutMode) => {
+                    updateConfig((prev) => {
+                      const screens = [...prev.screens];
+                      const screen = screens[selectedScreenIndex];
+                      if (!screen) return prev;
+                      const nodes =
+                        layoutMode === "absolute" && screen.layoutMode !== "absolute"
+                          ? Object.fromEntries(
+                              Object.entries(screen.nodes).map(([nodeId, node]) => {
+                                const rootIndex = screen.rootNodeIds.indexOf(nodeId);
+                                if (rootIndex === -1 || node.kind !== "component") {
+                                  return [nodeId, node];
+                                }
+
+                                return [
+                                  nodeId,
+                                  {
+                                    ...node,
+                                    transform: {
+                                      ...node.transform,
+                                      x: node.transform.x ?? 0,
+                                      y:
+                                        node.transform.y !== 0
+                                          ? node.transform.y
+                                          : rootIndex * 88,
+                                      zIndex: rootIndex,
+                                    },
+                                  },
+                                ];
+                              }),
+                            ) as typeof screen.nodes
+                          : screen.nodes;
+
+                      screens[selectedScreenIndex] = {
+                        ...screen,
+                        layoutMode,
+                        nodes,
+                      };
+                      return { ...prev, screens };
+                    });
+                  }}
                 />
 
                 <ScreenLogicPanel
@@ -1109,7 +1397,6 @@ export function FlowBuilderClient({
           saveState={saveState}
           onSaveDraft={handleSaveDraft}
           onPublish={handlePublish}
-          onPublishProduction={handlePublishProduction}
           onPromoteToProduction={handlePromoteToProduction}
           developmentVersion={developmentVersion}
           productionVersion={productionVersion}
@@ -1142,7 +1429,6 @@ export function FlowBuilderClient({
             flowId={flowId}
             currentScreenName={currentScreen?.name || "Untitled"}
             initialSource={currentImportedFigmaPayload?.sourceUrl}
-            initialImport={currentImportedFigmaPayload}
             defaultMode={currentImportedFigmaPayload ? "replace" : "append"}
             lockMode={Boolean(currentImportedFigmaPayload)}
             title={figmaImportDialogTitle}
@@ -1374,7 +1660,7 @@ export function FlowBuilderClient({
                               screenContent={renderScreenContent(screen, idx)}
                               progressBar={null}
                               screenBgColor={screen.style?.backgroundColor || "#FFFFFF"}
-                              showSystemChrome={getImportedScreenPayload(screen)?.kind !== "imported-figma"}
+                              showSystemChrome
                             />
                           </div>
                         </ContextMenuTrigger>

@@ -18,6 +18,12 @@ import {
   type FigmaNodesResponse,
   type ParsedFigmaImport,
 } from "./_lib/figma-import";
+import {
+  compileEditorDocument,
+  createStoredEditorDocument,
+  readStoredFlow,
+  type EditorDocument,
+} from "./_lib/editor-document";
 
 /* ── helpers ──────────────────────────────────────────── */
 
@@ -68,8 +74,29 @@ async function fetchFigmaJson<T>(path: string, headers: HeadersInit): Promise<T>
   return payload as T;
 }
 
-function toPrismaJson(value: FlowConfig): Prisma.InputJsonValue {
+function toPrismaJson(value: unknown): Prisma.InputJsonValue {
   return value as unknown as Prisma.InputJsonValue;
+}
+
+function requireFlowPayload(input: {
+  config?: FlowConfig;
+  document?: EditorDocument;
+}): { draftPayload: unknown; runtimeConfig: FlowConfig } {
+  if (input.document) {
+    return {
+      draftPayload: createStoredEditorDocument(input.document),
+      runtimeConfig: compileEditorDocument(input.document),
+    };
+  }
+
+  if (input.config) {
+    return {
+      draftPayload: input.config,
+      runtimeConfig: input.config,
+    };
+  }
+
+  throw new Error("A flow config or editor document is required.");
 }
 
 type PublishEnvironment = "DEVELOPMENT" | "PRODUCTION";
@@ -85,11 +112,13 @@ function getFlowStatus(data: {
 
 export async function saveDraft(input: {
   flowId: string;
-  config: FlowConfig;
+  config?: FlowConfig;
+  document?: EditorDocument;
   changelog?: string;
 }): Promise<{ success: true; versionId: string; version: number }> {
   const userId = await requireUser();
   const flow = await requireFlowAccess(input.flowId, userId);
+  const { draftPayload } = requireFlowPayload(input);
 
   // Get the latest version number for this flow
   const latestVersion = await prisma.flowVersion.findFirst({
@@ -104,7 +133,7 @@ export async function saveDraft(input: {
     data: {
       flowId: flow.id,
       version: nextVersion,
-      config: toPrismaJson(input.config),
+      config: toPrismaJson(draftPayload),
       changelog: input.changelog ?? `Draft v${nextVersion}`,
     },
   });
@@ -125,10 +154,12 @@ export async function saveDraft(input: {
 
 export async function autoSaveDraft(input: {
   flowId: string;
-  config: FlowConfig;
+  config?: FlowConfig;
+  document?: EditorDocument;
 }): Promise<{ success: true; versionId: string }> {
   const userId = await requireUser();
   const flow = await requireFlowAccess(input.flowId, userId);
+  const { draftPayload } = requireFlowPayload(input);
 
   // Find the latest unpublished version
   const latestUnpublished = await prisma.flowVersion.findFirst({
@@ -143,7 +174,7 @@ export async function autoSaveDraft(input: {
     // Update existing draft version in-place
     await prisma.flowVersion.update({
       where: { id: latestUnpublished.id },
-      data: { config: toPrismaJson(input.config) },
+      data: { config: toPrismaJson(draftPayload) },
     });
 
     await prisma.flow.update({
@@ -167,7 +198,7 @@ export async function autoSaveDraft(input: {
     data: {
       flowId: flow.id,
       version: nextVersion,
-      config: toPrismaJson(input.config),
+      config: toPrismaJson(draftPayload),
       changelog: "Auto-saved draft",
     },
   });
@@ -179,13 +210,15 @@ export async function autoSaveDraft(input: {
 
 export async function publishFlow(input: {
   flowId: string;
-  config: FlowConfig;
+  config?: FlowConfig;
+  document?: EditorDocument;
   environment?: PublishEnvironment;
   changelog?: string;
 }): Promise<{ success: true; versionId: string; version: number }> {
   const userId = await requireUser();
   const flow = await requireFlowAccess(input.flowId, userId);
   const environment = input.environment ?? "DEVELOPMENT";
+  const { runtimeConfig } = requireFlowPayload(input);
 
   const latestVersion = await prisma.flowVersion.findFirst({
     where: { flowId: flow.id },
@@ -200,7 +233,7 @@ export async function publishFlow(input: {
     data: {
       flowId: flow.id,
       version: nextVersion,
-      config: toPrismaJson(input.config),
+      config: toPrismaJson(runtimeConfig),
       changelog: input.changelog ?? `Published v${nextVersion}`,
       publishedEnvironment: environment,
       publishedAt: new Date(),
@@ -250,12 +283,13 @@ export async function promoteDevelopmentToProduction(input: {
   });
 
   const nextVersion = (latestVersion?.version ?? 0) + 1;
+  const developmentFlow = readStoredFlow(flow.developmentVersion.config);
 
   const version = await prisma.flowVersion.create({
     data: {
       flowId: flow.id,
       version: nextVersion,
-      config: flow.developmentVersion.config as Prisma.InputJsonValue,
+      config: toPrismaJson(developmentFlow.runtimeConfig),
       changelog:
         input.changelog ??
         `Promoted development v${flow.developmentVersion.version} to production`,
@@ -281,6 +315,7 @@ export async function promoteDevelopmentToProduction(input: {
 export async function getFlow(flowId: string): Promise<{
   flowId: string;
   projectId: string;
+  document: EditorDocument | null;
   config: FlowConfig | null;
   version: number | null;
   status: string;
@@ -328,10 +363,13 @@ export async function getFlow(flowId: string): Promise<{
       })
     : [];
 
+  const latestFlow = latest ? readStoredFlow(latest.config) : null;
+
   return {
     flowId: flow.id,
     projectId: flow.projectId,
-    config: latest ? (latest.config as unknown as FlowConfig) : null,
+    document: latestFlow?.document ?? null,
+    config: latestFlow?.runtimeConfig ?? null,
     version: latest?.version ?? null,
     status: flow.status,
     developmentVersion: flow.developmentVersion,
@@ -343,6 +381,7 @@ export async function getFlow(flowId: string): Promise<{
 /* ── Load latest version for a flow ──────────────────── */
 
 export async function loadLatestVersion(flowId: string): Promise<{
+  document: EditorDocument;
   config: FlowConfig;
   versionId: string;
   version: number;
@@ -359,8 +398,11 @@ export async function loadLatestVersion(flowId: string): Promise<{
 
   if (!latest) return null;
 
+  const resolved = readStoredFlow(latest.config);
+
   return {
-    config: latest.config as unknown as FlowConfig,
+    document: resolved.document,
+    config: resolved.runtimeConfig,
     versionId: latest.id,
     version: latest.version,
     status: latest.flow.status,

@@ -53,7 +53,6 @@ export function CanvasToolbar({
   saveState,
   onSaveDraft,
   onPublish,
-  onPublishProduction,
   onPromoteToProduction,
   developmentVersion,
   productionVersion,
@@ -85,7 +84,6 @@ export function CanvasToolbar({
   saveState: SaveState;
   onSaveDraft: () => void;
   onPublish: () => void;
-  onPublishProduction: () => void;
   onPromoteToProduction: () => void;
   developmentVersion: { id: string; version: number } | null;
   productionVersion: { id: string; version: number } | null;
@@ -110,11 +108,6 @@ export function CanvasToolbar({
 
     if (value === "push-prod") {
       onPromoteToProduction();
-      return;
-    }
-
-    if (value === "publish-prod") {
-      onPublishProduction();
     }
   };
 
@@ -171,7 +164,7 @@ export function CanvasToolbar({
         <Select value={publishAction} onValueChange={handlePublishAction}>
           <SelectTrigger
             aria-label="Publish actions"
-            className="h-8 min-w-8 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2 text-white hover:bg-white/[0.08] [&_svg:last-child]:hidden"
+            className="h-8 min-w-8 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2 text-white hover:bg-white/[0.08] [&>svg]:hidden"
           >
             <SelectValue placeholder={<MoreHorizontal size={16} className="text-white" />} />
           </SelectTrigger>
@@ -192,22 +185,10 @@ export function CanvasToolbar({
               <Upload size={14} />
               Push to Prod
             </SelectItem>
-            <SelectItem value="publish-prod" className="rounded-lg px-2 py-2">
-              <Upload size={14} />
-              Publish Prod
-            </SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className="absolute top-16 right-4 flex items-center gap-2 z-20">
-        <div className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1.5 text-[10px] text-white/55">
-          Dev {developmentVersion ? `v${developmentVersion.version}` : "unpublished"}
-        </div>
-        <div className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1.5 text-[10px] text-white/55">
-          Prod {productionVersion ? `v${productionVersion.version}` : "unpublished"}
-        </div>
-      </div>
 
       {/* ── Bottom-center — Figma-style floating toolbar ── */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
@@ -265,6 +246,20 @@ export function CanvasToolbar({
           <button onClick={onResetView} className={iconBtn} aria-label="Reset view" title="Reset View">
             <Maximize2 size={14} />
           </button>
+
+          <div className="w-px h-5 bg-white/[0.1] mx-1" />
+
+          {/* Versions */}
+          <div className="flex items-center gap-1.5 px-0.5">
+            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-1 text-[10px] text-white/55">
+              <Circle size={6} className={developmentVersion ? "text-emerald-400 fill-emerald-400" : "text-amber-400 fill-amber-400"} />
+              <span>Dev{developmentVersion && ` v${developmentVersion.version}`}</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-1 text-[10px] text-white/55">
+              <Circle size={6} className={productionVersion ? "text-emerald-400 fill-emerald-400" : "text-amber-400 fill-amber-400"} />
+              <span>Prod{productionVersion && ` v${productionVersion.version}`}</span>
+            </div>
+          </div>
         </div>
       </div>
     </>
