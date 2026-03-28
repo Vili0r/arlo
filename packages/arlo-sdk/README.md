@@ -2,6 +2,38 @@
 
 Core TypeScript client for fetching published Arlo flows from the control plane.
 
+## CLI
+
+You can scaffold an Expo app integration with:
+
+```bash
+npx arlo-sdk init --project-id=cmmq9kh7u0000qw9kpqnqwq9d
+```
+
+This command:
+
+- adds `arlo-sdk`, `arlo-react-native`, and `@react-native-async-storage/async-storage`
+- creates `arlo/arlo.config.ts`
+- creates `arlo/ArloOnboardingScreen.tsx`
+- runs your package manager install step automatically
+
+Useful options:
+
+```bash
+npx arlo-sdk init \
+  --project-id=cmmq9kh7u0000qw9kpqnqwq9d \
+  --placement-key=onboarding_home \
+  --api-key=ob_test_xxx \
+  --base-url=http://192.168.1.10:3000
+```
+
+You can also skip installation or overwrite generated files:
+
+```bash
+npx arlo-sdk init --project-id=... --skip-install
+npx arlo-sdk init --project-id=... --force
+```
+
 ## Current scope
 
 - Authenticated flow fetching with `x-api-key`

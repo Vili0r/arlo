@@ -34,7 +34,14 @@ export const projectDetailInclude = {
       updatedAt: "desc",
     },
     include: {
-      publishedVersion: {
+      developmentVersion: {
+        select: {
+          id: true,
+          version: true,
+          publishedAt: true,
+        },
+      },
+      productionVersion: {
         select: {
           id: true,
           version: true,
@@ -64,7 +71,8 @@ export const projectDetailInclude = {
 } satisfies Prisma.ProjectInclude;
 
 export const flowDetailInclude = {
-  publishedVersion: true,
+  developmentVersion: true,
+  productionVersion: true,
   versions: {
     orderBy: {
       version: "desc",
@@ -80,7 +88,8 @@ export const flowDetailInclude = {
 } satisfies Prisma.FlowInclude;
 
 export const flowWithConfigInclude = {
-  publishedVersion: true,
+  developmentVersion: true,
+  productionVersion: true,
   versions: {
     orderBy: {
       version: "desc",

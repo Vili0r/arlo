@@ -2,9 +2,14 @@
 
 import React from "react";
 import Link from "next/link";
-import { Search, SlidersHorizontal, LayoutGrid, List, ChevronDown, Plus } from "lucide-react";
+import { Search, SlidersHorizontal, LayoutGrid, List } from "lucide-react";
 
-export function SearchBar() {
+interface SearchBarProps {
+  view: "grid" | "list";
+  onViewChange: (view: "grid" | "list") => void;
+}
+
+export function SearchBar({ view, onViewChange }: SearchBarProps) {
   return (
     <div className="flex items-center gap-3 flex-wrap">
       {/* Search input */}
@@ -19,14 +24,28 @@ export function SearchBar() {
 
       {/* View toggles */}
       <div className="flex items-center border border-white/[0.1] rounded-lg overflow-hidden">
-        <button className="p-2 hover:bg-white/[0.06] transition-colors border-r border-white/[0.1]">
+        <button type="button" className="p-2 hover:bg-white/[0.06] transition-colors border-r border-white/[0.1]">
           <SlidersHorizontal size={16} className="text-white/40" />
         </button>
-        <button className="p-2 bg-white/[0.08] transition-colors border-r border-white/[0.1]">
-          <LayoutGrid size={16} className="text-white/70" />
+        <button
+          type="button"
+          onClick={() => onViewChange("grid")}
+          aria-pressed={view === "grid"}
+          className={`p-2 transition-colors border-r border-white/[0.1] ${
+            view === "grid" ? "bg-white/[0.08]" : "hover:bg-white/[0.06]"
+          }`}
+        >
+          <LayoutGrid size={16} className={view === "grid" ? "text-white/70" : "text-white/40"} />
         </button>
-        <button className="p-2 hover:bg-white/[0.06] transition-colors">
-          <List size={16} className="text-white/40" />
+        <button
+          type="button"
+          onClick={() => onViewChange("list")}
+          aria-pressed={view === "list"}
+          className={`p-2 transition-colors ${
+            view === "list" ? "bg-white/[0.08]" : "hover:bg-white/[0.06]"
+          }`}
+        >
+          <List size={16} className={view === "list" ? "text-white/70" : "text-white/40"} />
         </button>
       </div>
 

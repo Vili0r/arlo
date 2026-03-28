@@ -11,6 +11,7 @@ type ProjectPlacement = {
   id: string;
   key: string;
   name: string | null;
+  environment: "DEVELOPMENT" | "PRODUCTION";
   createdAt: Date;
   flow: {
     id: string;

@@ -14,13 +14,16 @@ export default async function FlowBuilderPage(props: {
     notFound();
   }
 
-  const { config, projectId, registryKeys } = await getFlow(flowId);
+  const { config, projectId, registryKeys, developmentVersion, productionVersion } =
+    await getFlow(flowId);
 
   return (
     <FlowBuilderClient
       flowId={flowId}
       initialData={config}
       initialProjectId={projectId}
+      initialDevelopmentVersion={developmentVersion}
+      initialProductionVersion={productionVersion}
       registryKeys={registryKeys}
       initialOpenImportSource={searchParams?.openImport === "figma" ? "figma" : null}
     />

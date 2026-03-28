@@ -57,18 +57,20 @@ enum Environment {
 }
 
 model Flow {
-  id                 String        @id @default(cuid())
-  projectId          String
-  project            Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name               String // display name in dashboard
-  slug               String // SDK identifier, e.g. "welcome", "upgrade-prompt"
-  status             FlowStatus    @default(DRAFT)
-  publishedVersionId String?       @unique
-  publishedVersion   FlowVersion?  @relation("PublishedVersion", fields: [publishedVersionId], references: [id])
-  versions           FlowVersion[] @relation("FlowVersions")
-  placements         Placement[]
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  id                   String        @id @default(cuid())
+  projectId            String
+  project              Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name                 String // display name in dashboard
+  slug                 String // SDK identifier, e.g. "welcome", "upgrade-prompt"
+  status               FlowStatus    @default(DRAFT)
+  developmentVersionId String?       @unique
+  developmentVersion   FlowVersion?  @relation("DevelopmentPublishedVersion", fields: [developmentVersionId], references: [id])
+  productionVersionId  String?       @unique
+  productionVersion    FlowVersion?  @relation("ProductionPublishedVersion", fields: [productionVersionId], references: [id])
+  versions             FlowVersion[] @relation("FlowVersions")
+  placements           Placement[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   @@unique([projectId, slug])
   @@index([projectId])
@@ -82,15 +84,17 @@ enum FlowStatus {
 }
 
 model FlowVersion {
-  id            String    @id @default(cuid())
-  flowId        String
-  flow          Flow      @relation("FlowVersions", fields: [flowId], references: [id], onDelete: Cascade)
-  version       Int // auto-incremented per flow: v1, v2, v3...
-  config        Json // full screen/component tree (see structure above)
-  changelog     String? // optional note: "Added new welcome screen"
-  publishedFlow Flow?     @relation("PublishedVersion")
-  publishedAt   DateTime?
-  createdAt     DateTime  @default(now())
+  id                        String       @id @default(cuid())
+  flowId                    String
+  flow                      Flow         @relation("FlowVersions", fields: [flowId], references: [id], onDelete: Cascade)
+  version                   Int // auto-incremented per flow: v1, v2, v3...
+  config                    Json // full screen/component tree (see structure above)
+  changelog                 String? // optional note: "Added new welcome screen"
+  developmentPublishedFlow  Flow?        @relation("DevelopmentPublishedVersion")
+  productionPublishedFlow   Flow?        @relation("ProductionPublishedVersion")
+  publishedEnvironment      Environment?
+  publishedAt               DateTime?
+  createdAt                 DateTime     @default(now())
 
   @@unique([flowId, version])
   @@index([flowId])
@@ -98,17 +102,18 @@ model FlowVersion {
 }
 
 model Placement {
-  id         String   @id @default(cuid())
-  projectId  String
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  flowId     String
-  flow       Flow     @relation(fields: [flowId], references: [id], onDelete: Cascade)
-  key        String
-  name       String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String      @id @default(cuid())
+  projectId   String
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  flowId      String
+  flow        Flow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  key         String
+  name        String?
+  environment Environment @default(DEVELOPMENT)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  @@unique([projectId, key])
+  @@unique([projectId, key, environment])
   @@index([projectId])
   @@index([flowId])
   @@map("placements")

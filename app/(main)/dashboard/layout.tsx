@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Menu, MoreHorizontal, ChevronDown } from "lucide-react";
+import { ProjectSwitcher } from "@/components/dashboard/project-switcher";
 
 export default function DashboardLayout({
   children,
@@ -25,10 +26,8 @@ export default function DashboardLayout({
             >
               <Menu size={18} className="text-white/60" />
             </button>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-white/50">All Projects</span>
-              <ChevronDown size={14} className="text-white/30" />
-            </div>
+            <ProjectSwitcher />
+
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-white/80">Overview</span>

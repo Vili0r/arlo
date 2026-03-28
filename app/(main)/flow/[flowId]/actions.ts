@@ -30,7 +30,15 @@ async function requireUser() {
 async function requireFlowAccess(flowId: string, userId: string) {
   const flow = await prisma.flow.findUnique({
     where: { id: flowId },
-    include: { project: { select: { userId: true } } },
+    include: {
+      project: { select: { userId: true } },
+      developmentVersion: {
+        select: { id: true, version: true },
+      },
+      productionVersion: {
+        select: { id: true, version: true },
+      },
+    },
   });
   if (!flow || flow.project.userId !== userId) {
     throw new Error("Flow not found or access denied");
@@ -64,6 +72,15 @@ function toPrismaJson(value: FlowConfig): Prisma.InputJsonValue {
   return value as unknown as Prisma.InputJsonValue;
 }
 
+type PublishEnvironment = "DEVELOPMENT" | "PRODUCTION";
+
+function getFlowStatus(data: {
+  developmentVersion?: { id: string } | null;
+  productionVersion?: { id: string } | null;
+}) {
+  return data.developmentVersion || data.productionVersion ? "PUBLISHED" : "DRAFT";
+}
+
 /* ── Save Draft ──────────────────────────────────────── */
 
 export async function saveDraft(input: {
@@ -95,7 +112,10 @@ export async function saveDraft(input: {
   // Make sure flow status reflects DRAFT
   await prisma.flow.update({
     where: { id: flow.id },
-    data: { status: "DRAFT", updatedAt: new Date() },
+    data: {
+      status: getFlowStatus(flow),
+      updatedAt: new Date(),
+    },
   });
 
   return { success: true, versionId: version.id, version: version.version };
@@ -160,10 +180,12 @@ export async function autoSaveDraft(input: {
 export async function publishFlow(input: {
   flowId: string;
   config: FlowConfig;
+  environment?: PublishEnvironment;
   changelog?: string;
 }): Promise<{ success: true; versionId: string; version: number }> {
   const userId = await requireUser();
   const flow = await requireFlowAccess(input.flowId, userId);
+  const environment = input.environment ?? "DEVELOPMENT";
 
   const latestVersion = await prisma.flowVersion.findFirst({
     where: { flowId: flow.id },
@@ -180,16 +202,73 @@ export async function publishFlow(input: {
       version: nextVersion,
       config: toPrismaJson(input.config),
       changelog: input.changelog ?? `Published v${nextVersion}`,
+      publishedEnvironment: environment,
       publishedAt: new Date(),
     },
   });
 
-  // Point the flow's publishedVersion to this new version
+  const publishedField =
+    environment === "PRODUCTION" ? "productionVersionId" : "developmentVersionId";
+
   await prisma.flow.update({
     where: { id: flow.id },
     data: {
       status: "PUBLISHED",
-      publishedVersionId: version.id,
+      [publishedField]: version.id,
+      updatedAt: new Date(),
+    },
+  });
+
+  return { success: true, versionId: version.id, version: version.version };
+}
+
+export async function promoteDevelopmentToProduction(input: {
+  flowId: string;
+  changelog?: string;
+}): Promise<{ success: true; versionId: string; version: number }> {
+  const userId = await requireUser();
+  const flow = await prisma.flow.findUnique({
+    where: { id: input.flowId },
+    include: {
+      project: { select: { userId: true } },
+      developmentVersion: true,
+    },
+  });
+
+  if (!flow || flow.project.userId !== userId) {
+    throw new Error("Flow not found or access denied");
+  }
+
+  if (!flow.developmentVersion) {
+    throw new Error("Publish a development version before promoting to production");
+  }
+
+  const latestVersion = await prisma.flowVersion.findFirst({
+    where: { flowId: flow.id },
+    orderBy: { version: "desc" },
+    select: { version: true },
+  });
+
+  const nextVersion = (latestVersion?.version ?? 0) + 1;
+
+  const version = await prisma.flowVersion.create({
+    data: {
+      flowId: flow.id,
+      version: nextVersion,
+      config: flow.developmentVersion.config as Prisma.InputJsonValue,
+      changelog:
+        input.changelog ??
+        `Promoted development v${flow.developmentVersion.version} to production`,
+      publishedEnvironment: "PRODUCTION",
+      publishedAt: new Date(),
+    },
+  });
+
+  await prisma.flow.update({
+    where: { id: flow.id },
+    data: {
+      status: "PUBLISHED",
+      productionVersionId: version.id,
       updatedAt: new Date(),
     },
   });
@@ -205,6 +284,8 @@ export async function getFlow(flowId: string): Promise<{
   config: FlowConfig | null;
   version: number | null;
   status: string;
+  developmentVersion: { id: string; version: number } | null;
+  productionVersion: { id: string; version: number } | null;
   registryKeys: {
     id: string;
     key: string;
@@ -253,6 +334,8 @@ export async function getFlow(flowId: string): Promise<{
     config: latest ? (latest.config as unknown as FlowConfig) : null,
     version: latest?.version ?? null,
     status: flow.status,
+    developmentVersion: flow.developmentVersion,
+    productionVersion: flow.productionVersion,
     registryKeys,
   };
 }

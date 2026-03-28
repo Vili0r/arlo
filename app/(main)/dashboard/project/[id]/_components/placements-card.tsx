@@ -17,12 +17,15 @@ interface FlowOption {
   name: string;
   slug: string;
   status: string;
+  developmentVersion: { id: string; version: number } | null;
+  productionVersion: { id: string; version: number } | null;
 }
 
 interface PlacementData {
   id: string;
   key: string;
   name: string | null;
+  environment: "DEVELOPMENT" | "PRODUCTION";
   flow: FlowOption;
   createdAt: string;
 }
@@ -42,8 +45,32 @@ export function PlacementsCard({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
-  const [flowId, setFlowId] = useState(flows.find((flow) => flow.status === "PUBLISHED")?.id ?? flows[0]?.id ?? "");
+  const [environment, setEnvironment] = useState<"DEVELOPMENT" | "PRODUCTION">("DEVELOPMENT");
+  const selectableFlows = flows.filter((flow) =>
+    environment === "PRODUCTION" ? flow.productionVersion : flow.developmentVersion
+  );
+  const [flowId, setFlowId] = useState(selectableFlows[0]?.id ?? "");
   const [isPending, startTransition] = useTransition();
+
+  const developmentCount = placements.filter(
+    (placement) => placement.environment === "DEVELOPMENT"
+  ).length;
+  const productionCount = placements.filter(
+    (placement) => placement.environment === "PRODUCTION"
+  ).length;
+
+  const isPlacementLive = (placement: PlacementData) =>
+    placement.environment === "PRODUCTION"
+      ? Boolean(placement.flow.productionVersion)
+      : Boolean(placement.flow.developmentVersion);
+
+  const flowLabel = (flow: FlowOption) => {
+    const version =
+      environment === "PRODUCTION" ? flow.productionVersion : flow.developmentVersion;
+    return version
+      ? `${flow.name} (${flow.slug}) · v${version.version}`
+      : `${flow.name} (${flow.slug})`;
+  };
 
   const handleCreate = () => {
     if (!key.trim() || !flowId) return;
@@ -54,6 +81,7 @@ export function PlacementsCard({
           key,
           name,
           flowId,
+          environment,
         });
         setDialogOpen(false);
         setName("");
@@ -74,7 +102,15 @@ export function PlacementsCard({
     });
   };
 
-  const publishedCount = placements.filter((placement) => placement.flow.status === "PUBLISHED").length;
+  const liveCount = placements.filter(isPlacementLive).length;
+
+  const handleEnvironmentChange = (nextEnvironment: "DEVELOPMENT" | "PRODUCTION") => {
+    setEnvironment(nextEnvironment);
+    const nextFlows = flows.filter((flow) =>
+      nextEnvironment === "PRODUCTION" ? flow.productionVersion : flow.developmentVersion
+    );
+    setFlowId(nextFlows[0]?.id ?? "");
+  };
 
   return (
     <>
@@ -102,11 +138,15 @@ export function PlacementsCard({
         <div className="flex flex-wrap gap-1.5">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#0a0a0a] border border-[#1f1f1f] text-[10px] font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span className="text-[#888]">{publishedCount} Published</span>
+            <span className="text-[#888]">{liveCount} Live</span>
           </span>
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#0a0a0a] border border-[#1f1f1f] text-[10px] font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-[#666]" />
-            <span className="text-[#888]">{placements.length - publishedCount} Unpublished</span>
+            <span className="text-[#888]">{developmentCount} Dev</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#0a0a0a] border border-[#1f1f1f] text-[10px] font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
+            <span className="text-[#888]">{productionCount} Prod</span>
           </span>
         </div>
       </section>
@@ -142,12 +182,21 @@ export function PlacementsCard({
                       </span>
                       <span
                         className={`text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                          placement.flow.status === "PUBLISHED"
+                          isPlacementLive(placement)
                             ? "bg-emerald-400/10 text-emerald-400"
                             : "bg-[#222] text-[#777]"
                         }`}
                       >
-                        {placement.flow.status === "PUBLISHED" ? "Live" : placement.flow.status}
+                        {placement.environment === "PRODUCTION" ? "Prod" : "Dev"}
+                      </span>
+                      <span
+                        className={`text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                          isPlacementLive(placement)
+                            ? "bg-emerald-400/10 text-emerald-400"
+                            : "bg-[#222] text-[#777]"
+                        }`}
+                      >
+                        {isPlacementLive(placement) ? "Live" : "Missing Publish"}
                       </span>
                     </div>
                     <code className="text-[11px] font-mono text-[#7c8aff] mt-0.5 block">
@@ -231,18 +280,52 @@ export function PlacementsCard({
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] text-[#444] uppercase font-semibold tracking-widest">
+                Environment
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleEnvironmentChange("DEVELOPMENT")}
+                  className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    environment === "DEVELOPMENT"
+                      ? "border-blue-400/40 bg-blue-400/10 text-blue-200"
+                      : "border-[#1f1f1f] bg-[#0a0a0a] text-[#777]"
+                  }`}
+                >
+                  Development
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEnvironmentChange("PRODUCTION")}
+                  className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    environment === "PRODUCTION"
+                      ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
+                      : "border-[#1f1f1f] bg-[#0a0a0a] text-[#777]"
+                  }`}
+                >
+                  Production
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-[#444] uppercase font-semibold tracking-widest">
                 Flow
               </label>
               <select
                 value={flowId}
                 onChange={(event) => setFlowId(event.target.value)}
+                disabled={selectableFlows.length === 0}
                 className="w-full px-3 py-2.5 rounded-lg bg-[#0a0a0a] border border-[#1f1f1f] text-sm text-white focus:outline-none focus:border-[#333]"
               >
-                {flows.map((flow) => (
-                  <option key={flow.id} value={flow.id}>
-                    {flow.name} ({flow.slug})
-                  </option>
-                ))}
+                {selectableFlows.length === 0 ? (
+                  <option value="">No {environment === "PRODUCTION" ? "production" : "development"} published flows</option>
+                ) : (
+                  selectableFlows.map((flow) => (
+                    <option key={flow.id} value={flow.id}>
+                      {flowLabel(flow)}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           </div>

@@ -85,3 +85,18 @@ export function buildSDKFlowResponse(input: {
     },
   };
 }
+
+export function getPublishedVersionForEnvironment<T extends {
+  developmentVersion: TPublished | null;
+  productionVersion: TPublished | null;
+}>(
+  flow: T,
+  environment: ResolvedSDKAuth["environment"]
+) {
+  return environment === "PRODUCTION" ? flow.productionVersion : flow.developmentVersion;
+}
+
+type TPublished = {
+  version: number;
+  config: unknown;
+};

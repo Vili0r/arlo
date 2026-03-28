@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import {
   buildSDKFlowResponse,
+  getPublishedVersionForEnvironment,
   resolveSDKAuth,
   SDKRouteError,
   touchSDKApiKey,
@@ -31,7 +32,8 @@ export async function GET(
         slug,
       },
       include: {
-        publishedVersion: true,
+        developmentVersion: true,
+        productionVersion: true,
       },
     });
 
@@ -39,14 +41,16 @@ export async function GET(
       return jsonError(404, "Flow not found", "FLOW_NOT_FOUND");
     }
 
-    if (flow.status !== "PUBLISHED" || !flow.publishedVersion) {
+    const publishedVersion = getPublishedVersionForEnvironment(flow, apiKey.environment);
+
+    if (flow.status !== "PUBLISHED" || !publishedVersion) {
       return jsonError(404, "Flow is not published", "FLOW_NOT_PUBLISHED");
     }
 
     const response = buildSDKFlowResponse({
       slug: flow.slug,
-      version: flow.publishedVersion.version,
-      config: flow.publishedVersion.config,
+      version: publishedVersion.version,
+      config: publishedVersion.config,
     });
 
     await touchSDKApiKey(apiKey.id);

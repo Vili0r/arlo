@@ -43,17 +43,20 @@ export async function deleteFlow(projectId: string, flowId: string) {
     },
     select: {
       id: true,
-      publishedVersionId: true,
+      developmentVersionId: true,
+      productionVersionId: true,
     },
   });
   if (!flow) throw new Error("Flow not found");
 
   await prisma.$transaction(async (tx) => {
-    if (flow.publishedVersionId) {
+    if (flow.developmentVersionId || flow.productionVersionId) {
       await tx.flow.update({
         where: { id: flowId },
         data: {
-          publishedVersionId: null,
+          developmentVersionId: null,
+          productionVersionId: null,
+          status: "DRAFT",
         },
       });
     }
@@ -123,7 +126,12 @@ export async function deleteApiKey(projectId: string, keyId: string) {
 
 export async function createPlacement(
   projectId: string,
-  data: { key: string; name?: string; flowId: string }
+  data: {
+    key: string;
+    name?: string;
+    flowId: string;
+    environment: "DEVELOPMENT" | "PRODUCTION";
+  }
 ) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
@@ -144,6 +152,7 @@ export async function createPlacement(
       flowId: data.flowId,
       key: data.key.trim(),
       name: data.name?.trim() || null,
+      environment: data.environment,
     },
   });
 

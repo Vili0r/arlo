@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import {
   Upload,
   ChevronLeft,
@@ -12,9 +15,17 @@ import {
   Save,
   Undo2,
   Redo2,
+  MoreHorizontal,
 } from "lucide-react";
 import { DevicePicker } from "./device-picker";
 import type { DevicePreset, Orientation } from "../_lib/device-presets";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -42,6 +53,10 @@ export function CanvasToolbar({
   saveState,
   onSaveDraft,
   onPublish,
+  onPublishProduction,
+  onPromoteToProduction,
+  developmentVersion,
+  productionVersion,
   onImportCode,
   onImportFigma,
   importCodeLabel = "Import Code",
@@ -70,13 +85,38 @@ export function CanvasToolbar({
   saveState: SaveState;
   onSaveDraft: () => void;
   onPublish: () => void;
+  onPublishProduction: () => void;
+  onPromoteToProduction: () => void;
+  developmentVersion: { id: string; version: number } | null;
+  productionVersion: { id: string; version: number } | null;
   onImportCode: () => void;
   onImportFigma: () => void;
   importCodeLabel?: string;
   importFigmaLabel?: string;
 }) {
+  const [publishAction, setPublishAction] = useState<string | undefined>(undefined);
   const iconBtn =
     "p-2 text-white/50 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed";
+
+  const handlePublishAction = (value: string | null) => {
+    if (!value) return;
+
+    setPublishAction(undefined);
+
+    if (value === "publish-dev") {
+      onPublish();
+      return;
+    }
+
+    if (value === "push-prod") {
+      onPromoteToProduction();
+      return;
+    }
+
+    if (value === "publish-prod") {
+      onPublishProduction();
+    }
+  };
 
   return (
     <>
@@ -128,14 +168,45 @@ export function CanvasToolbar({
           </span>
         </div>
 
-        <button
-          onClick={onPublish}
-          disabled={saveState === "saving"}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-white/90 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Upload size={13} />
-          Publish
-        </button>
+        <Select value={publishAction} onValueChange={handlePublishAction}>
+          <SelectTrigger
+            aria-label="Publish actions"
+            className="h-8 min-w-8 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2 text-white hover:bg-white/[0.08] [&_svg:last-child]:hidden"
+          >
+            <SelectValue placeholder={<MoreHorizontal size={16} className="text-white" />} />
+          </SelectTrigger>
+          <SelectContent
+            align="end"
+            sideOffset={8}
+            className="min-w-48 rounded-xl border border-white/[0.1] bg-[#141414] p-1 text-white shadow-2xl"
+          >
+            <SelectItem value="publish-dev" className="rounded-lg px-2 py-2">
+              <Upload size={14} />
+              Publish Dev
+            </SelectItem>
+            <SelectItem
+              value="push-prod"
+              className="rounded-lg px-2 py-2"
+              disabled={saveState === "saving" || !developmentVersion}
+            >
+              <Upload size={14} />
+              Push to Prod
+            </SelectItem>
+            <SelectItem value="publish-prod" className="rounded-lg px-2 py-2">
+              <Upload size={14} />
+              Publish Prod
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="absolute top-16 right-4 flex items-center gap-2 z-20">
+        <div className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1.5 text-[10px] text-white/55">
+          Dev {developmentVersion ? `v${developmentVersion.version}` : "unpublished"}
+        </div>
+        <div className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1.5 text-[10px] text-white/55">
+          Prod {productionVersion ? `v${productionVersion.version}` : "unpublished"}
+        </div>
       </div>
 
       {/* ── Bottom-center — Figma-style floating toolbar ── */}

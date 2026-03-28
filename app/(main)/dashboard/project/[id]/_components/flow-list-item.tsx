@@ -24,6 +24,8 @@ interface FlowListItemProps {
     name: string;
     slug: string;
     status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+    developmentVersion: { id: string; version: number } | null;
+    productionVersion: { id: string; version: number } | null;
     updatedAt: string;
     versionCount: number;
   };
@@ -33,6 +35,14 @@ export function FlowListItem({ projectId, flow }: FlowListItemProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const liveLabel =
+    flow.developmentVersion && flow.productionVersion
+      ? "Dev + Prod"
+      : flow.productionVersion
+        ? "Prod only"
+        : flow.developmentVersion
+          ? "Dev only"
+          : flow.status.charAt(0) + flow.status.slice(1).toLowerCase();
 
   const handleDelete = () => {
     startTransition(async () => {
@@ -117,7 +127,7 @@ export function FlowListItem({ projectId, flow }: FlowListItemProps) {
 
       <span
         className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-semibold ${
-          flow.status === "PUBLISHED"
+          flow.developmentVersion || flow.productionVersion
             ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
             : flow.status === "ARCHIVED"
             ? "border-[#1f1f1f] bg-[#0a0a0a] text-[#444]"
@@ -126,10 +136,10 @@ export function FlowListItem({ projectId, flow }: FlowListItemProps) {
       >
         <span
           className={`h-1.5 w-1.5 rounded-full ${
-            flow.status === "PUBLISHED" ? "bg-emerald-400" : "bg-[#444]"
+            flow.developmentVersion || flow.productionVersion ? "bg-emerald-400" : "bg-[#444]"
           }`}
         />
-        {flow.status.charAt(0) + flow.status.slice(1).toLowerCase()}
+        {liveLabel}
       </span>
 
       <Link

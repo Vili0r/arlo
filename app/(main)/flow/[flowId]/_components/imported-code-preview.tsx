@@ -164,18 +164,15 @@ export function ImportedCodePreview({
       const ch = container.clientHeight;
       if (cw === 0 || ch === 0) return;
 
-      let s = cw / designWidth;
-      if (designHeight) {
-        s = Math.min(s, ch / designHeight);
-      }
-      setScale(Math.min(s, 1));
+      const s = cw / designWidth;
+      setScale(s);
     };
 
     update();
     const ro = new ResizeObserver(update);
     ro.observe(container);
     return () => ro.disconnect();
-  }, [designWidth, designHeight]);
+  }, [designWidth]);
 
   return (
     <div

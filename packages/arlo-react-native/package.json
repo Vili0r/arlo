@@ -1,12 +1,11 @@
 {
   "name": "arlo-react-native",
   "version": "0.1.0",
-  "private": true,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "sideEffects": false,
   "dependencies": {
-    "arlo-sdk": "file:../arlo-sdk"
+    "arlo-sdk": "^0.1.0"
   },
   "peerDependencies": {
     "react": ">=18",

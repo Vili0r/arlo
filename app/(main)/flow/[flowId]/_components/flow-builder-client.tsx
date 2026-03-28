@@ -45,7 +45,7 @@ import type { ComponentActions } from "./screens-list";
 import { TabStyleSidebar, presetToTabComponentProps } from "./tab-style-sidebar";
 import { useHistory } from "../_lib/use-history";
 import { useKeyboardShortcuts } from "../_lib/use-keyboard-shortcuts";
-import { saveDraft, autoSaveDraft, publishFlow, getFlow } from "../actions";
+import { saveDraft, autoSaveDraft, publishFlow, promoteDevelopmentToProduction } from "../actions";
 import { TemplatePalette, QuickFlowTemplates } from "./template-picker";
 import { ALL_TEMPLATES, type TemplateDefinition } from "../_lib/templates";
 import type { ImportMode } from "../_lib/code-import";
@@ -82,12 +82,16 @@ export function FlowBuilderClient({
   flowId,
   initialData,
   initialProjectId,
+  initialDevelopmentVersion,
+  initialProductionVersion,
   registryKeys,
   initialOpenImportSource = null,
 }: {
   flowId: string;
   initialData: FlowConfig | null;
   initialProjectId: string | null;
+  initialDevelopmentVersion: { id: string; version: number } | null;
+  initialProductionVersion: { id: string; version: number } | null;
   registryKeys: { id: string; key: string; type: "SCREEN" | "COMPONENT"; description: string | null }[];
   initialOpenImportSource?: "figma" | null;
 }) {
@@ -118,6 +122,8 @@ export function FlowBuilderClient({
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [tabSidebarOpen, setTabSidebarOpen] = useState(false);
+  const [developmentVersion, setDevelopmentVersion] = useState(initialDevelopmentVersion);
+  const [productionVersion, setProductionVersion] = useState(initialProductionVersion);
   const [codeImportOpen, setCodeImportOpen] = useState(false);
   const [figmaImportOpen, setFigmaImportOpen] = useState(initialOpenImportSource === "figma");
 
@@ -193,7 +199,15 @@ export function FlowBuilderClient({
     if (!flowId) return;
     setSaveState("saving");
     try {
-      await publishFlow({ flowId, config: history.state });
+      const result = await publishFlow({
+        flowId,
+        config: history.state,
+        environment: "DEVELOPMENT",
+      });
+      setDevelopmentVersion({
+        id: result.versionId,
+        version: result.version,
+      });
       history.markSaved();
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
@@ -203,6 +217,47 @@ export function FlowBuilderClient({
       setTimeout(() => setSaveState("idle"), 3000);
     }
   }, [flowId, history]);
+
+  const handlePublishProduction = useCallback(async () => {
+    if (!flowId) return;
+    setSaveState("saving");
+    try {
+      const result = await publishFlow({
+        flowId,
+        config: history.state,
+        environment: "PRODUCTION",
+      });
+      setProductionVersion({
+        id: result.versionId,
+        version: result.version,
+      });
+      history.markSaved();
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2000);
+    } catch (err) {
+      console.error("Production publish failed:", err);
+      setSaveState("error");
+      setTimeout(() => setSaveState("idle"), 3000);
+    }
+  }, [flowId, history]);
+
+  const handlePromoteToProduction = useCallback(async () => {
+    if (!flowId) return;
+    setSaveState("saving");
+    try {
+      const result = await promoteDevelopmentToProduction({ flowId });
+      setProductionVersion({
+        id: result.versionId,
+        version: result.version,
+      });
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2000);
+    } catch (err) {
+      console.error("Promote failed:", err);
+      setSaveState("error");
+      setTimeout(() => setSaveState("idle"), 3000);
+    }
+  }, [flowId]);
   
   // — Auto-save on a 30s debounce when dirty —
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1054,6 +1109,10 @@ export function FlowBuilderClient({
           saveState={saveState}
           onSaveDraft={handleSaveDraft}
           onPublish={handlePublish}
+          onPublishProduction={handlePublishProduction}
+          onPromoteToProduction={handlePromoteToProduction}
+          developmentVersion={developmentVersion}
+          productionVersion={productionVersion}
           onImportCode={() => setCodeImportOpen(true)}
           onImportFigma={() => setFigmaImportOpen(true)}
           importCodeLabel={codeImportLabel}

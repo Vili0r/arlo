@@ -7,10 +7,10 @@ import {
   ExternalLink,
   Settings,
   Undo2,
-  Copy,
   ArrowRight,
   BarChart3,
 } from "lucide-react";
+import { CopyButton } from "@/components/ui/copy-button";
 import { CreateFlowButton } from "@/app/(main)/dashboard/project/[id]/_components/create-flow-dialog";
 import { FlowsCard } from "@/app/(main)/dashboard/project/[id]/_components/flows-card";
 import { ApiKeysCard } from "@/app/(main)/dashboard/key/_components/api-keys-card";
@@ -30,14 +30,29 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
 
   try {
     project = await getProject(id);
-  } catch {
-    notFound();
+  } catch (error) {
+    if (error instanceof Error && error.message === "Project not found") {
+      notFound();
+    }
+
+    throw error;
   }
 
   const placements = project.placements ?? [];
   const registryKeys = project.registryKeys ?? [];
   const flowCount = project.flows.length;
-  const publishedFlows = project.flows.filter((f) => f.status === "PUBLISHED");
+  const publishedFlows = project.flows.filter(
+    (f) => f.developmentVersion || f.productionVersion
+  );
+  const flowVersionMap = new Map(
+    project.flows.map((flow) => [
+      flow.id,
+      {
+        developmentVersion: flow.developmentVersion,
+        productionVersion: flow.productionVersion,
+      },
+    ])
+  );
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -171,9 +186,9 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
                     <code className="text-xs text-[#7c8aff] flex-1 truncate font-mono">
                       npx arlo-sdk init --project-id={id}
                     </code>
-                    <button className="p-1 text-[#444] hover:text-white transition-colors">
-                      <Copy size={13} />
-                    </button>
+                    <CopyButton value={`npx arlo-sdk init --project-id=${id}`} />
+
+
                   </div>
                 </div>
 
@@ -227,6 +242,18 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
                           name: flow.name,
                           slug: flow.slug,
                           status: flow.status,
+                          developmentVersion: flow.developmentVersion
+                            ? {
+                                id: flow.developmentVersion.id,
+                                version: flow.developmentVersion.version,
+                              }
+                            : null,
+                          productionVersion: flow.productionVersion
+                            ? {
+                                id: flow.productionVersion.id,
+                                version: flow.productionVersion.version,
+                              }
+                            : null,
                           updatedAt: flow.updatedAt.toISOString(),
                           versionCount: flow._count?.versions ?? 0,
                         }}
@@ -267,11 +294,28 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
                 id: placement.id,
                 key: placement.key,
                 name: placement.name,
+                environment: placement.environment,
                 flow: {
                   id: placement.flow.id,
                   name: placement.flow.name,
                   slug: placement.flow.slug,
                   status: placement.flow.status,
+                  developmentVersion:
+                    flowVersionMap.get(placement.flow.id)?.developmentVersion
+                      ? {
+                          id: flowVersionMap.get(placement.flow.id)!.developmentVersion!.id,
+                          version:
+                            flowVersionMap.get(placement.flow.id)!.developmentVersion!.version,
+                        }
+                      : null,
+                  productionVersion:
+                    flowVersionMap.get(placement.flow.id)?.productionVersion
+                      ? {
+                          id: flowVersionMap.get(placement.flow.id)!.productionVersion!.id,
+                          version:
+                            flowVersionMap.get(placement.flow.id)!.productionVersion!.version,
+                        }
+                      : null,
                 },
                 createdAt: placement.createdAt.toISOString(),
               }))}
@@ -280,6 +324,18 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
                 name: flow.name,
                 slug: flow.slug,
                 status: flow.status,
+                developmentVersion: flow.developmentVersion
+                  ? {
+                      id: flow.developmentVersion.id,
+                      version: flow.developmentVersion.version,
+                    }
+                  : null,
+                productionVersion: flow.productionVersion
+                  ? {
+                      id: flow.productionVersion.id,
+                      version: flow.productionVersion.version,
+                    }
+                  : null,
               }))}
             />
 
