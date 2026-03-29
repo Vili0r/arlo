@@ -6,16 +6,12 @@ import {
   Smartphone,
   PanelLeftClose,
   PanelLeftOpen,
-  X,
-  ChevronLeft,
   ChevronRight,
-  ArrowLeft,
   Copy,
   Trash2,
   Settings2,
-  Eye,
-  EyeOff,
 } from "lucide-react";
+import { DndContext, type DragEndEvent } from "@dnd-kit/core";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -40,7 +36,12 @@ import { ScreensList } from "./screens-list";
 import { ComponentPalette } from "./component-palette";
 import { PropertySheet } from "./property-sheet";
 import { PhonePreviewComponent } from "./phone-preview";
-import { CanvasToolbar } from "./canvas-toolbar";
+import { CanvasToolbar, type ToolMode } from "./canvas-toolbar";
+import { CanvasInteractionLayer } from "./canvas-interaction-layer";
+import { LayersPanel } from "./layers-panel";
+import { QuickInsertPalette } from "./quick-insert-palette";
+import { InlineTextEditor } from "./inline-text-editor";
+import { ScreenDropSurface } from "./screen-drop-surface";
 import type { ComponentActions } from "./screens-list";
 import { TabStyleSidebar, presetToTabComponentProps } from "./tab-style-sidebar";
 import { useHistory } from "../_lib/use-history";
@@ -55,11 +56,14 @@ import {
   appendComponentNode,
   compileEditorDocument,
   duplicateNodeInScreen,
+  type EditorComponentNode,
   flowConfigToEditorDocument,
   getComponentNode,
   removeNodeFromScreen,
   type EditorDocument,
+  type EditorNodeTransform,
 } from "../_lib/editor-document";
+import { useEditorInteractionStore } from "../_lib/editor-interaction-store";
 
 import { DeviceFrame } from "./device-frame";
 import {
@@ -71,6 +75,119 @@ import {
   type IndicatorSettings,
   mergeIndicator,
  } from "./sidebar-panels";
+import type { ScreenTransitionConfig } from "../_lib/animation-presets";
+
+const DEFAULT_FLOW_CONFIG: FlowConfig = {
+  screens: [
+    {
+      id: "screen_1",
+      name: "Welcome",
+      order: 0,
+      style: { backgroundColor: "#FFFFFF", padding: 24 },
+      components: [],
+    },
+  ],
+  settings: {
+    dismissible: true,
+    showProgressBar: true,
+    transitionAnimation: "slide",
+  },
+};
+
+type PositionedComponentProps = Record<string, unknown> & {
+  position?: string;
+};
+
+type ButtonActionProps = Record<string, unknown> & {
+  action?: string;
+  actionTarget?: string;
+  actionTargetScreenId?: string;
+  label?: string;
+};
+
+type IndicatorAwareDocumentSettings = EditorDocument["settings"] & {
+  indicator?: Partial<IndicatorSettings>;
+};
+
+type IndicatorAwareDocumentScreen = EditorDocument["screens"][number] & {
+  indicator?: Partial<IndicatorSettings>;
+};
+
+type BuilderClipboardItem = {
+  component: FlowComponent;
+  transform: EditorNodeTransform;
+};
+
+type BuilderClipboard = {
+  items: BuilderClipboardItem[];
+  pasteCount: number;
+};
+
+type QuickInsertState = {
+  screenIndex: number;
+  x: number;
+  y: number;
+} | null;
+
+type InlineTextEditState = {
+  screenIndex: number;
+  nodeId: string;
+} | null;
+
+const DEFAULT_ABSOLUTE_INSERT_SIZE = {
+  width: 180,
+  height: 80,
+};
+
+function setValueAtPath<T extends object>(
+  source: T,
+  path: string,
+  value: unknown,
+): T {
+  const segments = path.split(".");
+  const result: Record<string, unknown> = { ...(source as Record<string, unknown>) };
+  let cursor = result;
+
+  segments.forEach((segment, index) => {
+    if (index === segments.length - 1) {
+      cursor[segment] = value;
+      return;
+    }
+
+    const current = cursor[segment];
+    const next =
+      current && typeof current === "object" && !Array.isArray(current)
+        ? { ...(current as Record<string, unknown>) }
+        : {};
+    cursor[segment] = next;
+    cursor = next;
+  });
+
+  return result as T;
+}
+
+function getComponentCanvasSize(component: FlowComponent) {
+  const props = component.props as Record<string, unknown>;
+
+  const width =
+    typeof props.width === "number"
+      ? props.width
+      : typeof props.fixedWidth === "number"
+        ? props.fixedWidth
+        : component.layout?.width ?? DEFAULT_ABSOLUTE_INSERT_SIZE.width;
+
+  const height =
+    typeof props.height === "number"
+      ? props.height
+      : typeof props.fixedHeight === "number"
+        ? props.fixedHeight
+        : component.layout?.height ?? (component.type === "TEXT" ? 72 : DEFAULT_ABSOLUTE_INSERT_SIZE.height);
+
+  return {
+    width: Math.max(width, 20),
+    height: Math.max(height, 20),
+  };
+}
 
 
 /* ── DARK BG HELPER (for indicator bar) ────────────────── */
@@ -104,30 +221,26 @@ export function FlowBuilderClient({
 }) {
   const router = useRouter();
   const projectId = initialProjectId;
-  const canvas = useCanvas();
-
-  const defaultConfig: FlowConfig = {
-    screens: [
-      {
-        id: "screen_1",
-        name: "Welcome",
-        order: 0,
-        style: { backgroundColor: "#FFFFFF", padding: 24 },
-        components: [],
-      },
-    ],
-    settings: {
-      dismissible: true,
-      showProgressBar: true,
-      transitionAnimation: "slide",
-    },
-  };
+  const {
+    canvasRef,
+    zoom,
+    panOffset,
+    isPanning,
+    isDraggingPhone,
+    handleCanvasMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    setCanvasView,
+    resetView,
+  } = useCanvas();
 
   const [selectedScreenIndex, setSelectedScreenIndex] = useState(0);
-  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SidebarTab>("screens");
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(true);
   const [tabSidebarOpen, setTabSidebarOpen] = useState(false);
   const [developmentVersion, setDevelopmentVersion] = useState(initialDevelopmentVersion);
   const [productionVersion, setProductionVersion] = useState(initialProductionVersion);
@@ -140,15 +253,27 @@ export function FlowBuilderClient({
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [fullScreenView, setFullScreenView] = useState(false);
 
-  const [copiedComponent, setCopiedComponent] = useState<FlowComponent | null>(null);
+  const [builderClipboard, setBuilderClipboard] = useState<BuilderClipboard | null>(null);
   const [copiedStyles, setCopiedStyles] = useState<Record<string, unknown> | null>(null);
-  const defaultDocument = useMemo(() => flowConfigToEditorDocument(defaultConfig), []);
+  const [quickInsertState, setQuickInsertState] = useState<QuickInsertState>(null);
+  const [inlineTextEdit, setInlineTextEdit] = useState<InlineTextEditState>(null);
+  const [toolMode, setToolMode] = useState<ToolMode>("select");
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const absoluteNodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const defaultDocument = useMemo(() => flowConfigToEditorDocument(DEFAULT_FLOW_CONFIG), []);
   const history = useHistory<EditorDocument>(initialDocument || defaultDocument);
   const document = history.state;
   const config = useMemo(() => compileEditorDocument(document), [document]);
+  const selectedNodeIds = useEditorInteractionStore((state) => state.selectedNodeIds);
+  const focusedNodeId = useEditorInteractionStore((state) => state.focusedNodeId);
+  const previewTransforms = useEditorInteractionStore((state) => state.previewTransforms);
+  const selectNodes = useEditorInteractionStore((state) => state.selectNodes);
+  const clearSelection = useEditorInteractionStore((state) => state.clearSelection);
 
   const currentScreenDoc = document.screens[selectedScreenIndex];
   const currentScreen = config.screens[selectedScreenIndex];
+  const selectedComponentId =
+    focusedNodeId && currentScreenDoc?.nodes[focusedNodeId] ? focusedNodeId : null;
   const selectedComponentNode = currentScreenDoc
     ? getComponentNode(currentScreenDoc, selectedComponentId)
     : null;
@@ -177,32 +302,9 @@ export function FlowBuilderClient({
   const figmaImportSubmitLabel = isEditingImportedFigmaScreen ? "Update screen" : "Import to builder";
   const screenRegistryKeys = registryKeys.filter((entry) => entry.type === "SCREEN");
   const frame = getFrameDimensions(selectedDevice, orientation);
+  const effectiveTool: ToolMode = isSpacePressed ? "hand" : toolMode;
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const dragStateRef = useRef<{
-    screenIndex: number;
-    nodeId: string;
-    startClientX: number;
-    startClientY: number;
-    startX: number;
-    startY: number;
-    width: number;
-    height: number;
-    moved: boolean;
-  } | null>(null);
-  const [dragGuides, setDragGuides] = useState<{
-    screenIndex: number | null;
-    vertical: number | null;
-    horizontal: number | null;
-  }>({
-    screenIndex: null,
-    vertical: null,
-    horizontal: null,
-  });
-
-  useEffect(() => {
-    if (selectedComponentId) setSheetOpen(true);
-  }, [selectedComponentId]);
 
   useEffect(() => {
     if (initialOpenImportSource === "figma") {
@@ -289,12 +391,6 @@ export function FlowBuilderClient({
     };
   }, [flowId, history.isDirty, history.state, history]);
 
-  useKeyboardShortcuts({
-    onUndo: history.undo,
-    onRedo: history.redo,
-    onSave: handleSaveDraft,
-  });
-
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (history.isDirty) {
@@ -306,184 +402,371 @@ export function FlowBuilderClient({
     return () => window.removeEventListener("beforeunload", handler);
   }, [history.isDirty]);
 
-  const closeSheet = useCallback(() => {
-    setSheetOpen(false);
-    setTimeout(() => setSelectedComponentId(null), 200);
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "Space" && !isEditableTarget(event.target)) {
+        event.preventDefault();
+        setIsSpacePressed(true);
+      }
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") {
+        setIsSpacePressed(false);
+      }
+    };
+    const handleBlur = () => {
+      setIsSpacePressed(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
   }, []);
 
-  const beginAbsoluteDrag = useCallback(
-    (event: React.MouseEvent, screenIndex: number, nodeId: string) => {
-      const screen = document.screens[screenIndex];
-      const node = screen ? getComponentNode(screen, nodeId) : null;
-      if (!screen || screen.layoutMode !== "absolute" || !node || node.locked) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      setSelectedScreenIndex(screenIndex);
-      setSelectedComponentId(nodeId);
-      setSheetOpen(true);
-
-      dragStateRef.current = {
-        screenIndex,
-        nodeId,
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        startX: node.transform.x,
-        startY: node.transform.y,
-        width: node.transform.width ?? 0,
-        height: node.transform.height ?? 0,
-        moved: false,
-      };
-    },
-    [document.screens],
-  );
-
   useEffect(() => {
-    const handlePointerMove = (event: MouseEvent) => {
-      const dragState = dragStateRef.current;
-      if (!dragState) return;
+    if (!selectedComponentId) return;
+    if (!currentScreenDoc?.nodes[selectedComponentId]) {
+      clearSelection();
+    }
+  }, [clearSelection, currentScreenDoc, selectedComponentId]);
 
-      const screen = document.screens[dragState.screenIndex];
-      if (!screen) return;
-
-      const deltaX = (event.clientX - dragState.startClientX) / canvas.zoom;
-      const deltaY = (event.clientY - dragState.startClientY) / canvas.zoom;
-      let nextX = Math.round(dragState.startX + deltaX);
-      let nextY = Math.round(dragState.startY + deltaY);
-
-      const maxX = Math.max(0, screen.artboard.width - dragState.width);
-      const maxY = Math.max(0, screen.artboard.height - dragState.height);
-      const verticalGuides = [
-        { line: 0, position: 0 },
-        {
-          line: screen.artboard.width / 2,
-          position: Math.round(screen.artboard.width / 2 - dragState.width / 2),
-        },
-        {
-          line: screen.artboard.width,
-          position: Math.round(maxX),
-        },
-      ];
-      const horizontalGuides = [
-        { line: 0, position: 0 },
-        {
-          line: screen.artboard.height / 2,
-          position: Math.round(screen.artboard.height / 2 - dragState.height / 2),
-        },
-        {
-          line: screen.artboard.height,
-          position: Math.round(maxY),
-        },
-      ];
-
-      let activeVerticalGuide: number | null = null;
-      let activeHorizontalGuide: number | null = null;
-
-      for (const guide of verticalGuides) {
-        if (Math.abs(nextX - guide.position) <= 8) {
-          nextX = guide.position;
-          activeVerticalGuide = guide.line;
-          break;
-        }
-      }
-
-      for (const guide of horizontalGuides) {
-        if (Math.abs(nextY - guide.position) <= 8) {
-          nextY = guide.position;
-          activeHorizontalGuide = guide.line;
-          break;
-        }
-      }
-
-      nextX = Math.max(0, Math.min(nextX, maxX));
-      nextY = Math.max(0, Math.min(nextY, maxY));
-      dragState.moved = true;
-
-      history.set(
-        (prev) => ({
-          ...prev,
-          screens: prev.screens.map((currentScreen, screenIndex) => {
-            if (screenIndex !== dragState.screenIndex) return currentScreen;
-            const node = currentScreen.nodes[dragState.nodeId];
-            if (!node || node.kind !== "component") return currentScreen;
-
-            return {
-              ...currentScreen,
-              nodes: {
-                ...currentScreen.nodes,
-                [dragState.nodeId]: {
-                  ...node,
-                  transform: {
-                    ...node.transform,
-                    x: nextX,
-                    y: nextY,
-                  },
-                },
-              },
-            };
-          }),
-        }),
-        { batch: true },
-      );
-
-      setDragGuides({
-        screenIndex: dragState.screenIndex,
-        vertical: activeVerticalGuide,
-        horizontal: activeHorizontalGuide,
-      });
-    };
-
-    const handlePointerUp = () => {
-      const dragState = dragStateRef.current;
-      if (!dragState) return;
-
-      dragStateRef.current = null;
-      setDragGuides({
-        screenIndex: null,
-        vertical: null,
-        horizontal: null,
-      });
-
-      if (!dragState.moved) return;
-
-      history.set((prev) => ({
-        ...prev,
-        screens: [...prev.screens],
-      }));
-    };
-
-    window.addEventListener("mousemove", handlePointerMove);
-    window.addEventListener("mouseup", handlePointerUp);
-
-    return () => {
-      window.removeEventListener("mousemove", handlePointerMove);
-      window.removeEventListener("mouseup", handlePointerUp);
-    };
-  }, [canvas.zoom, document.screens, history]);
+  const closeSheet = useCallback(() => {
+    setSheetOpen(false);
+    setTimeout(() => clearSelection(), 200);
+  }, [clearSelection]);
 
   const updateConfig = history.set;
+  const selectedNodeIdsOnCurrentScreen = useMemo(
+    () =>
+      selectedNodeIds.filter((nodeId) => Boolean(currentScreenDoc?.nodes[nodeId])),
+    [currentScreenDoc?.nodes, selectedNodeIds],
+  );
+  const selectedComponentNodes = useMemo(
+    () =>
+      selectedNodeIdsOnCurrentScreen
+        .map((nodeId) => (currentScreenDoc ? getComponentNode(currentScreenDoc, nodeId) : null))
+        .filter((node): node is EditorComponentNode => Boolean(node)),
+    [currentScreenDoc, selectedNodeIdsOnCurrentScreen],
+  );
 
-  const addComponent = useCallback(
-    (type: string) => {
-      if (type === "TAB_BUTTON") {
-        setTabSidebarOpen(true);
-        return;
-      }
- 
+  const getAbsoluteNodeRefKey = useCallback((screenIdx: number, nodeId: string) => {
+    return `${screenIdx}:${nodeId}`;
+  }, []);
+
+  const selectScreen = useCallback(
+    (screenIndex: number) => {
+      setSelectedScreenIndex(screenIndex);
+      clearSelection();
+    },
+    [clearSelection],
+  );
+
+  const selectComponent = useCallback(
+    (screenIndex: number, componentId: string, additive = false) => {
+      setSelectedScreenIndex(screenIndex);
+      const nextSelection =
+        additive && currentScreenDoc
+          ? Array.from(new Set([...selectedNodeIdsOnCurrentScreen, componentId]))
+          : [componentId];
+      selectNodes(nextSelection, componentId);
+      setSheetOpen(true);
+    },
+    [currentScreenDoc, selectNodes, selectedNodeIdsOnCurrentScreen],
+  );
+
+  const commitNodeTransforms = useCallback(
+    (
+      screenIndex: number,
+      updates: Record<string, Partial<EditorNodeTransform>>,
+    ) => {
+      updateConfig((prev) => ({
+        ...prev,
+        screens: prev.screens.map((screen, currentScreenIndex) => {
+          if (currentScreenIndex !== screenIndex) return screen;
+
+          return {
+            ...screen,
+            nodes: Object.fromEntries(
+              Object.entries(screen.nodes).map(([nodeId, node]) => {
+                const patch = updates[nodeId];
+                if (!patch) return [nodeId, node];
+
+                return [
+                  nodeId,
+                  {
+                    ...node,
+                    transform: {
+                      ...node.transform,
+                      ...Object.fromEntries(
+                        Object.entries(patch).filter(([, value]) => value !== undefined),
+                      ),
+                    },
+                  },
+                ];
+              }),
+            ) as typeof screen.nodes,
+          };
+        }),
+      }));
+    },
+    [updateConfig],
+  );
+
+  const updateNodePresentation = useCallback(
+    (
+      nodeId: string,
+      patch: Partial<{
+        visible: boolean;
+        locked: boolean;
+        transform: Partial<EditorNodeTransform>;
+      }>,
+    ) => {
+      updateConfig((prev) => ({
+        ...prev,
+        screens: prev.screens.map((screen, index) => {
+          if (index !== selectedScreenIndex) return screen;
+          const node = screen.nodes[nodeId];
+          if (!node) return screen;
+
+          return {
+            ...screen,
+            nodes: {
+              ...screen.nodes,
+              [nodeId]: {
+                ...node,
+                visible: patch.visible ?? node.visible,
+                locked: patch.locked ?? node.locked,
+                transform: patch.transform
+                  ? {
+                      ...node.transform,
+                      ...patch.transform,
+                    }
+                  : node.transform,
+              },
+            },
+          };
+        }),
+      }));
+    },
+    [selectedScreenIndex, updateConfig],
+  );
+
+  const updateSelectedNodesPresentation = useCallback(
+    (
+      patch: Partial<{
+        visible: boolean;
+        locked: boolean;
+        transform: Partial<EditorNodeTransform>;
+        constraints: EditorDocument["screens"][number]["nodes"][string]["constraints"];
+      }>,
+    ) => {
+      if (selectedNodeIdsOnCurrentScreen.length === 0) return;
+
+      updateConfig((prev) => ({
+        ...prev,
+        screens: prev.screens.map((screen, index) => {
+          if (index !== selectedScreenIndex) return screen;
+
+          return {
+            ...screen,
+            nodes: Object.fromEntries(
+              Object.entries(screen.nodes).map(([nodeId, node]) => {
+                if (!selectedNodeIdsOnCurrentScreen.includes(nodeId)) {
+                  return [nodeId, node];
+                }
+
+                return [
+                  nodeId,
+                  {
+                    ...node,
+                    visible: patch.visible ?? node.visible,
+                    locked: patch.locked ?? node.locked,
+                    constraints:
+                      patch.constraints && node.kind === "component"
+                        ? {
+                            ...node.constraints,
+                            ...patch.constraints,
+                          }
+                        : node.constraints,
+                    transform: patch.transform
+                      ? {
+                          ...node.transform,
+                          ...patch.transform,
+                        }
+                      : node.transform,
+                  },
+                ];
+              }),
+            ) as typeof screen.nodes,
+          };
+        }),
+      }));
+    },
+    [selectedNodeIdsOnCurrentScreen, selectedScreenIndex, updateConfig],
+  );
+
+  const updateCurrentScreenDoc = useCallback(
+    (updater: (screen: EditorDocument["screens"][number]) => EditorDocument["screens"][number]) => {
+      updateConfig((prev) => ({
+        ...prev,
+        screens: prev.screens.map((screen, index) =>
+          index === selectedScreenIndex ? updater(screen) : screen,
+        ),
+      }));
+    },
+    [selectedScreenIndex, updateConfig],
+  );
+
+  const updateCurrentScreenStyle = useCallback(
+    (patch: Record<string, unknown>) => {
+      updateCurrentScreenDoc((screen) => ({
+        ...screen,
+        style: {
+          ...(screen.style ?? {}),
+          ...patch,
+        },
+      }));
+    },
+    [updateCurrentScreenDoc],
+  );
+
+  const updateCurrentScreenTransition = useCallback(
+    (transition: ScreenTransitionConfig) => {
+      updateCurrentScreenDoc((screen) => ({
+        ...screen,
+        animation: transition as unknown as EditorDocument["screens"][number]["animation"],
+      }));
+    },
+    [updateCurrentScreenDoc],
+  );
+
+  const updateCurrentScreenArtboard = useCallback(
+    (patch: Partial<EditorDocument["screens"][number]["artboard"]>) => {
+      updateCurrentScreenDoc((screen) => ({
+        ...screen,
+        artboard: {
+          ...screen.artboard,
+          ...patch,
+        },
+      }));
+    },
+    [updateCurrentScreenDoc],
+  );
+
+  const updateCurrentScreenLayoutMode = useCallback(
+    (layoutMode: "auto" | "absolute") => {
+      updateCurrentScreenDoc((screen) => {
+        const nodes =
+          layoutMode === "absolute" && screen.layoutMode !== "absolute"
+            ? Object.fromEntries(
+                Object.entries(screen.nodes).map(([nodeId, node]) => {
+                  const rootIndex = screen.rootNodeIds.indexOf(nodeId);
+                  if (rootIndex === -1 || node.kind !== "component") {
+                    return [nodeId, node];
+                  }
+
+                  return [
+                    nodeId,
+                    {
+                      ...node,
+                      transform: {
+                        ...node.transform,
+                        x: node.transform.x ?? 0,
+                        y: node.transform.y !== 0 ? node.transform.y : rootIndex * 88,
+                        zIndex: rootIndex,
+                      },
+                    },
+                  ];
+                }),
+              ) as typeof screen.nodes
+            : screen.nodes;
+
+        return {
+          ...screen,
+          layoutMode,
+          nodes,
+        };
+      });
+    },
+    [updateCurrentScreenDoc],
+  );
+
+  const moveSelectedNodesInZOrder = useCallback(
+    (direction: "forward" | "backward" | "front" | "back") => {
+      if (selectedNodeIdsOnCurrentScreen.length === 0 || !currentScreenDoc) return;
+
       updateConfig((prev) => {
         const screens = [...prev.screens];
         const screen = screens[selectedScreenIndex];
         if (!screen) return prev;
-        screens[selectedScreenIndex] = appendComponentNode(
-          screen,
-          createDefaultComponent(type, screen.rootNodeIds.length),
-        );
+
+        const selectedSet = new Set(selectedNodeIdsOnCurrentScreen);
+        let nextRootNodeIds = [...screen.rootNodeIds];
+
+        if (direction === "front") {
+          nextRootNodeIds = [
+            ...nextRootNodeIds.filter((nodeId) => !selectedSet.has(nodeId)),
+            ...nextRootNodeIds.filter((nodeId) => selectedSet.has(nodeId)),
+          ];
+        } else if (direction === "back") {
+          nextRootNodeIds = [
+            ...nextRootNodeIds.filter((nodeId) => selectedSet.has(nodeId)),
+            ...nextRootNodeIds.filter((nodeId) => !selectedSet.has(nodeId)),
+          ];
+        } else if (direction === "forward") {
+          for (let index = nextRootNodeIds.length - 2; index >= 0; index -= 1) {
+            const currentId = nextRootNodeIds[index]!;
+            const nextId = nextRootNodeIds[index + 1]!;
+            if (selectedSet.has(currentId) && !selectedSet.has(nextId)) {
+              nextRootNodeIds[index] = nextId;
+              nextRootNodeIds[index + 1] = currentId;
+            }
+          }
+        } else {
+          for (let index = 1; index < nextRootNodeIds.length; index += 1) {
+            const currentId = nextRootNodeIds[index]!;
+            const previousId = nextRootNodeIds[index - 1]!;
+            if (selectedSet.has(currentId) && !selectedSet.has(previousId)) {
+              nextRootNodeIds[index] = previousId;
+              nextRootNodeIds[index - 1] = currentId;
+            }
+          }
+        }
+
+        screens[selectedScreenIndex] = {
+          ...screen,
+          rootNodeIds: nextRootNodeIds,
+          nodes: Object.fromEntries(
+            Object.entries(screen.nodes).map(([nodeId, node]) => [
+              nodeId,
+              nextRootNodeIds.includes(nodeId)
+                ? {
+                    ...node,
+                    transform: {
+                      ...node.transform,
+                      zIndex: nextRootNodeIds.indexOf(nodeId),
+                    },
+                  }
+                : node,
+            ]),
+          ) as typeof screen.nodes,
+        };
+
         return { ...prev, screens };
       });
-      setActiveTab("screens");
     },
-    [selectedScreenIndex, updateConfig],
+    [currentScreenDoc, selectedNodeIdsOnCurrentScreen, selectedScreenIndex, updateConfig],
   );
 
   const deleteComponent = useCallback(
@@ -522,7 +805,9 @@ export function FlowBuilderClient({
                       : node.name,
                   component: {
                     ...node.component,
-                    props: { ...node.component.props, [key]: value },
+                    props: key.includes(".")
+                      ? setValueAtPath(node.component.props, key, value)
+                      : { ...node.component.props, [key]: value },
                   } as FlowComponent,
                 },
               },
@@ -533,6 +818,408 @@ export function FlowBuilderClient({
     },
     [selectedScreenIndex, updateConfig],
   );
+
+  const insertComponent = useCallback(
+    (
+      type: string,
+      options?: {
+        screenIndex?: number;
+        x?: number;
+        y?: number;
+        interaction?: "sidebar" | "direct";
+        override?: (component: FlowComponent) => void;
+      },
+    ) => {
+      const targetScreenIndex = options?.screenIndex ?? selectedScreenIndex;
+      const targetScreen = document.screens[targetScreenIndex];
+      if (!targetScreen) return null;
+
+      if (type === "TAB_BUTTON" && options?.interaction !== "direct") {
+        setTabSidebarOpen(true);
+        return null;
+      }
+
+      const component = createDefaultComponent(type, targetScreen.rootNodeIds.length);
+      options?.override?.(component);
+
+      if (targetScreen.layoutMode === "absolute") {
+        const size = getComponentCanvasSize(component);
+        const nextX = Math.max(
+          0,
+          Math.min(
+            Math.round((options?.x ?? targetScreen.artboard.width / 2) - size.width / 2),
+            targetScreen.artboard.width - size.width,
+          ),
+        );
+        const nextY = Math.max(
+          0,
+          Math.min(
+            Math.round((options?.y ?? targetScreen.artboard.height / 2) - size.height / 2),
+            targetScreen.artboard.height - size.height,
+          ),
+        );
+
+        component.layout = {
+          ...component.layout,
+          position: "absolute",
+          x: nextX,
+          y: nextY,
+          width: size.width,
+          height: size.height,
+          rotation: component.layout?.rotation ?? 0,
+          zIndex: targetScreen.rootNodeIds.length,
+          visible: component.layout?.visible ?? true,
+          locked: component.layout?.locked ?? false,
+        };
+      } else if (component.layout) {
+        component.layout = {
+          ...component.layout,
+          position: "flow",
+          x: undefined,
+          y: undefined,
+          rotation: undefined,
+          zIndex: undefined,
+          width: undefined,
+          height: undefined,
+        };
+      }
+
+      updateConfig((prev) => {
+        const screens = [...prev.screens];
+        const screen = screens[targetScreenIndex];
+        if (!screen) return prev;
+        screens[targetScreenIndex] = appendComponentNode(screen, component);
+        return { ...prev, screens };
+      });
+
+      setSelectedScreenIndex(targetScreenIndex);
+      selectNodes([component.id], component.id);
+      setInlineTextEdit(null);
+      setQuickInsertState(null);
+      setSheetOpen(true);
+      setActiveTab("layers");
+      return component.id;
+    },
+    [document.screens, selectedScreenIndex, selectNodes, updateConfig],
+  );
+
+  const copyNodesToClipboard = useCallback(
+    (nodeIds: string[]) => {
+      if (!currentScreenDoc || nodeIds.length === 0) return;
+
+      const items = nodeIds
+        .map((nodeId) => getComponentNode(currentScreenDoc, nodeId))
+        .filter((node): node is EditorComponentNode => Boolean(node))
+        .map((node) => ({
+          component: structuredClone(node.component),
+          transform: structuredClone(node.transform),
+        }));
+
+      if (items.length === 0) return;
+      setBuilderClipboard({
+        items,
+        pasteCount: 0,
+      });
+    },
+    [currentScreenDoc],
+  );
+
+  const pasteClipboardToScreen = useCallback(
+    (screenIndex: number) => {
+      const targetScreen = document.screens[screenIndex];
+      if (!builderClipboard || !targetScreen) return;
+
+      const nextOffset = (builderClipboard.pasteCount + 1) * 16;
+      const nextIds: string[] = [];
+
+      updateConfig((prev) => {
+        const screens = [...prev.screens];
+        const screen = screens[screenIndex];
+        if (!screen) return prev;
+
+        let nextScreen = screen;
+        builderClipboard.items.forEach((item, index) => {
+          const nextComponent = structuredClone(item.component);
+          nextComponent.id = `comp_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`;
+          nextComponent.order = nextScreen.rootNodeIds.length;
+
+          if (screen.layoutMode === "absolute") {
+            nextComponent.layout = {
+              ...nextComponent.layout,
+              position: "absolute",
+              x: Math.max(0, item.transform.x + nextOffset),
+              y: Math.max(0, item.transform.y + nextOffset),
+              width: item.transform.width ?? getComponentCanvasSize(nextComponent).width,
+              height: item.transform.height ?? getComponentCanvasSize(nextComponent).height,
+              rotation: item.transform.rotation,
+              zIndex: nextScreen.rootNodeIds.length,
+              visible: item.transform ? nextComponent.layout?.visible ?? true : true,
+              locked: nextComponent.layout?.locked ?? false,
+            };
+          } else if (nextComponent.layout) {
+            nextComponent.layout = {
+              ...nextComponent.layout,
+              position: "flow",
+              x: undefined,
+              y: undefined,
+              rotation: undefined,
+              zIndex: undefined,
+              width: undefined,
+              height: undefined,
+            };
+          }
+
+          nextScreen = appendComponentNode(nextScreen, nextComponent);
+          nextIds.push(nextComponent.id);
+        });
+
+        screens[screenIndex] = nextScreen;
+        return { ...prev, screens };
+      });
+
+      setBuilderClipboard((current) =>
+        current
+          ? {
+              ...current,
+              pasteCount: current.pasteCount + 1,
+            }
+          : current,
+      );
+      setSelectedScreenIndex(screenIndex);
+      if (nextIds.length > 0) {
+        selectNodes(nextIds, nextIds[nextIds.length - 1] ?? null);
+        setSheetOpen(true);
+      }
+    },
+    [builderClipboard, document.screens, selectNodes, updateConfig],
+  );
+
+  const duplicateSelectedNodes = useCallback(() => {
+    if (!currentScreenDoc || selectedNodeIdsOnCurrentScreen.length === 0) return;
+
+    const items = selectedNodeIdsOnCurrentScreen
+      .map((nodeId) => getComponentNode(currentScreenDoc, nodeId))
+      .filter((node): node is EditorComponentNode => Boolean(node))
+      .map((node) => ({
+        component: structuredClone(node.component),
+        transform: structuredClone(node.transform),
+      }));
+
+    if (items.length === 0) return;
+
+    const nextIds: string[] = [];
+
+    updateConfig((prev) => {
+      const screens = [...prev.screens];
+      const screen = screens[selectedScreenIndex];
+      if (!screen) return prev;
+
+      let nextScreen = screen;
+      items.forEach((item, index) => {
+        const nextComponent = structuredClone(item.component);
+        nextComponent.id = `comp_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`;
+        nextComponent.order = nextScreen.rootNodeIds.length;
+
+        if (screen.layoutMode === "absolute") {
+          nextComponent.layout = {
+            ...nextComponent.layout,
+            position: "absolute",
+            x: Math.max(0, item.transform.x + 16),
+            y: Math.max(0, item.transform.y + 16),
+            width: item.transform.width ?? getComponentCanvasSize(nextComponent).width,
+            height: item.transform.height ?? getComponentCanvasSize(nextComponent).height,
+            rotation: item.transform.rotation,
+            zIndex: nextScreen.rootNodeIds.length,
+          };
+        }
+
+        nextScreen = appendComponentNode(nextScreen, nextComponent);
+        nextIds.push(nextComponent.id);
+      });
+
+      screens[selectedScreenIndex] = nextScreen;
+      return { ...prev, screens };
+    });
+
+    if (nextIds.length > 0) {
+      selectNodes(nextIds, nextIds[nextIds.length - 1] ?? null);
+      setSheetOpen(true);
+    }
+  }, [
+    currentScreenDoc,
+    selectedNodeIdsOnCurrentScreen,
+    selectedScreenIndex,
+    selectNodes,
+    updateConfig,
+  ]);
+
+  const deleteSelectedNodes = useCallback(() => {
+    if (selectedNodeIdsOnCurrentScreen.length === 0) return;
+
+    updateConfig((prev) => {
+      const screens = [...prev.screens];
+      let nextScreen = screens[selectedScreenIndex];
+      if (!nextScreen) return prev;
+
+      selectedNodeIdsOnCurrentScreen.forEach((nodeId) => {
+        nextScreen = removeNodeFromScreen(nextScreen, nodeId);
+      });
+
+      screens[selectedScreenIndex] = nextScreen;
+      return { ...prev, screens };
+    });
+
+    clearSelection();
+    setSheetOpen(false);
+  }, [clearSelection, selectedNodeIdsOnCurrentScreen, selectedScreenIndex, updateConfig]);
+
+  const updateSelectedComponentProps = useCallback(
+    (key: string, value: unknown) => {
+      if (selectedComponentNodes.length === 0) return;
+      selectedComponentNodes.forEach((node) => {
+        updateComponentProp(node.id, key, value);
+      });
+    },
+    [selectedComponentNodes, updateComponentProp],
+  );
+
+  const alignSelectedNodes = useCallback(
+    (mode: "left" | "center" | "right" | "top" | "middle" | "bottom") => {
+      if (selectedComponentNodes.length < 2) return;
+
+      const bounds = {
+        left: Math.min(...selectedComponentNodes.map((node) => node.transform.x)),
+        top: Math.min(...selectedComponentNodes.map((node) => node.transform.y)),
+        right: Math.max(
+          ...selectedComponentNodes.map(
+            (node) => node.transform.x + (node.transform.width ?? getComponentCanvasSize(node.component).width),
+          ),
+        ),
+        bottom: Math.max(
+          ...selectedComponentNodes.map(
+            (node) => node.transform.y + (node.transform.height ?? getComponentCanvasSize(node.component).height),
+          ),
+        ),
+      };
+
+      const updates = Object.fromEntries(
+        selectedComponentNodes.map((node) => {
+          const width = node.transform.width ?? getComponentCanvasSize(node.component).width;
+          const height = node.transform.height ?? getComponentCanvasSize(node.component).height;
+
+          if (mode === "left") return [node.id, { x: bounds.left }];
+          if (mode === "center") {
+            return [node.id, { x: Math.round(bounds.left + (bounds.right - bounds.left - width) / 2) }];
+          }
+          if (mode === "right") return [node.id, { x: Math.round(bounds.right - width) }];
+          if (mode === "top") return [node.id, { y: bounds.top }];
+          if (mode === "middle") {
+            return [node.id, { y: Math.round(bounds.top + (bounds.bottom - bounds.top - height) / 2) }];
+          }
+          return [node.id, { y: Math.round(bounds.bottom - height) }];
+        }),
+      );
+
+      commitNodeTransforms(selectedScreenIndex, updates);
+    },
+    [commitNodeTransforms, selectedComponentNodes, selectedScreenIndex],
+  );
+
+  const distributeSelectedNodes = useCallback(
+    (axis: "horizontal" | "vertical") => {
+      if (selectedComponentNodes.length < 3) return;
+
+      const sortedNodes = [...selectedComponentNodes].sort((left, right) =>
+        axis === "horizontal"
+          ? left.transform.x - right.transform.x
+          : left.transform.y - right.transform.y,
+      );
+
+      const first = sortedNodes[0];
+      const last = sortedNodes[sortedNodes.length - 1];
+      if (!first || !last) return;
+
+      const firstStart = axis === "horizontal" ? first.transform.x : first.transform.y;
+      const lastStart = axis === "horizontal" ? last.transform.x : last.transform.y;
+      const gap = (lastStart - firstStart) / (sortedNodes.length - 1);
+
+      const updates = Object.fromEntries(
+        sortedNodes.map((node, index) => [
+          node.id,
+          axis === "horizontal"
+            ? { x: Math.round(firstStart + gap * index) }
+            : { y: Math.round(firstStart + gap * index) },
+        ]),
+      );
+
+      commitNodeTransforms(selectedScreenIndex, updates);
+    },
+    [commitNodeTransforms, selectedComponentNodes, selectedScreenIndex],
+  );
+
+  const matchSelectedNodes = useCallback(
+    (dimension: "width" | "height") => {
+      if (selectedComponentNodes.length < 2) return;
+      const [referenceNode] = selectedComponentNodes;
+      if (!referenceNode) return;
+
+      const value =
+        dimension === "width"
+          ? referenceNode.transform.width ?? getComponentCanvasSize(referenceNode.component).width
+          : referenceNode.transform.height ?? getComponentCanvasSize(referenceNode.component).height;
+
+      const updates = Object.fromEntries(
+        selectedComponentNodes.map((node) => [
+          node.id,
+          dimension === "width" ? { width: value } : { height: value },
+        ]),
+      );
+
+      commitNodeTransforms(selectedScreenIndex, updates);
+    },
+    [commitNodeTransforms, selectedComponentNodes, selectedScreenIndex],
+  );
+
+  const addComponent = useCallback(
+    (type: string) => {
+      insertComponent(type, { interaction: "sidebar" });
+    },
+    [insertComponent],
+  );
+
+  const selectAllNodes = useCallback(() => {
+    if (!currentScreenDoc) return;
+    const nodeIds = Object.values(currentScreenDoc.nodes)
+      .filter((node): node is EditorComponentNode => node.kind === "component")
+      .map((node) => node.id);
+
+    if (nodeIds.length === 0) return;
+    selectNodes(nodeIds, nodeIds[nodeIds.length - 1] ?? null);
+    setSheetOpen(true);
+  }, [currentScreenDoc, selectNodes]);
+
+  const nudgeSelectedNodes = useCallback(
+    (direction: "left" | "right" | "up" | "down", amount: number) => {
+      if (!currentScreenDoc || currentScreenDoc.layoutMode !== "absolute") return;
+      if (selectedComponentNodes.length === 0) return;
+
+      const deltaX = direction === "left" ? -amount : direction === "right" ? amount : 0;
+      const deltaY = direction === "up" ? -amount : direction === "down" ? amount : 0;
+      const updates = Object.fromEntries(
+        selectedComponentNodes.map((node) => [
+          node.id,
+          {
+            x: node.transform.x + deltaX,
+            y: node.transform.y + deltaY,
+          },
+        ]),
+      );
+
+      commitNodeTransforms(selectedScreenIndex, updates);
+    },
+    [commitNodeTransforms, currentScreenDoc, selectedComponentNodes, selectedScreenIndex],
+  );
+
 
  const handleTabPresetSelect = useCallback(
    (preset: import("./tab-style-sidebar").TabPreset) => {
@@ -549,7 +1236,7 @@ export function FlowBuilderClient({
         screens[selectedScreenIndex] = appendComponentNode(screen, comp);
         return { ...prev, screens };
       });
-      setActiveTab("screens");
+      setActiveTab("layers");
       setTabSidebarOpen(false);
     },
     [selectedScreenIndex, updateConfig],
@@ -557,7 +1244,7 @@ export function FlowBuilderClient({
 
   const componentActions: ComponentActions = useMemo(
     () => ({
-      hasCopied: copiedComponent !== null,
+      hasCopied: builderClipboard !== null,
       hasCopiedStyles: copiedStyles !== null,
 
       onRename: (componentId: string) => {
@@ -581,24 +1268,11 @@ export function FlowBuilderClient({
       },
 
       onCopy: (componentId: string) => {
-        const comp = currentScreenDoc ? getComponentNode(currentScreenDoc, componentId)?.component : null;
-        if (comp) setCopiedComponent(structuredClone(comp));
+        copyNodesToClipboard([componentId]);
       },
 
       onPaste: (screenIndex: number) => {
-        if (!copiedComponent) return;
-        updateConfig((prev) => {
-          const screens = [...prev.screens];
-          const screen = screens[screenIndex];
-          if (!screen) return prev;
-          const pasted = {
-            ...structuredClone(copiedComponent),
-            id: `comp_${Date.now()}`,
-            order: screen.rootNodeIds.length,
-          };
-          screens[screenIndex] = appendComponentNode(screen, pasted);
-          return { ...prev, screens };
-        });
+        pasteClipboardToScreen(screenIndex);
       },
 
       onCopyStyles: (componentId: string) => {
@@ -639,9 +1313,11 @@ export function FlowBuilderClient({
       },
     }),
     [
-      copiedComponent,
+      builderClipboard,
       copiedStyles,
+      copyNodesToClipboard,
       currentScreenDoc,
+      pasteClipboardToScreen,
       selectedScreenIndex,
       updateConfig,
       updateComponentProp,
@@ -669,8 +1345,8 @@ export function FlowBuilderClient({
       ],
     }));
     setSelectedScreenIndex(document.screens.length);
-    setSelectedComponentId(null);
-  }, [document.screens.length, updateConfig]);
+    clearSelection();
+  }, [clearSelection, document.screens.length, updateConfig]);
 
   const deleteScreen = useCallback(
     (index: number) => {
@@ -680,9 +1356,9 @@ export function FlowBuilderClient({
         screens: prev.screens.filter((_, i) => i !== index).map((s, i) => ({ ...s, order: i })),
       }));
       setSelectedScreenIndex((prev) => Math.max(0, prev - 1));
-      setSelectedComponentId(null);
+      clearSelection();
     },
-    [config.screens.length, updateConfig],
+    [clearSelection, config.screens.length, updateConfig],
   );
 
   /* ── Reorder screens via drag-and-drop ── */
@@ -753,10 +1429,10 @@ export function FlowBuilderClient({
         screens: [...prev.screens, editorScreen],
       }));
       setSelectedScreenIndex(document.screens.length);
-      setSelectedComponentId(null);
-      setActiveTab("add");
+      clearSelection();
+      setActiveTab("insert");
     },
-    [document.screens.length, updateConfig],
+    [clearSelection, document.screens.length, updateConfig],
   );
 
   // Quick Start flow builder — generates multiple screens at once
@@ -784,9 +1460,9 @@ export function FlowBuilderClient({
         screens: [...prev.screens, ...editorScreens],
       }));
       setSelectedScreenIndex(document.screens.length);
-      setSelectedComponentId(null);
+      clearSelection();
     },
-    [document.screens.length, updateConfig],
+    [clearSelection, document.screens.length, updateConfig],
   );
 
   const handleImportScreen = useCallback(
@@ -828,26 +1504,157 @@ export function FlowBuilderClient({
         setSelectedScreenIndex(config.screens.length);
       }
 
-      setSelectedComponentId(null);
+      clearSelection();
       setActiveTab("screens");
     },
-    [config.screens.length, selectedScreenIndex, updateConfig],
+    [clearSelection, config.screens.length, selectedScreenIndex, updateConfig],
+  );
+
+  const handlePaletteDrop = useCallback(
+    (event: DragEndEvent) => {
+      const overData = event.over?.data.current as
+        | {
+            dropType?: string;
+            screenIndex?: number;
+            layoutMode?: "auto" | "absolute";
+            artboard?: { width: number; height: number };
+          }
+        | undefined;
+      const activeData = event.active.data.current as
+        | {
+            source?: string;
+            componentType?: string;
+          }
+        | undefined;
+
+      if (
+        activeData?.source !== "palette" ||
+        overData?.dropType !== "artboard" ||
+        typeof overData.screenIndex !== "number" ||
+        !activeData.componentType
+      ) {
+        return;
+      }
+
+      if (overData.layoutMode === "absolute" && event.over?.rect) {
+        const dragRect = event.active.rect.current.translated ?? event.active.rect.current.initial;
+        const centerX =
+          dragRect?.left !== undefined && dragRect?.width !== undefined
+            ? dragRect.left + dragRect.width / 2
+            : event.over.rect.left + event.over.rect.width / 2;
+        const centerY =
+          dragRect?.top !== undefined && dragRect?.height !== undefined
+            ? dragRect.top + dragRect.height / 2
+            : event.over.rect.top + event.over.rect.height / 2;
+        const xRatio = (centerX - event.over.rect.left) / Math.max(event.over.rect.width, 1);
+        const yRatio = (centerY - event.over.rect.top) / Math.max(event.over.rect.height, 1);
+        const artboard = overData.artboard ?? document.screens[overData.screenIndex]?.artboard;
+
+        if (artboard) {
+          insertComponent(activeData.componentType, {
+            screenIndex: overData.screenIndex,
+            interaction: "direct",
+            x: Math.max(0, Math.min(artboard.width, Math.round(xRatio * artboard.width))),
+            y: Math.max(0, Math.min(artboard.height, Math.round(yRatio * artboard.height))),
+          });
+          return;
+        }
+      }
+
+      insertComponent(activeData.componentType, {
+        screenIndex: overData.screenIndex,
+        interaction: "direct",
+      });
+    },
+    [document.screens, insertComponent],
+  );
+
+  const openQuickInsert = useCallback(
+    (screenIndex: number, point: { x: number; y: number }) => {
+      setSelectedScreenIndex(screenIndex);
+      setQuickInsertState({
+        screenIndex,
+        x: point.x,
+        y: point.y,
+      });
+      setInlineTextEdit(null);
+    },
+    [],
+  );
+
+  const beginInlineTextEdit = useCallback(
+    (screenIndex: number, nodeId: string) => {
+      setSelectedScreenIndex(screenIndex);
+      selectNodes([nodeId], nodeId);
+      setInlineTextEdit({
+        screenIndex,
+        nodeId,
+      });
+      setQuickInsertState(null);
+      setSheetOpen(true);
+    },
+    [selectNodes],
+  );
+
+  const createFromTool = useCallback(
+    (
+      screenIndex: number,
+      point: { x: number; y: number },
+      tool: "text" | "frame" | "rectangle",
+    ) => {
+      if (tool === "text") {
+        const nodeId = insertComponent("TEXT", {
+          screenIndex,
+          x: point.x,
+          y: point.y,
+          interaction: "direct",
+        });
+        if (nodeId) {
+          beginInlineTextEdit(screenIndex, nodeId);
+        }
+        return;
+      }
+
+      insertComponent("STACK", {
+        screenIndex,
+        x: point.x,
+        y: point.y,
+        interaction: "direct",
+        override: (component) => {
+          component.props = {
+            ...component.props,
+            padding: tool === "frame" ? 16 : 0,
+            backgroundColor: tool === "frame" ? "#F8FAFC" : "#E2E8F0",
+            borderRadius: tool === "frame" ? 24 : 14,
+            gap: 12,
+          };
+          component.layout = {
+            ...component.layout,
+            width: tool === "frame" ? 220 : 160,
+            height: tool === "frame" ? 160 : 120,
+          };
+        },
+      });
+    },
+    [beginInlineTextEdit, insertComponent],
   );
 
   /* ─── Per-screen content renderer ──── */
-  const renderScreenContent = useCallback(
-    (screen: typeof config.screens[number], screenIdx: number) => {
+  const renderScreenContent = (screen: typeof config.screens[number], screenIdx: number) => {
+      const screenDoc = document.screens[screenIdx];
       const sorted = screen?.components.length
         ? [...screen.components].sort((a, b) => a.order - b.order)
         : [];
 
       // Split into main content vs bottom-pinned components
-      const mainComponents = sorted.filter(
-        (c) => !(c.props as any)?.position || (c.props as any)?.position !== "bottom",
-      );
-      const bottomComponents = sorted.filter(
-        (c) => (c.props as any)?.position === "bottom",
-      );
+      const mainComponents = sorted.filter((component) => {
+        const props = component.props as PositionedComponentProps;
+        return props.position !== "bottom";
+      });
+      const bottomComponents = sorted.filter((component) => {
+        const props = component.props as PositionedComponentProps;
+        return props.position === "bottom";
+      });
 
       const bgColor = screen?.style?.backgroundColor || "#FFFFFF";
       const padding = screen?.style?.padding ?? 24;
@@ -856,9 +1663,11 @@ export function FlowBuilderClient({
       const dark = isDarkColor(bgColor);
 
       // Merge global + per-screen indicator settings
+      const settingsWithIndicator = document.settings as IndicatorAwareDocumentSettings | undefined;
+      const screenWithIndicator = screenDoc as IndicatorAwareDocumentScreen | undefined;
       const indicator = mergeIndicator(
-        (config.settings as any)?.indicator,
-        (screen as any)?.indicator,
+        settingsWithIndicator?.indicator,
+        screenWithIndicator?.indicator,
       );
 
       // Resolve colours: use explicit colours or auto-adapt to bg
@@ -931,80 +1740,254 @@ export function FlowBuilderClient({
             }}
           >
             {sorted.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center">
-                <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
-                  <Smartphone size={20} className="text-gray-300" />
+              <ScreenDropSurface
+                dropId={`artboard:${screenIdx}`}
+                screenIndex={screenIdx}
+                layoutMode={screenDoc?.layoutMode ?? "auto"}
+                artboard={screenDoc?.artboard ?? { width: frame.viewportWidth, height: frame.viewportHeight }}
+                className="relative h-full"
+                onPointerDownEmpty={(event) => {
+                  if (effectiveTool === "select" || effectiveTool === "hand") return;
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const x = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * (screenDoc?.artboard.width ?? rect.width);
+                  const y = ((event.clientY - rect.top) / Math.max(rect.height, 1)) * (screenDoc?.artboard.height ?? rect.height);
+                  createFromTool(screenIdx, { x, y }, effectiveTool);
+                }}
+                onDoubleClickEmpty={(event) => {
+                  if (effectiveTool !== "select") return;
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const x = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * (screenDoc?.artboard.width ?? rect.width);
+                  const y = ((event.clientY - rect.top) / Math.max(rect.height, 1)) * (screenDoc?.artboard.height ?? rect.height);
+                  openQuickInsert(screenIdx, { x, y });
+                }}
+              >
+                <div
+                  data-screen-empty-state="true"
+                  className="h-full flex flex-col items-center justify-center text-center"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                    <Smartphone size={20} className="text-gray-300" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-400">No components yet</p>
+                  <p className="text-xs text-gray-300 mt-1">Double-click or drag a block here</p>
                 </div>
-                <p className="text-sm font-medium text-gray-400">No components yet</p>
-                <p className="text-xs text-gray-300 mt-1">Add components from the sidebar</p>
-              </div>
+                {quickInsertState?.screenIndex === screenIdx ? (
+                  <QuickInsertPalette
+                    open
+                    x={quickInsertState.x}
+                    y={quickInsertState.y}
+                    onClose={() => setQuickInsertState(null)}
+                    onInsert={(type) => {
+                      insertComponent(type, {
+                        screenIndex: screenIdx,
+                        interaction: "direct",
+                        x: quickInsertState.x,
+                        y: quickInsertState.y,
+                      });
+                    }}
+                  />
+                ) : null}
+              </ScreenDropSurface>
             ) : screen.layoutMode === "absolute" ? (
               <div className="relative h-full w-full overflow-hidden">
-                <div
-                  className="absolute"
-                  style={{
-                    inset: padding,
-                  }}
-                >
-                  {dragGuides.screenIndex === screenIdx && dragGuides.vertical !== null ? (
-                    <div
-                      className="absolute top-0 bottom-0 w-px bg-blue-500/70 pointer-events-none"
-                      style={{ left: dragGuides.vertical }}
-                    />
-                  ) : null}
-                  {dragGuides.screenIndex === screenIdx && dragGuides.horizontal !== null ? (
-                    <div
-                      className="absolute left-0 right-0 h-px bg-blue-500/70 pointer-events-none"
-                      style={{ top: dragGuides.horizontal }}
-                    />
-                  ) : null}
+                <div className="absolute" style={{ inset: padding }}>
+                  <ScreenDropSurface
+                    dropId={`artboard:${screenIdx}`}
+                    screenIndex={screenIdx}
+                    layoutMode={screenDoc?.layoutMode ?? "absolute"}
+                    artboard={screenDoc?.artboard ?? { width: frame.viewportWidth, height: frame.viewportHeight }}
+                    className="relative h-full w-full overflow-hidden rounded-[24px] border border-black/5"
+                    style={{
+                      backgroundColor: bgColor,
+                      backgroundImage:
+                        "linear-gradient(rgba(15,23,42,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.04) 1px, transparent 1px)",
+                      backgroundSize: "8px 8px",
+                    }}
+                    onDoubleClickEmpty={(event) => {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      const x = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * (screenDoc?.artboard.width ?? rect.width);
+                      const y = ((event.clientY - rect.top) / Math.max(rect.height, 1)) * (screenDoc?.artboard.height ?? rect.height);
+                      openQuickInsert(screenIdx, { x, y });
+                    }}
+                  >
+                    {sorted.map((comp) => {
+                      const transientLayout =
+                        screenIdx === selectedScreenIndex ? previewTransforms[comp.id] : undefined;
+                      const layout = {
+                        x: transientLayout?.x ?? comp.layout?.x ?? 0,
+                        y: transientLayout?.y ?? comp.layout?.y ?? 0,
+                        width: transientLayout?.width ?? comp.layout?.width,
+                        height: transientLayout?.height ?? comp.layout?.height,
+                        rotation: transientLayout?.rotation ?? comp.layout?.rotation ?? 0,
+                        zIndex: transientLayout?.zIndex ?? comp.layout?.zIndex ?? comp.order,
+                        visible: comp.layout?.visible ?? true,
+                      };
 
-                  {sorted.map((comp) => {
-                    const layout = comp.layout;
-
-                    return (
-                      <div
-                        key={comp.id}
-                        className="absolute"
-                        style={{
-                          left: layout?.x ?? 0,
-                          top: layout?.y ?? 0,
-                          width: layout?.width,
-                          height: layout?.height,
-                          zIndex: layout?.zIndex ?? comp.order,
-                          transform: layout?.rotation ? `rotate(${layout.rotation}deg)` : undefined,
-                          display: layout?.visible === false ? "none" : undefined,
-                          cursor: "grab",
-                        }}
-                        onMouseDown={(event) => beginAbsoluteDrag(event, screenIdx, comp.id)}
-                      >
-                        <PhonePreviewComponent
-                          component={comp}
-                          isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
-                          onSelect={() => {
-                            setSelectedScreenIndex(screenIdx);
-                            setSelectedComponentId(comp.id);
+                      return (
+                        <div
+                          key={comp.id}
+                          ref={(node) => {
+                            absoluteNodeRefs.current[getAbsoluteNodeRefKey(screenIdx, comp.id)] = node;
                           }}
-                        />
-                      </div>
-                    );
-                  })}
+                          className="pointer-events-none absolute left-0 top-0"
+                          style={{
+                            width: layout.width,
+                            height: layout.height,
+                            display: layout.visible === false ? "none" : undefined,
+                            zIndex: layout.zIndex,
+                            transform: `translate3d(${layout.x}px, ${layout.y}px, 0px)`,
+                            transformOrigin: "top left",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: layout.width ? "100%" : undefined,
+                              height: layout.height ? "100%" : undefined,
+                              transform: layout.rotation ? `rotate(${layout.rotation}deg)` : undefined,
+                              transformOrigin: "center center",
+                            }}
+                          >
+                            {inlineTextEdit?.screenIndex === screenIdx &&
+                            inlineTextEdit.nodeId === comp.id &&
+                            comp.type === "TEXT" ? (
+                              <InlineTextEditor
+                                component={comp}
+                                onCommit={(nextValue) => {
+                                  updateComponentProp(comp.id, "content", nextValue);
+                                  setInlineTextEdit(null);
+                                }}
+                                onCancel={() => setInlineTextEdit(null)}
+                              />
+                            ) : (
+                              <PhonePreviewComponent
+                                component={comp}
+                                isSelected={false}
+                                onSelect={() => {}}
+                                onDoubleClick={() => {
+                                  if (comp.type === "TEXT") {
+                                    beginInlineTextEdit(screenIdx, comp.id);
+                                  }
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {screenDoc ? (
+                      <CanvasInteractionLayer
+                        screen={screenDoc}
+                        screenIndex={screenIdx}
+                        isActiveScreen={screenIdx === selectedScreenIndex}
+                        activeTool={effectiveTool}
+                        getNodeElement={(nodeId) =>
+                          absoluteNodeRefs.current[getAbsoluteNodeRefKey(screenIdx, nodeId)] ?? null
+                        }
+                        onSelectScreen={(index) => {
+                          if (index !== selectedScreenIndex) {
+                            clearSelection();
+                          }
+                          setSelectedScreenIndex(index);
+                        }}
+                        onCommitTransforms={commitNodeTransforms}
+                        onActivateSelection={() => setSheetOpen(true)}
+                        onOpenQuickInsert={openQuickInsert}
+                        onBeginInlineTextEdit={beginInlineTextEdit}
+                        onCreateFromTool={createFromTool}
+                      />
+                    ) : null}
+                    {quickInsertState?.screenIndex === screenIdx ? (
+                      <QuickInsertPalette
+                        open
+                        x={quickInsertState.x}
+                        y={quickInsertState.y}
+                        onClose={() => setQuickInsertState(null)}
+                        onInsert={(type) => {
+                          insertComponent(type, {
+                            screenIndex: screenIdx,
+                            interaction: "direct",
+                            x: quickInsertState.x,
+                            y: quickInsertState.y,
+                          });
+                        }}
+                      />
+                    ) : null}
+                  </ScreenDropSurface>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
+              <ScreenDropSurface
+                dropId={`artboard:${screenIdx}`}
+                screenIndex={screenIdx}
+                layoutMode={screenDoc?.layoutMode ?? "auto"}
+                artboard={screenDoc?.artboard ?? { width: frame.viewportWidth, height: frame.viewportHeight }}
+                className="relative flex min-h-full flex-col gap-3"
+                onPointerDownEmpty={(event) => {
+                  if (effectiveTool === "select" || effectiveTool === "hand") return;
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  createFromTool(
+                    screenIdx,
+                    {
+                      x: event.clientX - rect.left,
+                      y: event.clientY - rect.top,
+                    },
+                    effectiveTool,
+                  );
+                }}
+                onDoubleClickEmpty={(event) => {
+                  if (effectiveTool !== "select") return;
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  openQuickInsert(screenIdx, {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top,
+                  });
+                }}
+              >
                 {mainComponents.map((comp) => (
-                  <PhonePreviewComponent
-                    key={comp.id}
-                    component={comp}
-                    isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
-                    onSelect={() => {
-                      setSelectedScreenIndex(screenIdx);
-                      setSelectedComponentId(comp.id);
+                  inlineTextEdit?.screenIndex === screenIdx &&
+                  inlineTextEdit.nodeId === comp.id &&
+                  comp.type === "TEXT" ? (
+                    <InlineTextEditor
+                      key={comp.id}
+                      component={comp}
+                      onCommit={(nextValue) => {
+                        updateComponentProp(comp.id, "content", nextValue);
+                        setInlineTextEdit(null);
+                      }}
+                      onCancel={() => setInlineTextEdit(null)}
+                    />
+                  ) : (
+                    <PhonePreviewComponent
+                      key={comp.id}
+                      component={comp}
+                      isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
+                      onSelect={() => {
+                        selectComponent(screenIdx, comp.id);
+                      }}
+                      onDoubleClick={() => {
+                        if (comp.type === "TEXT") {
+                          beginInlineTextEdit(screenIdx, comp.id);
+                        }
+                      }}
+                    />
+                  )
+                ))}
+                {quickInsertState?.screenIndex === screenIdx ? (
+                  <QuickInsertPalette
+                    open
+                    x={quickInsertState.x}
+                    y={quickInsertState.y}
+                    onClose={() => setQuickInsertState(null)}
+                    onInsert={(type) => {
+                      insertComponent(type, {
+                        screenIndex: screenIdx,
+                        interaction: "direct",
+                      });
                     }}
                   />
-                ))}
-              </div>
+                ) : null}
+              </ScreenDropSurface>
             )}
           </div>
 
@@ -1015,32 +1998,39 @@ export function FlowBuilderClient({
               style={{ padding: `12px ${padding}px ${padding}px` }}
             >
               {bottomComponents.map((comp) => (
-                <PhonePreviewComponent
-                  key={comp.id}
-                  component={comp}
-                  isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
-                  onSelect={() => {
-                    setSelectedScreenIndex(screenIdx);
-                    setSelectedComponentId(comp.id);
-                  }}
-                />
+                inlineTextEdit?.screenIndex === screenIdx &&
+                inlineTextEdit.nodeId === comp.id &&
+                comp.type === "TEXT" ? (
+                  <InlineTextEditor
+                    key={comp.id}
+                    component={comp}
+                    onCommit={(nextValue) => {
+                      updateComponentProp(comp.id, "content", nextValue);
+                      setInlineTextEdit(null);
+                    }}
+                    onCancel={() => setInlineTextEdit(null)}
+                  />
+                ) : (
+                  <PhonePreviewComponent
+                    key={comp.id}
+                    component={comp}
+                    isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
+                    onSelect={() => {
+                      selectComponent(screenIdx, comp.id);
+                    }}
+                    onDoubleClick={() => {
+                      if (comp.type === "TEXT") {
+                        beginInlineTextEdit(screenIdx, comp.id);
+                      }
+                    }}
+                  />
+                )
               ))}
             </div>
           )}
         </div>
       );
-    },
-    [
-      beginAbsoluteDrag,
-      dragGuides.horizontal,
-      dragGuides.screenIndex,
-      dragGuides.vertical,
-      selectedScreenIndex,
-      selectedComponentId,
-      config.screens.length,
-      config.settings,
-    ],
-  );
+  };
 
   /* ─── Canvas layout constants ──── */
   const SCREEN_GAP = 80;
@@ -1048,6 +2038,59 @@ export function FlowBuilderClient({
     config.screens.length * frame.frameWidth +
     (config.screens.length - 1) * SCREEN_GAP;
   const canvasStartX = -totalCanvasWidth / 2;
+
+  const zoomToActual = useCallback(() => {
+    setCanvasView({ zoom: 1 });
+  }, [setCanvasView]);
+
+  const zoomToFit = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const padding = 220;
+    const nextZoom = Math.min(
+      Math.max(
+        Math.min(
+          (canvas.clientWidth - padding) / Math.max(totalCanvasWidth, 1),
+          (canvas.clientHeight - padding) / Math.max(frame.frameHeight, 1),
+        ),
+        0.4,
+      ),
+      1,
+    );
+
+    setCanvasView({
+      zoom: nextZoom,
+      panOffset: { x: 0, y: 0 },
+    });
+  }, [canvasRef, frame.frameHeight, setCanvasView, totalCanvasWidth]);
+
+  useKeyboardShortcuts({
+    onUndo: history.undo,
+    onRedo: history.redo,
+    onSave: handleSaveDraft,
+    onCopy: () => copyNodesToClipboard(selectedNodeIdsOnCurrentScreen),
+    onPaste: () => pasteClipboardToScreen(selectedScreenIndex),
+    onSelectAll: selectAllNodes,
+    onDuplicate: () => {
+      if (selectedNodeIdsOnCurrentScreen.length > 0) {
+        duplicateSelectedNodes();
+      }
+    },
+    onDelete: () => {
+      if (selectedNodeIdsOnCurrentScreen.length > 0) {
+        deleteSelectedNodes();
+      }
+    },
+    onNudge: nudgeSelectedNodes,
+    onBringForward: () => moveSelectedNodesInZOrder("forward"),
+    onSendBackward: () => moveSelectedNodesInZOrder("backward"),
+    onBringToFront: () => moveSelectedNodesInZOrder("front"),
+    onSendToBack: () => moveSelectedNodesInZOrder("back"),
+    onZoomToFit: zoomToFit,
+    onZoomToActual: zoomToActual,
+    onSetToolMode: setToolMode,
+  });
 
   /* ─── Branch connections: buttons targeting specific screens ──── */
   const branchConnections = useMemo(() => {
@@ -1066,7 +2109,7 @@ export function FlowBuilderClient({
       // Button-level branches
       screen.components.forEach((comp) => {
         if (comp.type !== "BUTTON") return;
-        const p = comp.props as Record<string, any>;
+        const p = comp.props as ButtonActionProps;
         if (p.action === "NEXT_SCREEN" && p.actionTarget === "specific" && p.actionTargetScreenId) {
           const toIdx = screenIdToIndex.get(p.actionTargetScreenId);
           if (toIdx !== undefined && toIdx !== fromIdx) {
@@ -1115,7 +2158,8 @@ export function FlowBuilderClient({
   );
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-black">
+    <DndContext onDragEnd={handlePaletteDrop}>
+      <div className="relative flex h-screen overflow-hidden bg-black">
       {/* ─── SIDEBAR ─────────────────────────────────── */}
       <div className="flex shrink-0 h-full">
         <div className="w-[52px] bg-white/[0.02] border-r border-white/[0.08] flex flex-col items-center shrink-0">
@@ -1152,12 +2196,16 @@ export function FlowBuilderClient({
                 selectedIndex={selectedScreenIndex}
                 onSelect={(i) => {
                   setSelectedScreenIndex(i);
-                  setSelectedComponentId(null);
+                  clearSelection();
                   setSheetOpen(false);
                 }}
                 selectedComponentId={selectedComponentId}
                 onSelectComponent={(id) => {
-                  setSelectedComponentId(id);
+                  if (!id) {
+                    clearSelection();
+                    return;
+                  }
+                  selectNodes([id], id);
                   if (id) setSheetOpen(true);
                 }}
                 onDeleteScreen={deleteScreen}
@@ -1185,7 +2233,39 @@ export function FlowBuilderClient({
                 }}
               />
             )}
-            {activeTab === "add" && <ComponentPalette onAdd={addComponent} />}
+            {activeTab === "insert" && <ComponentPalette onAdd={addComponent} />}
+            {activeTab === "layers" && (
+              <LayersPanel
+                screen={currentScreenDoc || null}
+                selectedNodeIds={selectedNodeIdsOnCurrentScreen}
+                focusedNodeId={selectedComponentId}
+                onSelectNode={(nodeId, additive) => {
+                  if (additive) {
+                    const nextSelection = selectedNodeIdsOnCurrentScreen.includes(nodeId)
+                      ? selectedNodeIdsOnCurrentScreen.filter((currentId) => currentId !== nodeId)
+                      : [...selectedNodeIdsOnCurrentScreen, nodeId];
+                    selectNodes(nextSelection, nodeId);
+                  } else {
+                    selectNodes([nodeId], nodeId);
+                  }
+                  setSheetOpen(true);
+                }}
+                onToggleVisibility={(nodeId) => {
+                  const node = currentScreenDoc?.nodes[nodeId];
+                  if (!node) return;
+                  updateNodePresentation(nodeId, { visible: !node.visible });
+                }}
+                onToggleLock={(nodeId) => {
+                  const node = currentScreenDoc?.nodes[nodeId];
+                  if (!node) return;
+                  updateNodePresentation(nodeId, { locked: !node.locked });
+                }}
+                onBringForward={() => moveSelectedNodesInZOrder("forward")}
+                onSendBackward={() => moveSelectedNodesInZOrder("backward")}
+                onBringToFront={() => moveSelectedNodesInZOrder("front")}
+                onSendToBack={() => moveSelectedNodesInZOrder("back")}
+              />
+            )}
             {activeTab === "templates" && (
               <div className="relative h-full">
                 <QuickFlowTemplates onBuildFlow={handleBuildQuickFlow} />
@@ -1195,99 +2275,64 @@ export function FlowBuilderClient({
             )}
             {activeTab === "settings" && (
               <div className="space-y-4">
+                {(() => {
+                  const settingsWithIndicator =
+                    document.settings as IndicatorAwareDocumentSettings | undefined;
+                  const currentScreenWithIndicator =
+                    currentScreenDoc as IndicatorAwareDocumentScreen | undefined;
+
+                  return (
                 <IndicatorSettingsPanel
-                  globalIndicator={(config.settings as any)?.indicator}
-                  screenIndicator={(currentScreen as any)?.indicator}
+                  globalIndicator={settingsWithIndicator?.indicator}
+                  screenIndicator={currentScreenWithIndicator?.indicator}
                   onUpdateGlobal={(patch) => {
                     updateConfig((prev) => ({
                       ...prev,
                       settings: {
                         ...prev.settings,
                         indicator: {
-                          ...(prev.settings as any)?.indicator,
+                          ...((prev.settings as IndicatorAwareDocumentSettings | undefined)?.indicator ?? {}),
                           ...patch,
                         },
-                      },
+                      } as IndicatorAwareDocumentSettings,
                     }));
                   }}
                   onUpdateScreen={(patch) => {
                     updateConfig((prev) => {
                       const screens = [...prev.screens];
+                      const currentScreenWithIndicator =
+                        screens[selectedScreenIndex] as IndicatorAwareDocumentScreen;
                       screens[selectedScreenIndex] = {
-                        ...screens[selectedScreenIndex],
+                        ...currentScreenWithIndicator,
                         indicator: {
-                          ...(screens[selectedScreenIndex] as any)?.indicator,
+                          ...(currentScreenWithIndicator.indicator ?? {}),
                           ...patch,
                         },
-                      } as any;
+                      } as typeof screens[number];
                       return { ...prev, screens };
                     });
                   }}
                   onClearScreenOverride={() => {
                     updateConfig((prev) => {
                       const screens = [...prev.screens];
-                      const { indicator, ...rest } = screens[selectedScreenIndex] as any;
-                      screens[selectedScreenIndex] = rest;
+                      const currentScreenWithIndicator =
+                        screens[selectedScreenIndex] as IndicatorAwareDocumentScreen;
+                      const rest = { ...currentScreenWithIndicator };
+                      delete rest.indicator;
+                      screens[selectedScreenIndex] = rest as typeof screens[number];
                       return { ...prev, screens };
                     });
                   }}
-                  hasScreenOverride={!!(currentScreen as any)?.indicator}
+                  hasScreenOverride={!!currentScreenWithIndicator?.indicator}
                   screenName={currentScreen?.name || ""}
                 />
+                  );
+                })()}
 
                 <ScreenStyleSection
                   currentScreen={currentScreen}
-                  onUpdateStyle={(patch) => {
-                    updateConfig((prev) => {
-                      const screens = [...prev.screens];
-                      screens[selectedScreenIndex] = {
-                        ...screens[selectedScreenIndex],
-                        style: { ...screens[selectedScreenIndex].style, ...patch },
-                      };
-                      return { ...prev, screens };
-                    });
-                  }}
-                  onUpdateLayoutMode={(layoutMode) => {
-                    updateConfig((prev) => {
-                      const screens = [...prev.screens];
-                      const screen = screens[selectedScreenIndex];
-                      if (!screen) return prev;
-                      const nodes =
-                        layoutMode === "absolute" && screen.layoutMode !== "absolute"
-                          ? Object.fromEntries(
-                              Object.entries(screen.nodes).map(([nodeId, node]) => {
-                                const rootIndex = screen.rootNodeIds.indexOf(nodeId);
-                                if (rootIndex === -1 || node.kind !== "component") {
-                                  return [nodeId, node];
-                                }
-
-                                return [
-                                  nodeId,
-                                  {
-                                    ...node,
-                                    transform: {
-                                      ...node.transform,
-                                      x: node.transform.x ?? 0,
-                                      y:
-                                        node.transform.y !== 0
-                                          ? node.transform.y
-                                          : rootIndex * 88,
-                                      zIndex: rootIndex,
-                                    },
-                                  },
-                                ];
-                              }),
-                            ) as typeof screen.nodes
-                          : screen.nodes;
-
-                      screens[selectedScreenIndex] = {
-                        ...screen,
-                        layoutMode,
-                        nodes,
-                      };
-                      return { ...prev, screens };
-                    });
-                  }}
+                  onUpdateStyle={updateCurrentScreenStyle}
+                  onUpdateLayoutMode={updateCurrentScreenLayoutMode}
                 />
 
                 <ScreenLogicPanel
@@ -1327,7 +2372,7 @@ export function FlowBuilderClient({
                       screens[selectedScreenIndex] = {
                         ...screens[selectedScreenIndex],
                         ...patch,
-                      } as any;
+                      } as typeof screens[number];
                       return { ...prev, screens };
                     });
                   }}
@@ -1350,23 +2395,30 @@ export function FlowBuilderClient({
 
       {/* ─── INFINITE CANVAS ─────────────────────────── */}
       <div
-        ref={canvas.canvasRef}
+        ref={canvasRef}
         data-canvas-bg="true"
         className="flex-1 relative overflow-hidden select-none"
         style={{
-          cursor: canvas.isPanning || canvas.isDraggingPhone ? "grabbing" : "grab",
+          cursor:
+            isPanning || isDraggingPhone
+              ? "grabbing"
+              : effectiveTool === "hand"
+                ? "grab"
+                : effectiveTool === "select"
+                  ? "default"
+                  : "crosshair",
           backgroundColor: "#0a0a0a",
           backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.25) 1px, transparent 0)",
           backgroundSize: "24px 24px",
-          backgroundPosition: `${canvas.panOffset.x}px ${canvas.panOffset.y}px`,
+          backgroundPosition: `${panOffset.x}px ${panOffset.y}px`,
         }}
-        onMouseDown={canvas.handleCanvasMouseDown}
-        onMouseMove={canvas.handleMouseMove}
-        onMouseUp={canvas.handleMouseUp}
-        onMouseLeave={canvas.handleMouseUp}
+        onMouseDown={handleCanvasMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
       >
         <CanvasToolbar
-          zoom={canvas.zoom}
+          zoom={zoom}
           onBack={() =>
             router.push(`/dashboard/project/${projectId}`)
           }
@@ -1378,17 +2430,19 @@ export function FlowBuilderClient({
           fullScreenView={fullScreenView}
           onSelectDevice={(device) => {
             setSelectedDevice(device);
-            canvas.resetView();
+            resetView();
           }}
           onSelectOrientation={(o) => {
             setOrientation(o);
-            canvas.resetView();
+            resetView();
           }}
           onToggleFullScreen={() => setFullScreenView((p) => !p)}
-          onZoomIn={canvas.zoomIn}
-          onZoomOut={canvas.zoomOut}
-          onResetZoom={canvas.resetZoom}
-          onResetView={canvas.resetView}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onResetZoom={resetZoom}
+          onZoomToActual={zoomToActual}
+          onZoomToFit={zoomToFit}
+          onResetView={resetView}
           canUndo={history.canUndo}
           canRedo={history.canRedo}
           onUndo={history.undo}
@@ -1402,6 +2456,8 @@ export function FlowBuilderClient({
           productionVersion={productionVersion}
           onImportCode={() => setCodeImportOpen(true)}
           onImportFigma={() => setFigmaImportOpen(true)}
+          toolMode={toolMode}
+          onSelectToolMode={setToolMode}
           importCodeLabel={codeImportLabel}
           importFigmaLabel={figmaImportLabel}
         />
@@ -1443,8 +2499,8 @@ export function FlowBuilderClient({
           data-canvas-bg="true"
           className="absolute inset-0"
           style={{
-            transform: `translate(${canvas.panOffset.x}px, ${canvas.panOffset.y}px)`,
-            transition: canvas.isPanning || canvas.isDraggingPhone ? "none" : "transform 0.08s ease-out",
+            transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
+            transition: isPanning || isDraggingPhone ? "none" : "transform 0.08s ease-out",
           }}
         >
           <div
@@ -1453,9 +2509,9 @@ export function FlowBuilderClient({
             style={{
               left: "50%",
               top: "50%",
-              transform: `scale(${canvas.zoom})`,
+              transform: `scale(${zoom})`,
               transformOrigin: "0 0",
-              transition: canvas.isPanning || canvas.isDraggingPhone ? "none" : "transform 0.15s ease-out",
+              transition: isPanning || isDraggingPhone ? "none" : "transform 0.15s ease-out",
             }}
           >
             {/* Branch connection arrows (buttons targeting specific screens) */}
@@ -1643,8 +2699,7 @@ export function FlowBuilderClient({
                             role="button"
                             tabIndex={0}
                             onClick={() => {
-                              setSelectedScreenIndex(idx);
-                              setSelectedComponentId(null);
+                              selectScreen(idx);
                             }}
                             onMouseDown={(e) => e.stopPropagation()}
                             className={`rounded-[4px] transition-all cursor-pointer ${
@@ -1697,13 +2752,76 @@ export function FlowBuilderClient({
       <PropertySheet
         open={sheetOpen}
         component={selectedComponent || null}
+        selectedNodes={selectedComponentNodes.map((node) => ({
+          id: node.id,
+          component: node.component,
+          visible: node.visible,
+          locked: node.locked,
+          transform:
+            (previewTransforms[node.id] && selectedComponentId === node.id
+              ? previewTransforms[node.id]
+              : node.transform) ?? node.transform,
+          constraints: node.constraints,
+        }))}
+        currentScreen={currentScreenDoc || null}
         onClose={closeSheet}
-        onDelete={selectedComponent ? () => deleteComponent(selectedComponent.id) : undefined}
+        onDelete={
+          selectedNodeIdsOnCurrentScreen.length > 0
+            ? () =>
+                selectedNodeIdsOnCurrentScreen.length > 1
+                  ? deleteSelectedNodes()
+                  : deleteComponent(selectedNodeIdsOnCurrentScreen[0]!)
+            : undefined
+        }
         onUpdateProp={
           selectedComponent ? (key, value) => updateComponentProp(selectedComponent.id, key, value) : undefined
         }
+        onUpdateSelectionProps={updateSelectedComponentProps}
+        onUpdateAnimation={
+          selectedComponent
+            ? (anim) =>
+                updateConfig((prev) => ({
+                  ...prev,
+                  screens: prev.screens.map((screen, index) => {
+                    if (index !== selectedScreenIndex) return screen;
+                    const node = screen.nodes[selectedComponent.id];
+                    if (!node || node.kind !== "component") return screen;
+                    return {
+                      ...screen,
+                      nodes: {
+                        ...screen.nodes,
+                        [selectedComponent.id]: {
+                          ...node,
+                          component: {
+                            ...node.component,
+                            animation: anim,
+                          },
+                        },
+                      },
+                    };
+                  }),
+                }))
+            : undefined
+        }
+        onUpdateScreenStyle={updateCurrentScreenStyle}
+        onUpdateScreenLayoutMode={updateCurrentScreenLayoutMode}
+        onUpdateScreenArtboard={updateCurrentScreenArtboard}
+        onUpdateScreenTransition={updateCurrentScreenTransition}
         screens={config.screens}
         registryKeys={registryKeys}
+        onUpdateVisualNode={
+          selectedComponentId
+            ? (patch) => updateNodePresentation(selectedComponentId, patch)
+            : undefined
+        }
+        onUpdateSelectionVisualNodes={updateSelectedNodesPresentation}
+        onBringForward={() => moveSelectedNodesInZOrder("forward")}
+        onSendBackward={() => moveSelectedNodesInZOrder("backward")}
+        onBringToFront={() => moveSelectedNodesInZOrder("front")}
+        onSendToBack={() => moveSelectedNodesInZOrder("back")}
+        onAlignSelection={alignSelectedNodes}
+        onDistributeSelection={distributeSelectedNodes}
+        onMatchSelection={matchSelectedNodes}
       />
       
       <TabStyleSidebar
@@ -1711,6 +2829,7 @@ export function FlowBuilderClient({
         onClose={() => setTabSidebarOpen(false)}
         onSelect={handleTabPresetSelect}
       />
-    </div>
+      </div>
+    </DndContext>
   );
 }

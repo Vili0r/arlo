@@ -106,6 +106,10 @@ export interface ParsedFigmaImport {
   sourceUrl: string;
   warnings: string[];
   previewTree: ImportedPreviewNode[];
+  artboard: {
+    width: number;
+    height: number;
+  };
   screen: Screen;
 }
 
@@ -388,6 +392,28 @@ function inferFieldKey(source: string): string {
   return normalized || `field_${Date.now()}`;
 }
 
+function buildAbsoluteLayout(
+  node: FigmaNode,
+  rootBounds: FigmaBoundingBox | null,
+  order: number,
+  locked = false,
+): FlowComponent["layout"] | undefined {
+  const bounds = getBounds(node);
+  if (!bounds || !rootBounds) {
+    return locked ? { locked: true } : undefined;
+  }
+
+  return {
+    position: "absolute",
+    x: Math.round(bounds.x - rootBounds.x),
+    y: Math.round(bounds.y - rootBounds.y),
+    width: Math.max(20, Math.round(bounds.width)),
+    height: Math.max(20, Math.round(bounds.height)),
+    zIndex: order,
+    locked: locked || undefined,
+  };
+}
+
 function getPrimaryJustifyContent(node: FigmaNode): ScreenStyle["justifyContent"] | undefined {
   if (node.layoutMode !== "VERTICAL") return undefined;
   switch (node.primaryAxisAlignItems) {
@@ -478,11 +504,27 @@ function getTextLabel(node: FigmaNode): string {
 
 function isButtonLike(node: FigmaNode): boolean {
   if (!isFrameLike(node) || isTextInputLike(node)) return false;
-  const textChildren = collectTextNodes(node);
-  return textChildren.length === 1 && Boolean(getSolidFillHex(node));
+  const bounds = getBounds(node);
+  if (bounds && (bounds.width > 320 || bounds.height > 120)) return false;
+
+  const directChildren = collectVisibleChildren(node);
+  const directTextChildren = directChildren.filter((child) => isTextNode(child));
+  const hasOnlySimpleChildren = directChildren.every((child) =>
+    isTextNode(child) || ["VECTOR", "ELLIPSE", "RECTANGLE", "STAR"].includes(child.type),
+  );
+
+  return (
+    directTextChildren.length === 1 &&
+    hasOnlySimpleChildren &&
+    Boolean(getSolidFillHex(node))
+  );
 }
 
-function buildTextComponent(node: FigmaNode, order: number): FlowComponent | null {
+function buildTextComponent(
+  node: FigmaNode,
+  order: number,
+  rootBounds: FigmaBoundingBox | null,
+): FlowComponent | null {
   const content = node.characters?.trim();
   if (!content) return null;
 
@@ -490,6 +532,7 @@ function buildTextComponent(node: FigmaNode, order: number): FlowComponent | nul
     id: createId("comp"),
     type: "TEXT",
     order,
+    layout: buildAbsoluteLayout(node, rootBounds, order),
     props: {
       content,
       fontSize: node.style?.fontSize ? Math.round(node.style.fontSize) : 16,
@@ -510,7 +553,11 @@ function buildTextComponent(node: FigmaNode, order: number): FlowComponent | nul
   };
 }
 
-function buildButtonComponent(node: FigmaNode, order: number): FlowComponent | null {
+function buildButtonComponent(
+  node: FigmaNode,
+  order: number,
+  rootBounds: FigmaBoundingBox | null,
+): FlowComponent | null {
   const label = getTextLabel(node);
   if (!label) return null;
 
@@ -520,6 +567,7 @@ function buildButtonComponent(node: FigmaNode, order: number): FlowComponent | n
     id: createId("comp"),
     type: "BUTTON",
     order,
+    layout: buildAbsoluteLayout(node, rootBounds, order),
     props: {
       label,
       action: "NEXT_SCREEN",
@@ -539,6 +587,7 @@ function buildImageComponent(
   node: FigmaNode,
   order: number,
   imageUrls: Record<string, string> | undefined,
+  rootBounds: FigmaBoundingBox | null,
 ): FlowComponent | null {
   const imageUrl = getImageUrl(node, imageUrls);
   const bounds = getBounds(node);
@@ -548,6 +597,7 @@ function buildImageComponent(
     id: createId("comp"),
     type: "IMAGE",
     order,
+    layout: buildAbsoluteLayout(node, rootBounds, order),
     props: {
       src: imageUrl,
       alt: node.name,
@@ -559,11 +609,16 @@ function buildImageComponent(
   };
 }
 
-function buildTextInputComponent(node: FigmaNode, order: number): FlowComponent {
+function buildTextInputComponent(
+  node: FigmaNode,
+  order: number,
+  rootBounds: FigmaBoundingBox | null,
+): FlowComponent {
   return {
     id: createId("comp"),
     type: "TEXT_INPUT",
     order,
+    layout: buildAbsoluteLayout(node, rootBounds, order),
     props: {
       placeholder: getTextLabel(node) || prettifyName(node.name),
       fieldKey: inferFieldKey(node.name),
@@ -572,25 +627,47 @@ function buildTextInputComponent(node: FigmaNode, order: number): FlowComponent 
   };
 }
 
+function buildFallbackComponent(
+  node: FigmaNode,
+  order: number,
+  rootBounds: FigmaBoundingBox | null,
+  reason: string,
+): FlowComponent {
+  return {
+    id: createId("comp"),
+    type: "TEXT",
+    order,
+    layout: buildAbsoluteLayout(node, rootBounds, order, true),
+    props: {
+      content: `[Figma fallback] ${prettifyName(node.name || node.type)}: ${reason}`,
+      fontSize: 12,
+      fontWeight: "medium",
+      color: "#92400E",
+      opacity: 85,
+    },
+  };
+}
+
 function buildComponentFromNode(
   node: FigmaNode,
   order: number,
   imageUrls: Record<string, string> | undefined,
+  rootBounds: FigmaBoundingBox | null,
 ): FlowComponent | null {
   if (isTextNode(node)) {
-    return buildTextComponent(node, order);
+    return buildTextComponent(node, order, rootBounds);
   }
 
   if (isTextInputLike(node)) {
-    return buildTextInputComponent(node, order);
+    return buildTextInputComponent(node, order, rootBounds);
   }
 
   if (isButtonLike(node)) {
-    return buildButtonComponent(node, order);
+    return buildButtonComponent(node, order, rootBounds);
   }
 
   if (getImagePaint(node)) {
-    return buildImageComponent(node, order, imageUrls);
+    return buildImageComponent(node, order, imageUrls, rootBounds);
   }
 
   return null;
@@ -600,15 +677,30 @@ function collectMappedComponents(
   node: FigmaNode,
   components: FlowComponent[],
   imageUrls: Record<string, string> | undefined,
+  rootBounds: FigmaBoundingBox | null,
+  warnings: string[],
 ): void {
-  const component = buildComponentFromNode(node, components.length, imageUrls);
+  const component = buildComponentFromNode(node, components.length, imageUrls, rootBounds);
   if (component) {
     components.push(component);
     return;
   }
 
-  for (const child of collectVisibleChildren(node)) {
-    collectMappedComponents(child, components, imageUrls);
+  if (getImagePaint(node) && !getImageUrl(node, imageUrls)) {
+    warnings.push(`Created a fallback for ${node.name} because its image fill could not be resolved.`);
+    components.push(buildFallbackComponent(node, components.length, rootBounds, "image fill unavailable"));
+    return;
+  }
+
+  const children = collectVisibleChildren(node);
+  if (children.length === 0 && node.type !== "LINE") {
+    warnings.push(`Created a fallback layer for unsupported Figma node ${node.type} (${node.name}).`);
+    components.push(buildFallbackComponent(node, components.length, rootBounds, `unsupported ${node.type.toLowerCase()} layer`));
+    return;
+  }
+
+  for (const child of children) {
+    collectMappedComponents(child, components, imageUrls, rootBounds, warnings);
   }
 }
 
@@ -832,7 +924,8 @@ function buildSingleFigmaImport(
   lastSyncedAt: string,
 ): ParsedFigmaImport | null {
   const components: FlowComponent[] = [];
-  collectMappedComponents(root, components, input.imageUrls);
+  const rootBounds = getBounds(root);
+  collectMappedComponents(root, components, input.imageUrls, rootBounds, warnings);
 
   const previewRoot = buildPreviewNode(root, input.imageUrls, null, true);
   const previewTree = previewRoot ? [previewRoot] : [];
@@ -850,11 +943,22 @@ function buildSingleFigmaImport(
     sourceUrl: buildSourceUrlForNode(input.sourceUrl, root.id),
     warnings: [...warnings],
     previewTree,
+    artboard: {
+      width: Math.max(320, Math.round(rootBounds?.width ?? 390)),
+      height: Math.max(568, Math.round(rootBounds?.height ?? 844)),
+    },
     screen: {
       id: createId("screen"),
       name: prettifyName(root.name || "Imported Figma Screen"),
       order: 0,
-      style: buildScreenStyle(root),
+      layoutMode: "absolute",
+      style: {
+        ...buildScreenStyle(root),
+        padding: 0,
+        paddingTop: 0,
+        paddingBottom: 0,
+        paddingHorizontal: 0,
+      },
       components,
     },
   };

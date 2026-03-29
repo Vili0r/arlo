@@ -32,6 +32,10 @@ export interface ParsedCodeImport {
   screen: Screen;
   warnings: string[];
   previewTree: ImportedPreviewNode[];
+  artboard?: {
+    width: number;
+    height: number;
+  };
 }
 
 export type ImportedPreviewNode =
@@ -1182,6 +1186,27 @@ function mapInputComponent(node: JsxElementNode, order: number): FlowComponent {
   };
 }
 
+function createFallbackComponent(
+  label: string,
+  order: number,
+): FlowComponent {
+  return {
+    id: createId("comp"),
+    type: "TEXT",
+    order,
+    layout: {
+      locked: true,
+    },
+    props: {
+      content: `[Imported fallback] ${label}`,
+      fontSize: 13,
+      fontWeight: "medium",
+      color: "#92400E",
+      opacity: 88,
+    },
+  };
+}
+
 function rootScreenStyle(node: JsxElementNode | null): ScreenStyle | undefined {
   if (!node) return undefined;
   const style = getStyleObject(node);
@@ -1214,6 +1239,20 @@ function rootScreenStyle(node: JsxElementNode | null): ScreenStyle | undefined {
     paddingHorizontal,
     justifyContent,
     alignItems,
+  };
+}
+
+function getRootArtboard(node: JsxElementNode | null) {
+  if (!node) return undefined;
+  const style = getStyleObject(node);
+  const width = toNumber(style.width);
+  const height = toNumber(style.height) ?? toNumber(style.minHeight);
+
+  if (!width || !height) return undefined;
+
+  return {
+    width,
+    height,
   };
 }
 
@@ -1288,6 +1327,7 @@ function collectComponents(
       components.push(component);
     } else {
       warnings.push(`Skipped ${node.name} because no image source could be resolved.`);
+      components.push(createFallbackComponent(`Missing image source for <${node.name}>`, components.length));
     }
     return;
   }
@@ -1305,6 +1345,7 @@ function collectComponents(
   if (!isContainerTag(node.name) && !unsupported.has(node.name)) {
     unsupported.add(node.name);
     warnings.push(`Converted around unsupported tag <${node.name}> and kept any supported children it contained.`);
+    components.push(createFallbackComponent(`Unsupported JSX tag <${node.name}>`, components.length));
   }
 
   for (const child of node.children) {
@@ -1341,6 +1382,7 @@ export function parseImportedCode(code: string, preferred?: ImportFramework | "a
   const components: FlowComponent[] = [];
   const unsupported = new Set<string>();
   const previewTree = parsedTree.children.flatMap((child) => buildImportedPreviewNodes(child, context));
+  const artboard = getRootArtboard(rootElement);
 
   for (const child of parsedTree.children) {
     collectComponents(child, components, warnings, unsupported, context);
@@ -1354,6 +1396,7 @@ export function parseImportedCode(code: string, preferred?: ImportFramework | "a
     framework,
     warnings,
     previewTree,
+    artboard,
     screen: {
       id: createId("screen"),
       name: componentName ? prettifyName(componentName) : framework === "react-native" ? "Imported Native Screen" : "Imported React Screen",

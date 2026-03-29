@@ -155,7 +155,7 @@ export interface EditorNodeSource {
   originalComponentId?: string;
 }
 
-export interface EditorConstraints extends ComponentConstraints {}
+export type EditorConstraints = ComponentConstraints;
 
 export type EditorScreenSource =
   | { kind: "manual" }
@@ -349,6 +349,10 @@ function getEditableScreen(screen: Screen): {
   source: EditorScreenSource;
   preserveCustomScreenKey: string | undefined;
   preserveCustomPayload: Record<string, unknown> | undefined;
+  artboard?: {
+    width: number;
+    height: number;
+  };
 } {
   const importedCode = getImportedCodePayload(screen);
   if (importedCode) {
@@ -371,6 +375,7 @@ function getEditableScreen(screen: Screen): {
       },
       preserveCustomScreenKey: undefined,
       preserveCustomPayload: undefined,
+      artboard: importedCode.artboard,
     };
   }
 
@@ -398,6 +403,7 @@ function getEditableScreen(screen: Screen): {
       },
       preserveCustomScreenKey: undefined,
       preserveCustomPayload: undefined,
+      artboard: importedFigma.artboard,
     };
   }
 
@@ -412,6 +418,7 @@ function getEditableScreen(screen: Screen): {
     },
     preserveCustomScreenKey: screen.customScreenKey,
     preserveCustomPayload: clone(screen.customPayload),
+    artboard: undefined,
   };
 }
 
@@ -423,7 +430,7 @@ export function flowConfigToEditorDocument(config: FlowConfig): EditorDocument {
     version: 1,
     settings: clone(config.settings) as EditorDocument["settings"],
     screens: orderedScreens.map((screen) => {
-      const { editableScreen, source, preserveCustomPayload, preserveCustomScreenKey } =
+      const { editableScreen, source, preserveCustomPayload, preserveCustomScreenKey, artboard } =
         getEditableScreen(screen);
       const orderedComponents = [...editableScreen.components].sort(
         (left, right) => left.order - right.order,
@@ -447,8 +454,8 @@ export function flowConfigToEditorDocument(config: FlowConfig): EditorDocument {
         order: screen.order,
         layoutMode: inferredLayoutMode,
         artboard: {
-          width: DEFAULT_ARTBOARD_WIDTH,
-          height: DEFAULT_ARTBOARD_HEIGHT,
+          width: artboard?.width ?? DEFAULT_ARTBOARD_WIDTH,
+          height: artboard?.height ?? DEFAULT_ARTBOARD_HEIGHT,
         },
         style: clone(editableScreen.style) as ScreenStyle | undefined,
         customScreenKey: preserveCustomScreenKey,

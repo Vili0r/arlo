@@ -222,10 +222,12 @@ export function PhonePreviewComponent({
   component,
   isSelected,
   onSelect,
+  onDoubleClick,
 }: {
   component: FlowComponent;
   isSelected: boolean;
   onSelect: () => void;
+  onDoubleClick?: () => void;
 }) {
   const p = component.props as Record<string, any>;
 
@@ -248,9 +250,15 @@ export function PhonePreviewComponent({
 
   return (
     <div
+      data-component-item="true"
+      data-component-type={component.type}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onDoubleClick?.();
       }}
       style={outerMarginStyle}
       className={`rounded-xl cursor-pointer transition-all duration-150 ${wrapperFit} ${

@@ -80,6 +80,17 @@ export function useCanvas() {
   const zoomIn = useCallback(() => setZoom((z) => clampZoom(z + 0.1)), []);
   const zoomOut = useCallback(() => setZoom((z) => clampZoom(z - 0.1)), []);
   const resetZoom = useCallback(() => setZoom(0.55), []);
+  const setCanvasView = useCallback(
+    (view: { zoom?: number; panOffset?: { x: number; y: number } }) => {
+      if (typeof view.zoom === "number") {
+        setZoom(clampZoom(view.zoom));
+      }
+      if (view.panOffset) {
+        setPanOffset(view.panOffset);
+      }
+    },
+    [],
+  );
   const resetView = useCallback(() => {
     setZoom(0.55);
     setPanOffset({ x: 0, y: 0 });
@@ -100,6 +111,7 @@ export function useCanvas() {
     zoomIn,
     zoomOut,
     resetZoom,
+    setCanvasView,
     resetView,
   };
 }

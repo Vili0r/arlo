@@ -13,8 +13,6 @@ import {
   X,
   Settings2,
   MoveHorizontal,
-  MoveVertical,
-  Square,
   Upload,
   Search,
 } from "lucide-react";
@@ -92,8 +90,8 @@ export function PropInput({
   placeholder,
   className: cx,
 }: {
-  value: any;
-  onChange: (v: any) => void;
+  value: string | number | undefined;
+  onChange: (v: string | number) => void;
   type?: string;
   placeholder?: string;
   className?: string;
@@ -111,6 +109,36 @@ export function PropInput({
   );
 }
 
+function clampNumber(value: number, min?: number, max?: number) {
+  if (typeof min === "number") value = Math.max(min, value);
+  if (typeof max === "number") value = Math.min(max, value);
+  return value;
+}
+
+function evaluateNumericExpression(
+  rawValue: string,
+  fallback: number,
+  min?: number,
+  max?: number,
+) {
+  const trimmed = rawValue.trim();
+  if (!trimmed) return clampNumber(fallback, min, max);
+
+  if (!/^[0-9+\-*/().\s]+$/.test(trimmed)) {
+    return clampNumber(fallback, min, max);
+  }
+
+  try {
+    const result = Function(`"use strict"; return (${trimmed});`)();
+    if (typeof result !== "number" || Number.isNaN(result) || !Number.isFinite(result)) {
+      return clampNumber(fallback, min, max);
+    }
+    return clampNumber(result, min, max);
+  } catch {
+    return clampNumber(fallback, min, max);
+  }
+}
+
 /* ─── Number input with unit suffix (px, %, etc) ─────── */
 export function PropNumberUnit({
   value,
@@ -118,6 +146,8 @@ export function PropNumberUnit({
   unit = "px",
   min,
   max,
+  step = 1,
+  dragStep,
   className: cx,
 }: {
   value: number;
@@ -125,18 +155,97 @@ export function PropNumberUnit({
   unit?: string;
   min?: number;
   max?: number;
+  step?: number;
+  dragStep?: number;
   className?: string;
 }) {
+  const [draftValue, setDraftValue] = useState(String(value ?? 0));
+  const [isFocused, setIsFocused] = useState(false);
+  const scrubStateRef = useRef<{
+    startX: number;
+    startValue: number;
+  } | null>(null);
+
+  const commitValue = useCallback(
+    (rawValue: string) => {
+      const nextValue = evaluateNumericExpression(rawValue, value ?? 0, min, max);
+      setDraftValue(String(nextValue));
+      onChange(nextValue);
+    },
+    [max, min, onChange, value],
+  );
+
+  const handleScrubStart = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      scrubStateRef.current = {
+        startX: event.clientX,
+        startValue: value ?? 0,
+      };
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const scrubState = scrubStateRef.current;
+        if (!scrubState) return;
+
+        const scrubStep = dragStep ?? step;
+        const delta = Math.round((moveEvent.clientX - scrubState.startX) / 4) * scrubStep;
+        const nextValue = clampNumber(scrubState.startValue + delta, min, max);
+        setDraftValue(String(nextValue));
+        onChange(nextValue);
+      };
+
+      const handlePointerUp = () => {
+        scrubStateRef.current = null;
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+      };
+
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+    },
+    [dragStep, max, min, onChange, step, value],
+  );
+
   return (
     <div
       className={`flex items-center bg-white/[0.04] border border-white/[0.08] rounded-lg overflow-hidden hover:border-white/[0.12] transition-all ${cx || "w-[90px]"}`}
     >
+      <button
+        type="button"
+        onPointerDown={handleScrubStart}
+        className="flex h-full items-center justify-center border-r border-white/[0.08] px-2 text-white/22 transition-colors hover:bg-white/[0.04] hover:text-white/55 cursor-ew-resize"
+        title="Drag to adjust"
+      >
+        <MoveHorizontal size={12} />
+      </button>
       <input
-        type="number"
-        value={value ?? 0}
+        type="text"
+        inputMode="decimal"
+        value={isFocused ? draftValue : String(value ?? 0)}
         min={min}
         max={max}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onFocus={() => {
+          setDraftValue(String(value ?? 0));
+          setIsFocused(true);
+        }}
+        onBlur={(event) => {
+          setIsFocused(false);
+          commitValue(event.target.value);
+        }}
+        onChange={(event) => setDraftValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commitValue(draftValue);
+            (event.target as HTMLInputElement).blur();
+          }
+
+          if (event.key === "Escape") {
+            event.preventDefault();
+            setDraftValue(String(value ?? 0));
+            (event.target as HTMLInputElement).blur();
+          }
+        }}
         className="flex-1 bg-transparent px-2.5 py-2 text-[13px] text-white focus:outline-none w-full min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
       <span className="text-[11px] text-white/25 pr-2.5 shrink-0">{unit}</span>
@@ -191,7 +300,7 @@ export function PropIconCombobox({
 }: {
   value: string;
   onChange: (v: string) => void;
-  icons: Record<string, any>;
+  icons: Record<string, React.ComponentType<{ size?: number; className?: string }>>;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");

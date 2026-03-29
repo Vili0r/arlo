@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { Search, Sparkles } from "lucide-react";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { COMPONENT_TYPES, COLOR_MAP } from "../_lib/constants";
 
-const FEATURED_COMPONENTS = [
+export const FEATURED_COMPONENTS = [
   "TEXT",
   "BUTTON",
   "SINGLE_SELECT",
@@ -13,7 +15,7 @@ const FEATURED_COMPONENTS = [
   "SOCIAL_PROOF",
 ];
 
-const COMPONENT_HINTS: Record<string, string> = {
+export const COMPONENT_HINTS: Record<string, string> = {
   TEXT: "Headlines, supporting copy, and microcopy.",
   IMAGE: "Hero visuals, screenshots, and illustrations.",
   VIDEO: "High-attention demo or explainer moments.",
@@ -32,6 +34,95 @@ const COMPONENT_HINTS: Record<string, string> = {
   AWARD: "Badges, recognition, and milestone framing.",
   CUSTOM_COMPONENT: "App-native components registered by the SDK.",
 };
+
+function PaletteCard({
+  type,
+  label,
+  icon: Icon,
+  color,
+  category,
+  hint,
+  compact = false,
+  onAdd,
+}: {
+  type: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  color: string;
+  category: string;
+  hint: string;
+  compact?: boolean;
+  onAdd: (type: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `palette:${type}`,
+    data: {
+      source: "palette",
+      componentType: type,
+      label,
+    },
+  });
+  const colors = COLOR_MAP[color];
+
+  return compact ? (
+    <button
+      ref={setNodeRef}
+      onClick={() => onAdd(type)}
+      className="group rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 text-left transition-all hover:border-white/[0.16] hover:bg-white/[0.05]"
+      style={{
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.45 : 1,
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      <div className="flex items-center gap-2">
+        <div
+          className={`flex h-8 w-8 items-center justify-center rounded-xl border ${colors.border} ${colors.bg}`}
+        >
+          <Icon size={15} className={colors.text} />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-semibold text-white/72 group-hover:text-white">
+            {label}
+          </p>
+          <p className="text-[9px] uppercase tracking-[0.16em] text-white/24">
+            {category}
+          </p>
+        </div>
+      </div>
+    </button>
+  ) : (
+    <button
+      ref={setNodeRef}
+      onClick={() => onAdd(type)}
+      className="group flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 text-left transition-all hover:border-white/[0.16] hover:bg-white/[0.045]"
+      style={{
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.45 : 1,
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      <div
+        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${colors.border} ${colors.bg}`}
+      >
+        <Icon size={16} className={colors.text} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[12px] font-medium text-white/70 group-hover:text-white">
+            {label}
+          </span>
+          <span className="rounded-full border border-white/[0.08] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-white/20">
+            {type.replace("_", " ")}
+          </span>
+        </div>
+        <p className="mt-1 text-[11px] leading-5 text-white/28">{hint}</p>
+      </div>
+    </button>
+  );
+}
 
 export function ComponentPalette({ onAdd }: { onAdd: (type: string) => void }) {
   const [search, setSearch] = useState("");
@@ -102,29 +193,18 @@ export function ComponentPalette({ onAdd }: { onAdd: (type: string) => void }) {
           </div>
           <div className="grid grid-cols-2 gap-2">
             {featured.map((component) => {
-              const colors = COLOR_MAP[component.color];
               return (
-                <button
+                <PaletteCard
                   key={component.type}
-                  onClick={() => onAdd(component.type)}
-                  className="group rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 text-left transition-all hover:border-white/[0.16] hover:bg-white/[0.05]"
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-xl border ${colors.border} ${colors.bg}`}
-                    >
-                      <component.icon size={15} className={colors.text} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-[11px] font-semibold text-white/72 group-hover:text-white">
-                        {component.label}
-                      </p>
-                      <p className="text-[9px] uppercase tracking-[0.16em] text-white/24">
-                        {component.category}
-                      </p>
-                    </div>
-                  </div>
-                </button>
+                  type={component.type}
+                  label={component.label}
+                  icon={component.icon}
+                  color={component.color}
+                  category={component.category}
+                  hint={COMPONENT_HINTS[component.type] || ""}
+                  compact
+                  onAdd={onAdd}
+                />
               );
             })}
           </div>
@@ -145,33 +225,20 @@ export function ComponentPalette({ onAdd }: { onAdd: (type: string) => void }) {
             {filteredComponents
               .filter((component) => component.category === category)
               .map((component) => {
-                const colors = COLOR_MAP[component.color];
-
                 return (
-                  <button
+                  <PaletteCard
                     key={component.type}
-                    onClick={() => onAdd(component.type)}
-                    className="group flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 text-left transition-all hover:border-white/[0.16] hover:bg-white/[0.045]"
-                  >
-                    <div
-                      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${colors.border} ${colors.bg}`}
-                    >
-                      <component.icon size={16} className={colors.text} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-[12px] font-medium text-white/70 group-hover:text-white">
-                          {component.label}
-                        </span>
-                        <span className="rounded-full border border-white/[0.08] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-white/20">
-                          {component.type.replace("_", " ")}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-[11px] leading-5 text-white/28">
-                        {COMPONENT_HINTS[component.type] || "Flexible building block for richer onboarding screens."}
-                      </p>
-                    </div>
-                  </button>
+                    type={component.type}
+                    label={component.label}
+                    icon={component.icon}
+                    color={component.color}
+                    category={component.category}
+                    hint={
+                      COMPONENT_HINTS[component.type] ||
+                      "Flexible building block for richer onboarding screens."
+                    }
+                    onAdd={onAdd}
+                  />
                 );
               })}
           </div>

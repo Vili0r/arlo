@@ -15,7 +15,6 @@ import {
   Award,
   Puzzle,
   Layers,
-  BoxSelect,
   PlusCircle,
   Map,
   LayoutTemplate,
@@ -67,10 +66,11 @@ export const COLOR_MAP: Record<string, { bg: string; border: string; text: strin
 };
 
 export const SIDEBAR_TABS = [
-  { id: "screens" as const, label: "Screens", icon: Layers },
+  { id: "screens" as const, label: "Screens", icon: Map },
+  { id: "insert" as const, label: "Insert", icon: PlusCircle },
+  { id: "layers" as const, label: "Layers", icon: Layers },
+  { id: "templates" as const, label: "Templates", icon: LayoutTemplate },
   { id: "settings" as const, label: "Settings", icon: Settings2 },
-  { id: "add" as const, label: "Components", icon: PlusCircle },
-  { id: "templates" as const, label: "Templates", icon: LayoutTemplate }, 
 ] as const;
 
 export type SidebarTab = (typeof SIDEBAR_TABS)[number]["id"];

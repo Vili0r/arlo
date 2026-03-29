@@ -60,6 +60,7 @@ function payloadToParsedImport(payload: ImportedFigmaPayload): ParsedFigmaImport
     lastSyncedAt: payload.lastSyncedAt,
     warnings: payload.warnings,
     previewTree: payload.previewTree,
+    artboard: payload.artboard,
     screen: payload.previewScreen,
   };
 }

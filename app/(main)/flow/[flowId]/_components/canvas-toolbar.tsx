@@ -16,6 +16,10 @@ import {
   Undo2,
   Redo2,
   MoreHorizontal,
+  Hand,
+  MousePointer2,
+  Square,
+  Type,
 } from "lucide-react";
 import { DevicePicker } from "./device-picker";
 import type { DevicePreset, Orientation } from "../_lib/device-presets";
@@ -28,6 +32,7 @@ import {
 } from "@/components/ui/select";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+export type ToolMode = "select" | "hand" | "text" | "frame" | "rectangle";
 
 export function CanvasToolbar({
   zoom,
@@ -44,6 +49,8 @@ export function CanvasToolbar({
   onZoomIn,
   onZoomOut,
   onResetZoom,
+  onZoomToActual,
+  onZoomToFit,
   onResetView,
   canUndo,
   canRedo,
@@ -58,6 +65,8 @@ export function CanvasToolbar({
   productionVersion,
   onImportCode,
   onImportFigma,
+  toolMode,
+  onSelectToolMode,
   importCodeLabel = "Import Code",
   importFigmaLabel = "Import Figma",
 }: {
@@ -75,6 +84,8 @@ export function CanvasToolbar({
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
+  onZoomToActual: () => void;
+  onZoomToFit: () => void;
   onResetView: () => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -89,12 +100,20 @@ export function CanvasToolbar({
   productionVersion: { id: string; version: number } | null;
   onImportCode: () => void;
   onImportFigma: () => void;
+  toolMode: ToolMode;
+  onSelectToolMode: (mode: ToolMode) => void;
   importCodeLabel?: string;
   importFigmaLabel?: string;
 }) {
   const [publishAction, setPublishAction] = useState<string | undefined>(undefined);
   const iconBtn =
     "p-2 text-white/50 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed";
+  const toolBtn = (active: boolean) =>
+    `flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-medium transition-colors ${
+      active
+        ? "bg-blue-500/18 text-blue-200 ring-1 ring-blue-400/30"
+        : "text-white/45 hover:bg-white/[0.06] hover:text-white"
+    }`;
 
   const handlePublishAction = (value: string | null) => {
     if (!value) return;
@@ -128,7 +147,24 @@ export function CanvasToolbar({
 
       {/* ── Top-center — device picker ── */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
-        <div className="flex items-center bg-white/[0.08] backdrop-blur-md border border-white/[0.1] rounded-xl px-1 py-1 gap-0.5">
+        <div className="flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.08] px-1 py-1 backdrop-blur-md">
+          <div className="flex items-center rounded-xl border border-white/[0.08] bg-black/20 p-1">
+            <button onClick={() => onSelectToolMode("select")} className={toolBtn(toolMode === "select")} title="Select (V)">
+              <MousePointer2 size={14} />
+            </button>
+            <button onClick={() => onSelectToolMode("hand")} className={toolBtn(toolMode === "hand")} title="Hand (H)">
+              <Hand size={14} />
+            </button>
+            <button onClick={() => onSelectToolMode("text")} className={toolBtn(toolMode === "text")} title="Text (T)">
+              <Type size={14} />
+            </button>
+            <button onClick={() => onSelectToolMode("frame")} className={toolBtn(toolMode === "frame")} title="Frame (F)">
+              <Square size={14} />
+            </button>
+            <button onClick={() => onSelectToolMode("rectangle")} className={toolBtn(toolMode === "rectangle")} title="Rectangle (R)">
+              <Square size={14} className="fill-current" />
+            </button>
+          </div>
           <DevicePicker
             selectedDevice={selectedDevice}
             orientation={orientation}
@@ -242,6 +278,22 @@ export function CanvasToolbar({
           </button>
           <button onClick={onZoomIn} className={iconBtn} aria-label="Zoom in">
             <Plus size={14} />
+          </button>
+          <button
+            onClick={onZoomToActual}
+            className="px-2 text-[11px] font-medium text-white/50 transition-colors hover:text-white"
+            aria-label="Zoom to 100%"
+            title="Zoom to 100%"
+          >
+            100%
+          </button>
+          <button
+            onClick={onZoomToFit}
+            className="px-2 text-[11px] font-medium text-white/50 transition-colors hover:text-white"
+            aria-label="Zoom to fit"
+            title="Zoom to fit"
+          >
+            Fit
           </button>
           <button onClick={onResetView} className={iconBtn} aria-label="Reset view" title="Reset View">
             <Maximize2 size={14} />

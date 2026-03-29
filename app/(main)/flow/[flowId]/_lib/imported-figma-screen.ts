@@ -17,10 +17,22 @@ export interface ImportedFigmaPayload {
   warnings: string[];
   previewScreen: Screen;
   previewTree: ImportedPreviewNode[];
+  artboard: {
+    width: number;
+    height: number;
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function hasArtboard(value: unknown): value is { width: number; height: number } {
+  return (
+    isRecord(value) &&
+    typeof value.width === "number" &&
+    typeof value.height === "number"
+  );
 }
 
 export function isImportedFigmaPayload(value: unknown): value is ImportedFigmaPayload {
@@ -36,6 +48,7 @@ export function isImportedFigmaPayload(value: unknown): value is ImportedFigmaPa
   ) {
     return false;
   }
+  if (!hasArtboard(value.artboard)) return false;
   if (!Array.isArray(value.warnings) || !Array.isArray(value.previewTree)) return false;
   return isRecord(value.previewScreen);
 }
@@ -66,6 +79,7 @@ export function createImportedFigmaScreen(
       warnings: analysis.warnings,
       previewScreen: analysis.screen,
       previewTree: analysis.previewTree,
+      artboard: analysis.artboard,
     } satisfies ImportedFigmaPayload,
     components: [],
   };
