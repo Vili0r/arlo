@@ -321,6 +321,15 @@ export function PropertySheet({
                     />
                   </PropRow>
                 </div>
+                
+                <PropRow label="Padding">
+                  <PropNumberUnit
+                    value={Number(currentScreen.style?.padding ?? 24)}
+                    onChange={(value) => onUpdateScreenStyle?.({ padding: value })}
+                    min={0}
+                    className="w-full"
+                  />
+                </PropRow>
               </SectionCard>
 
               <SectionCard title="Animation">

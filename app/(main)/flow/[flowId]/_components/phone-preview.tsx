@@ -223,13 +223,16 @@ export function PhonePreviewComponent({
   isSelected,
   onSelect,
   onDoubleClick,
+  interactionMode = "builder",
 }: {
   component: FlowComponent;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect?: () => void;
   onDoubleClick?: () => void;
+  interactionMode?: "builder" | "preview";
 }) {
   const p = component.props as Record<string, any>;
+  const isBuilderMode = interactionMode === "builder";
 
   // Compute outer margin for the wrapper
   const outerMarginStyle: React.CSSProperties =
@@ -252,19 +255,22 @@ export function PhonePreviewComponent({
     <div
       data-component-item="true"
       data-component-type={component.type}
+      data-builder-node-hit="true"
       onClick={(e) => {
         e.stopPropagation();
-        onSelect();
+        onSelect?.();
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
         onDoubleClick?.();
       }}
       style={outerMarginStyle}
-      className={`rounded-xl cursor-pointer transition-all duration-150 ${wrapperFit} ${
-        isSelected
-          ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-white"
-          : "hover:ring-1 hover:ring-gray-200"
+      className={`rounded-xl transition-all duration-150 ${wrapperFit} ${
+        isBuilderMode
+          ? isSelected
+            ? "cursor-pointer ring-2 ring-blue-500 ring-offset-2 ring-offset-white"
+            : "cursor-pointer hover:ring-1 hover:ring-gray-200"
+          : ""
       }`}
     >
       {/* ════════════════════════════════════════════════
@@ -740,18 +746,31 @@ export function PhonePreviewComponent({
       })()}
 
       {component.type === "FOOTER" && (
-        <div className="mt-2">
-          {p.showDivider && <div className="h-px bg-gray-200 mb-3" />}
-          <p
-            className="text-center"
-            style={{
-              fontSize: p.fontSize || 12,
-              color: p.textColor || "#999",
-            }}
-          >
-            {p.text}
-          </p>
-        </div>
+        (() => {
+          const footerText =
+            typeof p.text === "string" ? p.text.trim() : "";
+
+          if (!footerText && !p.showDivider) {
+            return null;
+          }
+
+          return (
+            <div className="mt-2">
+              {p.showDivider && footerText ? <div className="h-px bg-gray-200 mb-3" /> : null}
+              {footerText ? (
+                <p
+                  className="text-center"
+                  style={{
+                    fontSize: p.fontSize || 12,
+                    color: p.textColor || "#999",
+                  }}
+                >
+                  {footerText}
+                </p>
+              ) : null}
+            </div>
+          );
+        })()
       )}
 
       {/* ════════════════════════════════════════════════

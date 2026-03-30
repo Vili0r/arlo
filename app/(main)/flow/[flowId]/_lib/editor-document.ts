@@ -692,6 +692,36 @@ export function appendComponentNode(
   };
 }
 
+export function convertScreenToAbsoluteLayout(screen: EditorScreen): EditorScreen {
+  if (screen.layoutMode === "absolute") return screen;
+
+  return {
+    ...screen,
+    layoutMode: "absolute",
+    nodes: Object.fromEntries(
+      Object.entries(screen.nodes).map(([nodeId, node]) => {
+        const rootIndex = screen.rootNodeIds.indexOf(nodeId);
+        if (rootIndex === -1 || node.kind !== "component") {
+          return [nodeId, node];
+        }
+
+        return [
+          nodeId,
+          {
+            ...node,
+            transform: {
+              ...node.transform,
+              x: node.transform.x ?? 0,
+              y: node.transform.y !== 0 ? node.transform.y : rootIndex * 88,
+              zIndex: rootIndex,
+            },
+          },
+        ];
+      }),
+    ) as typeof screen.nodes,
+  };
+}
+
 export function removeNodeFromScreen(screen: EditorScreen, nodeId: string): EditorScreen {
   const nextNodes = { ...screen.nodes };
   const toDelete = new Set<string>();

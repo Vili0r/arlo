@@ -380,8 +380,8 @@ export function FigmaImportDialog({
                         <p className="text-sm font-medium">Import warnings</p>
                       </div>
                       <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-100/80">
-                        {primaryImport.warnings.map((warning) => (
-                          <li key={warning}>{warning}</li>
+                        {primaryImport.warnings.map((warning, index) => (
+                          <li key={`${warning}-${index}`}>{warning}</li>
                         ))}
                       </ul>
                     </div>

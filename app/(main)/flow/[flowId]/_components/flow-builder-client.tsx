@@ -11,7 +11,14 @@ import {
   Trash2,
   Settings2,
 } from "lucide-react";
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  KeyboardSensor,
+} from "@dnd-kit/core";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -55,6 +62,7 @@ import { FigmaImportDialog } from "./figma-import-dialog";
 import {
   appendComponentNode,
   compileEditorDocument,
+  convertScreenToAbsoluteLayout,
   duplicateNodeInScreen,
   type EditorComponentNode,
   flowConfigToEditorDocument,
@@ -66,16 +74,16 @@ import {
 import { useEditorInteractionStore } from "../_lib/editor-interaction-store";
 
 import { DeviceFrame } from "./device-frame";
+import { NodeRenderer } from "./node-renderer";
 import {
   SidebarTabButtons,
-  IndicatorSettingsPanel,
-  ScreenStyleSection,
   ScreenLogicPanel,
   BackIcon,
   type IndicatorSettings,
   mergeIndicator,
  } from "./sidebar-panels";
 import type { ScreenTransitionConfig } from "../_lib/animation-presets";
+import { FlowPreviewOverlay } from "./flow-preview-overlay";
 
 const DEFAULT_FLOW_CONFIG: FlowConfig = {
   screens: [
@@ -83,6 +91,7 @@ const DEFAULT_FLOW_CONFIG: FlowConfig = {
       id: "screen_1",
       name: "Welcome",
       order: 0,
+      layoutMode: "absolute",
       style: { backgroundColor: "#FFFFFF", padding: 24 },
       components: [],
     },
@@ -259,6 +268,17 @@ export function FlowBuilderClient({
   const [inlineTextEdit, setInlineTextEdit] = useState<InlineTextEditState>(null);
   const [toolMode, setToolMode] = useState<ToolMode>("select");
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  );
+
   const absoluteNodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const defaultDocument = useMemo(() => flowConfigToEditorDocument(DEFAULT_FLOW_CONFIG), []);
   const history = useHistory<EditorDocument>(initialDocument || defaultDocument);
@@ -466,8 +486,12 @@ export function FlowBuilderClient({
 
   const selectScreen = useCallback(
     (screenIndex: number) => {
-      setSelectedScreenIndex(screenIndex);
-      clearSelection();
+      setSelectedScreenIndex((prevIndex) => {
+        if (prevIndex !== screenIndex) {
+          clearSelection();
+        }
+        return screenIndex;
+      });
     },
     [clearSelection],
   );
@@ -667,35 +691,13 @@ export function FlowBuilderClient({
   const updateCurrentScreenLayoutMode = useCallback(
     (layoutMode: "auto" | "absolute") => {
       updateCurrentScreenDoc((screen) => {
-        const nodes =
-          layoutMode === "absolute" && screen.layoutMode !== "absolute"
-            ? Object.fromEntries(
-                Object.entries(screen.nodes).map(([nodeId, node]) => {
-                  const rootIndex = screen.rootNodeIds.indexOf(nodeId);
-                  if (rootIndex === -1 || node.kind !== "component") {
-                    return [nodeId, node];
-                  }
-
-                  return [
-                    nodeId,
-                    {
-                      ...node,
-                      transform: {
-                        ...node.transform,
-                        x: node.transform.x ?? 0,
-                        y: node.transform.y !== 0 ? node.transform.y : rootIndex * 88,
-                        zIndex: rootIndex,
-                      },
-                    },
-                  ];
-                }),
-              ) as typeof screen.nodes
-            : screen.nodes;
+        if (layoutMode === "absolute") {
+          return convertScreenToAbsoluteLayout(screen);
+        }
 
         return {
           ...screen,
           layoutMode,
-          nodes,
         };
       });
     },
@@ -839,23 +841,27 @@ export function FlowBuilderClient({
         return null;
       }
 
+      const targetScreenForPlacement =
+        targetScreen.layoutMode === "absolute"
+          ? targetScreen
+          : convertScreenToAbsoluteLayout(targetScreen);
       const component = createDefaultComponent(type, targetScreen.rootNodeIds.length);
       options?.override?.(component);
 
-      if (targetScreen.layoutMode === "absolute") {
+      if (targetScreenForPlacement.layoutMode === "absolute") {
         const size = getComponentCanvasSize(component);
         const nextX = Math.max(
           0,
           Math.min(
-            Math.round((options?.x ?? targetScreen.artboard.width / 2) - size.width / 2),
-            targetScreen.artboard.width - size.width,
+            Math.round((options?.x ?? targetScreenForPlacement.artboard.width / 2) - size.width / 2),
+            targetScreenForPlacement.artboard.width - size.width,
           ),
         );
         const nextY = Math.max(
           0,
           Math.min(
-            Math.round((options?.y ?? targetScreen.artboard.height / 2) - size.height / 2),
-            targetScreen.artboard.height - size.height,
+            Math.round((options?.y ?? targetScreenForPlacement.artboard.height / 2) - size.height / 2),
+            targetScreenForPlacement.artboard.height - size.height,
           ),
         );
 
@@ -888,7 +894,11 @@ export function FlowBuilderClient({
         const screens = [...prev.screens];
         const screen = screens[targetScreenIndex];
         if (!screen) return prev;
-        screens[targetScreenIndex] = appendComponentNode(screen, component);
+        const nextScreen =
+          screen.layoutMode === "absolute"
+            ? screen
+            : convertScreenToAbsoluteLayout(screen);
+        screens[targetScreenIndex] = appendComponentNode(nextScreen, component);
         return { ...prev, screens };
       });
 
@@ -937,13 +947,16 @@ export function FlowBuilderClient({
         const screen = screens[screenIndex];
         if (!screen) return prev;
 
-        let nextScreen = screen;
+        let nextScreen =
+          screen.layoutMode === "absolute"
+            ? screen
+            : convertScreenToAbsoluteLayout(screen);
         builderClipboard.items.forEach((item, index) => {
           const nextComponent = structuredClone(item.component);
           nextComponent.id = `comp_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`;
           nextComponent.order = nextScreen.rootNodeIds.length;
 
-          if (screen.layoutMode === "absolute") {
+          if (nextScreen.layoutMode === "absolute") {
             nextComponent.layout = {
               ...nextComponent.layout,
               position: "absolute",
@@ -955,17 +968,6 @@ export function FlowBuilderClient({
               zIndex: nextScreen.rootNodeIds.length,
               visible: item.transform ? nextComponent.layout?.visible ?? true : true,
               locked: nextComponent.layout?.locked ?? false,
-            };
-          } else if (nextComponent.layout) {
-            nextComponent.layout = {
-              ...nextComponent.layout,
-              position: "flow",
-              x: undefined,
-              y: undefined,
-              rotation: undefined,
-              zIndex: undefined,
-              width: undefined,
-              height: undefined,
             };
           }
 
@@ -1014,13 +1016,16 @@ export function FlowBuilderClient({
       const screen = screens[selectedScreenIndex];
       if (!screen) return prev;
 
-      let nextScreen = screen;
+      let nextScreen =
+        screen.layoutMode === "absolute"
+          ? screen
+          : convertScreenToAbsoluteLayout(screen);
       items.forEach((item, index) => {
         const nextComponent = structuredClone(item.component);
         nextComponent.id = `comp_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`;
         nextComponent.order = nextScreen.rootNodeIds.length;
 
-        if (screen.layoutMode === "absolute") {
+        if (nextScreen.layoutMode === "absolute") {
           nextComponent.layout = {
             ...nextComponent.layout,
             position: "absolute",
@@ -1227,13 +1232,30 @@ export function FlowBuilderClient({
         const screens = [...prev.screens];
         const screen = screens[selectedScreenIndex];
         if (!screen) return prev;
+        const nextScreen =
+          screen.layoutMode === "absolute"
+            ? screen
+            : convertScreenToAbsoluteLayout(screen);
         const comp = {
           id: `comp_${Date.now()}`,
           type: "TAB_BUTTON" as const,
-          order: screen.rootNodeIds.length,
+          order: nextScreen.rootNodeIds.length,
           props: presetToTabComponentProps(preset),
         } as FlowComponent;
-        screens[selectedScreenIndex] = appendComponentNode(screen, comp);
+        const size = getComponentCanvasSize(comp);
+        comp.layout = {
+          ...comp.layout,
+          position: "absolute",
+          x: Math.max(0, Math.round((nextScreen.artboard.width - size.width) / 2)),
+          y: Math.max(0, Math.round((nextScreen.artboard.height - size.height) / 2)),
+          width: size.width,
+          height: size.height,
+          rotation: comp.layout?.rotation ?? 0,
+          zIndex: nextScreen.rootNodeIds.length,
+          visible: comp.layout?.visible ?? true,
+          locked: comp.layout?.locked ?? false,
+        };
+        screens[selectedScreenIndex] = appendComponentNode(nextScreen, comp);
         return { ...prev, screens };
       });
       setActiveTab("layers");
@@ -1337,6 +1359,7 @@ export function FlowBuilderClient({
               id: `screen_${Date.now()}`,
               name: `Screen ${order + 1}`,
               order,
+              layoutMode: "absolute",
               style: { backgroundColor: "#FFFFFF", padding: 24 },
               components: [],
             },
@@ -1799,9 +1822,6 @@ export function FlowBuilderClient({
                     className="relative h-full w-full overflow-hidden rounded-[24px] border border-black/5"
                     style={{
                       backgroundColor: bgColor,
-                      backgroundImage:
-                        "linear-gradient(rgba(15,23,42,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.04) 1px, transparent 1px)",
-                      backgroundSize: "8px 8px",
                     }}
                     onDoubleClickEmpty={(event) => {
                       const rect = event.currentTarget.getBoundingClientRect();
@@ -1810,70 +1830,26 @@ export function FlowBuilderClient({
                       openQuickInsert(screenIdx, { x, y });
                     }}
                   >
-                    {sorted.map((comp) => {
-                      const transientLayout =
-                        screenIdx === selectedScreenIndex ? previewTransforms[comp.id] : undefined;
-                      const layout = {
-                        x: transientLayout?.x ?? comp.layout?.x ?? 0,
-                        y: transientLayout?.y ?? comp.layout?.y ?? 0,
-                        width: transientLayout?.width ?? comp.layout?.width,
-                        height: transientLayout?.height ?? comp.layout?.height,
-                        rotation: transientLayout?.rotation ?? comp.layout?.rotation ?? 0,
-                        zIndex: transientLayout?.zIndex ?? comp.layout?.zIndex ?? comp.order,
-                        visible: comp.layout?.visible ?? true,
-                      };
-
-                      return (
-                        <div
-                          key={comp.id}
-                          ref={(node) => {
-                            absoluteNodeRefs.current[getAbsoluteNodeRefKey(screenIdx, comp.id)] = node;
-                          }}
-                          className="pointer-events-none absolute left-0 top-0"
-                          style={{
-                            width: layout.width,
-                            height: layout.height,
-                            display: layout.visible === false ? "none" : undefined,
-                            zIndex: layout.zIndex,
-                            transform: `translate3d(${layout.x}px, ${layout.y}px, 0px)`,
-                            transformOrigin: "top left",
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: layout.width ? "100%" : undefined,
-                              height: layout.height ? "100%" : undefined,
-                              transform: layout.rotation ? `rotate(${layout.rotation}deg)` : undefined,
-                              transformOrigin: "center center",
-                            }}
-                          >
-                            {inlineTextEdit?.screenIndex === screenIdx &&
-                            inlineTextEdit.nodeId === comp.id &&
-                            comp.type === "TEXT" ? (
-                              <InlineTextEditor
-                                component={comp}
-                                onCommit={(nextValue) => {
-                                  updateComponentProp(comp.id, "content", nextValue);
-                                  setInlineTextEdit(null);
-                                }}
-                                onCancel={() => setInlineTextEdit(null)}
-                              />
-                            ) : (
-                              <PhonePreviewComponent
-                                component={comp}
-                                isSelected={false}
-                                onSelect={() => {}}
-                                onDoubleClick={() => {
-                                  if (comp.type === "TEXT") {
-                                    beginInlineTextEdit(screenIdx, comp.id);
-                                  }
-                                }}
-                              />
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {screenDoc.rootNodeIds.map((nodeId) => (
+                      <NodeRenderer
+                        key={nodeId}
+                        screen={screenDoc}
+                        screenIndex={screenIdx}
+                        nodeId={nodeId}
+                        selectedComponentId={selectedComponentId}
+                        onSelectComponent={(id) => {
+                          if (id) selectComponent(screenIdx, id);
+                        }}
+                        previewTransforms={previewTransforms}
+                        registerNode={(id, el) => {
+                          absoluteNodeRefs.current[getAbsoluteNodeRefKey(screenIdx, id)] = el;
+                        }}
+                        inlineTextEdit={inlineTextEdit}
+                        setInlineTextEdit={setInlineTextEdit}
+                        beginInlineTextEdit={beginInlineTextEdit}
+                        updateComponentProp={updateComponentProp}
+                      />
+                    ))}
 
                     {screenDoc ? (
                       <CanvasInteractionLayer
@@ -1944,34 +1920,25 @@ export function FlowBuilderClient({
                   });
                 }}
               >
-                {mainComponents.map((comp) => (
-                  inlineTextEdit?.screenIndex === screenIdx &&
-                  inlineTextEdit.nodeId === comp.id &&
-                  comp.type === "TEXT" ? (
-                    <InlineTextEditor
-                      key={comp.id}
-                      component={comp}
-                      onCommit={(nextValue) => {
-                        updateComponentProp(comp.id, "content", nextValue);
-                        setInlineTextEdit(null);
-                      }}
-                      onCancel={() => setInlineTextEdit(null)}
-                    />
-                  ) : (
-                    <PhonePreviewComponent
-                      key={comp.id}
-                      component={comp}
-                      isSelected={screenIdx === selectedScreenIndex && comp.id === selectedComponentId}
-                      onSelect={() => {
-                        selectComponent(screenIdx, comp.id);
-                      }}
-                      onDoubleClick={() => {
-                        if (comp.type === "TEXT") {
-                          beginInlineTextEdit(screenIdx, comp.id);
-                        }
-                      }}
-                    />
-                  )
+                {screenDoc.rootNodeIds.map((nodeId) => (
+                  <NodeRenderer
+                    key={nodeId}
+                    screen={screenDoc}
+                    screenIndex={screenIdx}
+                    nodeId={nodeId}
+                    selectedComponentId={selectedComponentId}
+                    onSelectComponent={(id) => {
+                      if (id) selectComponent(screenIdx, id);
+                    }}
+                    previewTransforms={previewTransforms}
+                    registerNode={(id, el) => {
+                      absoluteNodeRefs.current[getAbsoluteNodeRefKey(screenIdx, id)] = el;
+                    }}
+                    inlineTextEdit={inlineTextEdit}
+                    setInlineTextEdit={setInlineTextEdit}
+                    beginInlineTextEdit={beginInlineTextEdit}
+                    updateComponentProp={updateComponentProp}
+                  />
                 ))}
                 {quickInsertState?.screenIndex === screenIdx ? (
                   <QuickInsertPalette
@@ -2158,7 +2125,7 @@ export function FlowBuilderClient({
   );
 
   return (
-    <DndContext onDragEnd={handlePaletteDrop}>
+    <DndContext sensors={sensors} onDragEnd={handlePaletteDrop}>
       <div className="relative flex h-screen overflow-hidden bg-black">
       {/* ─── SIDEBAR ─────────────────────────────────── */}
       <div className="flex shrink-0 h-full">
@@ -2275,66 +2242,6 @@ export function FlowBuilderClient({
             )}
             {activeTab === "settings" && (
               <div className="space-y-4">
-                {(() => {
-                  const settingsWithIndicator =
-                    document.settings as IndicatorAwareDocumentSettings | undefined;
-                  const currentScreenWithIndicator =
-                    currentScreenDoc as IndicatorAwareDocumentScreen | undefined;
-
-                  return (
-                <IndicatorSettingsPanel
-                  globalIndicator={settingsWithIndicator?.indicator}
-                  screenIndicator={currentScreenWithIndicator?.indicator}
-                  onUpdateGlobal={(patch) => {
-                    updateConfig((prev) => ({
-                      ...prev,
-                      settings: {
-                        ...prev.settings,
-                        indicator: {
-                          ...((prev.settings as IndicatorAwareDocumentSettings | undefined)?.indicator ?? {}),
-                          ...patch,
-                        },
-                      } as IndicatorAwareDocumentSettings,
-                    }));
-                  }}
-                  onUpdateScreen={(patch) => {
-                    updateConfig((prev) => {
-                      const screens = [...prev.screens];
-                      const currentScreenWithIndicator =
-                        screens[selectedScreenIndex] as IndicatorAwareDocumentScreen;
-                      screens[selectedScreenIndex] = {
-                        ...currentScreenWithIndicator,
-                        indicator: {
-                          ...(currentScreenWithIndicator.indicator ?? {}),
-                          ...patch,
-                        },
-                      } as typeof screens[number];
-                      return { ...prev, screens };
-                    });
-                  }}
-                  onClearScreenOverride={() => {
-                    updateConfig((prev) => {
-                      const screens = [...prev.screens];
-                      const currentScreenWithIndicator =
-                        screens[selectedScreenIndex] as IndicatorAwareDocumentScreen;
-                      const rest = { ...currentScreenWithIndicator };
-                      delete rest.indicator;
-                      screens[selectedScreenIndex] = rest as typeof screens[number];
-                      return { ...prev, screens };
-                    });
-                  }}
-                  hasScreenOverride={!!currentScreenWithIndicator?.indicator}
-                  screenName={currentScreen?.name || ""}
-                />
-                  );
-                })()}
-
-                <ScreenStyleSection
-                  currentScreen={currentScreen}
-                  onUpdateStyle={updateCurrentScreenStyle}
-                  onUpdateLayoutMode={updateCurrentScreenLayoutMode}
-                />
-
                 <ScreenLogicPanel
                   currentScreen={currentScreen}
                   allScreens={config.screens}
@@ -2450,6 +2357,7 @@ export function FlowBuilderClient({
           isDirty={history.isDirty}
           saveState={saveState}
           onSaveDraft={handleSaveDraft}
+          onOpenPreview={() => setPreviewOpen(true)}
           onPublish={handlePublish}
           onPromoteToProduction={handlePromoteToProduction}
           developmentVersion={developmentVersion}
@@ -2461,6 +2369,18 @@ export function FlowBuilderClient({
           importCodeLabel={codeImportLabel}
           importFigmaLabel={figmaImportLabel}
         />
+
+        {previewOpen ? (
+          <FlowPreviewOverlay
+            open={previewOpen}
+            onClose={() => setPreviewOpen(false)}
+            flowId={flowId}
+            config={config}
+            startScreenId={currentScreen?.id}
+            device={selectedDevice}
+            orientation={orientation}
+          />
+        ) : null}
 
         {codeImportOpen ? (
           <CodeImportDialog

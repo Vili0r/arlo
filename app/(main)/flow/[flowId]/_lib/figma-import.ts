@@ -859,6 +859,10 @@ function buildPreviewNode(
 ): ImportedPreviewNode | null {
   if (!isVisible(node)) return null;
 
+  // Ignore raw line layers in the read-only preview. They are not mapped into
+  // editable screen components and often show up as stray separators.
+  if (node.type === "LINE") return null;
+
   if (isTextNode(node)) {
     return buildTextPreviewNode(node, parent);
   }

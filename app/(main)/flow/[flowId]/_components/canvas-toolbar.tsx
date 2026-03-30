@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Upload,
   ChevronLeft,
@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Hand,
   MousePointer2,
+  Play,
   Square,
   Type,
 } from "lucide-react";
@@ -33,6 +34,26 @@ import {
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 export type ToolMode = "select" | "hand" | "text" | "frame" | "rectangle";
+
+function FloatingToolbarLabel({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="group/floating-label relative flex items-center">
+      {children}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg border border-white/[0.1] bg-[#141414] px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-2xl transition-all duration-150 group-hover/floating-label:translate-y-0 group-hover/floating-label:opacity-100 group-focus-within/floating-label:translate-y-0 group-focus-within/floating-label:opacity-100"
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
 
 export function CanvasToolbar({
   zoom,
@@ -59,6 +80,7 @@ export function CanvasToolbar({
   isDirty,
   saveState,
   onSaveDraft,
+  onOpenPreview,
   onPublish,
   onPromoteToProduction,
   developmentVersion,
@@ -94,6 +116,7 @@ export function CanvasToolbar({
   isDirty: boolean;
   saveState: SaveState;
   onSaveDraft: () => void;
+  onOpenPreview: () => void;
   onPublish: () => void;
   onPromoteToProduction: () => void;
   developmentVersion: { id: string; version: number } | null;
@@ -149,21 +172,31 @@ export function CanvasToolbar({
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
         <div className="flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.08] px-1 py-1 backdrop-blur-md">
           <div className="flex items-center rounded-xl border border-white/[0.08] bg-black/20 p-1">
-            <button onClick={() => onSelectToolMode("select")} className={toolBtn(toolMode === "select")} title="Select (V)">
-              <MousePointer2 size={14} />
-            </button>
-            <button onClick={() => onSelectToolMode("hand")} className={toolBtn(toolMode === "hand")} title="Hand (H)">
-              <Hand size={14} />
-            </button>
-            <button onClick={() => onSelectToolMode("text")} className={toolBtn(toolMode === "text")} title="Text (T)">
-              <Type size={14} />
-            </button>
-            <button onClick={() => onSelectToolMode("frame")} className={toolBtn(toolMode === "frame")} title="Frame (F)">
-              <Square size={14} />
-            </button>
-            <button onClick={() => onSelectToolMode("rectangle")} className={toolBtn(toolMode === "rectangle")} title="Rectangle (R)">
-              <Square size={14} className="fill-current" />
-            </button>
+            <FloatingToolbarLabel label="Select (V)">
+              <button onClick={() => onSelectToolMode("select")} className={toolBtn(toolMode === "select")} title="Select (V)">
+                <MousePointer2 size={14} />
+              </button>
+            </FloatingToolbarLabel>
+            <FloatingToolbarLabel label="Hand (H)">
+              <button onClick={() => onSelectToolMode("hand")} className={toolBtn(toolMode === "hand")} title="Hand (H)">
+                <Hand size={14} />
+              </button>
+            </FloatingToolbarLabel>
+            <FloatingToolbarLabel label="Text (T)">
+              <button onClick={() => onSelectToolMode("text")} className={toolBtn(toolMode === "text")} title="Text (T)">
+                <Type size={14} />
+              </button>
+            </FloatingToolbarLabel>
+            <FloatingToolbarLabel label="Frame (F)">
+              <button onClick={() => onSelectToolMode("frame")} className={toolBtn(toolMode === "frame")} title="Frame (F)">
+                <Square size={14} />
+              </button>
+            </FloatingToolbarLabel>
+            <FloatingToolbarLabel label="Rectangle (R)">
+              <button onClick={() => onSelectToolMode("rectangle")} className={toolBtn(toolMode === "rectangle")} title="Rectangle (R)">
+                <Square size={14} className="fill-current" />
+              </button>
+            </FloatingToolbarLabel>
           </div>
           <DevicePicker
             selectedDevice={selectedDevice}
@@ -198,12 +231,14 @@ export function CanvasToolbar({
         </div>
 
         <Select value={publishAction} onValueChange={handlePublishAction}>
-          <SelectTrigger
-            aria-label="Publish actions"
-            className="h-8 min-w-8 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2 text-white hover:bg-white/[0.08] [&>svg]:hidden"
-          >
-            <SelectValue placeholder={<MoreHorizontal size={16} className="text-white" />} />
-          </SelectTrigger>
+          <FloatingToolbarLabel label="Publish Actions">
+            <SelectTrigger
+              aria-label="Publish actions"
+              className="h-8 min-w-8 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2 text-white hover:bg-white/[0.08] [&>svg]:hidden"
+            >
+              <SelectValue placeholder={<MoreHorizontal size={16} className="text-white" />} />
+            </SelectTrigger>
+          </FloatingToolbarLabel>
           <SelectContent
             align="end"
             sideOffset={8}
@@ -230,74 +265,109 @@ export function CanvasToolbar({
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
         <div className="flex items-center bg-white/[0.08] backdrop-blur-md border border-white/[0.1] rounded-2xl px-1.5 py-1.5 gap-0.5">
           {/* Undo / Redo */}
-          <button onClick={onUndo} disabled={!canUndo} className={iconBtn} aria-label="Undo">
-            <Undo2 size={15} />
-          </button>
-          <button onClick={onRedo} disabled={!canRedo} className={iconBtn} aria-label="Redo">
-            <Redo2 size={15} />
-          </button>
+          <FloatingToolbarLabel label="Undo">
+            <button onClick={onUndo} disabled={!canUndo} className={iconBtn} aria-label="Undo">
+              <Undo2 size={15} />
+            </button>
+          </FloatingToolbarLabel>
+          <FloatingToolbarLabel label="Redo">
+            <button onClick={onRedo} disabled={!canRedo} className={iconBtn} aria-label="Redo">
+              <Redo2 size={15} />
+            </button>
+          </FloatingToolbarLabel>
 
           <div className="w-px h-5 bg-white/[0.1] mx-1" />
 
           {/* Import Figma */}
-          <button onClick={onImportFigma} className={iconBtn} aria-label={importFigmaLabel} title={importFigmaLabel}>
-            <PenTool size={15} />
-          </button>
+          <FloatingToolbarLabel label={importFigmaLabel}>
+            <button onClick={onImportFigma} className={iconBtn} aria-label={importFigmaLabel} title={importFigmaLabel}>
+              <PenTool size={15} />
+            </button>
+          </FloatingToolbarLabel>
 
           {/* Import Code */}
-          <button onClick={onImportCode} className={iconBtn} aria-label={importCodeLabel} title={importCodeLabel}>
-            <Code2 size={15} />
-          </button>
+          <FloatingToolbarLabel label={importCodeLabel}>
+            <button onClick={onImportCode} className={iconBtn} aria-label={importCodeLabel} title={importCodeLabel}>
+              <Code2 size={15} />
+            </button>
+          </FloatingToolbarLabel>
 
           {/* Save Draft */}
-          <button
-            onClick={onSaveDraft}
-            disabled={!isDirty || saveState === "saving"}
-            className={iconBtn}
-            aria-label="Save Draft"
-            title="Save Draft"
-          >
-            {saveState === "saving" ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Save size={15} />
-            )}
-          </button>
+          <FloatingToolbarLabel label="Save Draft">
+            <button
+              onClick={onSaveDraft}
+              disabled={!isDirty || saveState === "saving"}
+              className={iconBtn}
+              aria-label="Save Draft"
+              title="Save Draft"
+            >
+              {saveState === "saving" ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Save size={15} />
+              )}
+            </button>
+          </FloatingToolbarLabel>
+
+          <FloatingToolbarLabel label="Preview">
+            <button
+              onClick={onOpenPreview}
+              className={iconBtn}
+              aria-label="Open live preview"
+              title="Open live preview"
+            >
+              <Play size={15} className="fill-current" />
+            </button>
+          </FloatingToolbarLabel>
 
           <div className="w-px h-5 bg-white/[0.1] mx-1" />
 
           {/* Zoom controls */}
-          <button onClick={onZoomOut} className={iconBtn} aria-label="Zoom out">
-            <Minus size={14} />
-          </button>
-          <button
-            onClick={onResetZoom}
-            className="px-2 min-w-[44px] text-center text-[11px] font-medium text-white/50 hover:text-white transition-colors cursor-pointer"
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-          <button onClick={onZoomIn} className={iconBtn} aria-label="Zoom in">
-            <Plus size={14} />
-          </button>
-          <button
-            onClick={onZoomToActual}
-            className="px-2 text-[11px] font-medium text-white/50 transition-colors hover:text-white"
-            aria-label="Zoom to 100%"
-            title="Zoom to 100%"
-          >
-            100%
-          </button>
-          <button
-            onClick={onZoomToFit}
-            className="px-2 text-[11px] font-medium text-white/50 transition-colors hover:text-white"
-            aria-label="Zoom to fit"
-            title="Zoom to fit"
-          >
-            Fit
-          </button>
-          <button onClick={onResetView} className={iconBtn} aria-label="Reset view" title="Reset View">
-            <Maximize2 size={14} />
-          </button>
+          <FloatingToolbarLabel label="Zoom Out">
+            <button onClick={onZoomOut} className={iconBtn} aria-label="Zoom out">
+              <Minus size={14} />
+            </button>
+          </FloatingToolbarLabel>
+          <FloatingToolbarLabel label="Reset Zoom">
+            <button
+              onClick={onResetZoom}
+              className="px-2 min-w-[44px] text-center text-[11px] font-medium text-white/50 hover:text-white transition-colors cursor-pointer"
+              aria-label="Reset zoom"
+              title="Reset zoom"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+          </FloatingToolbarLabel>
+          <FloatingToolbarLabel label="Zoom In">
+            <button onClick={onZoomIn} className={iconBtn} aria-label="Zoom in">
+              <Plus size={14} />
+            </button>
+          </FloatingToolbarLabel>
+          <FloatingToolbarLabel label="Zoom to 100%">
+            <button
+              onClick={onZoomToActual}
+              className="px-2 text-[11px] font-medium text-white/50 transition-colors hover:text-white"
+              aria-label="Zoom to 100%"
+              title="Zoom to 100%"
+            >
+              100%
+            </button>
+          </FloatingToolbarLabel>
+          <FloatingToolbarLabel label="Zoom to Fit">
+            <button
+              onClick={onZoomToFit}
+              className="px-2 text-[11px] font-medium text-white/50 transition-colors hover:text-white"
+              aria-label="Zoom to fit"
+              title="Zoom to fit"
+            >
+              Fit
+            </button>
+          </FloatingToolbarLabel>
+          <FloatingToolbarLabel label="Reset View">
+            <button onClick={onResetView} className={iconBtn} aria-label="Reset view" title="Reset View">
+              <Maximize2 size={14} />
+            </button>
+          </FloatingToolbarLabel>
 
           <div className="w-px h-5 bg-white/[0.1] mx-1" />
 

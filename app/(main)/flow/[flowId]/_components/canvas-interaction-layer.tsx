@@ -121,10 +121,10 @@ export function CanvasInteractionLayer({
   const clearGuides = useEditorInteractionStore((state) => state.clearGuides);
   const setReadout = useEditorInteractionStore((state) => state.setReadout);
 
-  const componentNodeIds = useMemo(
+  const interactableNodeIds = useMemo(
     () =>
       Object.values(screen.nodes)
-        .filter((node): node is EditorComponentNode => node.kind === "component")
+        .filter((node) => node.kind === "component" || node.kind === "group")
         .sort((left, right) => left.transform.zIndex - right.transform.zIndex)
         .map((node) => node.id),
     [screen.nodes],
@@ -188,7 +188,7 @@ export function CanvasInteractionLayer({
     const vertical = [0, width / 2, width];
     const horizontal = [0, height / 2, height];
 
-    componentNodeIds.forEach((nodeId) => {
+    interactableNodeIds.forEach((nodeId) => {
       if (excluded.has(nodeId)) return;
 
       const node = screen.nodes[nodeId];
@@ -202,7 +202,7 @@ export function CanvasInteractionLayer({
     });
 
     return { vertical, horizontal, width, height };
-  }, [componentNodeIds, getNodeRect, screen.artboard.height, screen.artboard.width, screen.nodes]);
+  }, [interactableNodeIds, getNodeRect, screen.artboard.height, screen.artboard.width, screen.nodes]);
 
   const findAxisSnap = (positions: number[], guidesToCheck: number[]) => {
     let bestOffset = 0;
@@ -230,7 +230,7 @@ export function CanvasInteractionLayer({
     if (event.button !== 0) return;
     const overlay = overlayRef.current;
     const node = screen.nodes[nodeId];
-    if (!overlay || !node || node.kind !== "component") return;
+    if (!overlay || !node) return;
 
     onSelectScreen(screenIndex);
     event.stopPropagation();
@@ -657,7 +657,7 @@ export function CanvasInteractionLayer({
           ...nextMarquee,
         });
 
-        const intersectingNodeIds = componentNodeIds.filter((nodeId) => {
+        const intersectingNodeIds = interactableNodeIds.filter((nodeId) => {
           const rect = getNodeRect(nodeId);
           return rect ? rectsIntersect(nextMarquee, rect) : false;
         });
@@ -729,7 +729,7 @@ export function CanvasInteractionLayer({
     clearGuides,
     clearSelection,
     clearPreviewTransforms,
-    componentNodeIds,
+    interactableNodeIds,
     endTransform,
     getNodeElement,
     getGuideCandidates,
@@ -777,7 +777,7 @@ export function CanvasInteractionLayer({
         );
       }}
     >
-      {componentNodeIds.map((nodeId) => {
+      {interactableNodeIds.map((nodeId) => {
         const node = screen.nodes[nodeId];
         const transform = getResolvedTransform(nodeId);
         if (!node || !transform || node.visible === false) return null;
@@ -796,6 +796,7 @@ export function CanvasInteractionLayer({
           >
             <button
               onPointerDown={(event) => beginMove(event, nodeId)}
+              onClick={(e) => e.stopPropagation()}
               onDoubleClick={(event) => {
                 event.stopPropagation();
                 if (node.kind === "component" && node.component.type === "TEXT") {
@@ -928,6 +929,7 @@ export function CanvasInteractionLayer({
                   key={handle}
                   type="button"
                   onPointerDown={(event) => beginResize(event, activeFocusedNodeId, handle)}
+                  onClick={(e) => e.stopPropagation()}
                   className="pointer-events-auto"
                   style={style}
                   aria-label={`Resize ${handle}`}
@@ -938,6 +940,7 @@ export function CanvasInteractionLayer({
             <button
               type="button"
               onPointerDown={(event) => beginRotate(event, activeFocusedNodeId)}
+              onClick={(e) => e.stopPropagation()}
               className="pointer-events-auto absolute left-1/2 top-[-34px] h-4 w-4 -translate-x-1/2 rounded-full border-2 border-blue-400 bg-slate-950"
               aria-label="Rotate selection"
             />

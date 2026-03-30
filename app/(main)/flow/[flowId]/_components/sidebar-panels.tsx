@@ -30,7 +30,7 @@ export interface IndicatorSettings {
 }
 
 const DEFAULT_INDICATOR: IndicatorSettings = {
-  visible: true,
+  visible: false,
   backButtonStyle: "chevron",
   backButtonBgColor: "",
   progressColor: "",
@@ -179,90 +179,6 @@ export function IndicatorSettingsPanel({
                   {opt.icon}
                 </button>
               ))}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-white/50">Back btn bg</span>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => onUpdate({ backButtonBgColor: "" })}
-                className={`px-2 py-0.5 rounded text-[9px] font-medium transition-colors ${
-                  !merged.backButtonBgColor
-                    ? "bg-white/[0.12] text-white"
-                    : "text-white/30 hover:text-white/50"
-                }`}
-              >
-                Auto
-              </button>
-              <div className="relative shrink-0">
-                <div
-                  className="w-5 h-5 rounded-md border border-white/[0.15]"
-                  style={{ backgroundColor: merged.backButtonBgColor || "transparent" }}
-                />
-                <input
-                  type="color"
-                  value={merged.backButtonBgColor || "#000000"}
-                  onChange={(e) => onUpdate({ backButtonBgColor: e.target.value })}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-white/50">Bar colour</span>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => onUpdate({ progressColor: "", autoAdapt: true })}
-                className={`px-2 py-0.5 rounded text-[9px] font-medium transition-colors ${
-                  merged.autoAdapt && !merged.progressColor
-                    ? "bg-white/[0.12] text-white"
-                    : "text-white/30 hover:text-white/50"
-                }`}
-              >
-                Auto
-              </button>
-              <div className="relative shrink-0">
-                <div
-                  className="w-5 h-5 rounded-md border border-white/[0.15]"
-                  style={{ backgroundColor: merged.progressColor || "#666" }}
-                />
-                <input
-                  type="color"
-                  value={merged.progressColor || "#666666"}
-                  onChange={(e) => onUpdate({ progressColor: e.target.value, autoAdapt: false })}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-white/50">Track colour</span>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => onUpdate({ trackColor: "", autoAdapt: true })}
-                className={`px-2 py-0.5 rounded text-[9px] font-medium transition-colors ${
-                  merged.autoAdapt && !merged.trackColor
-                    ? "bg-white/[0.12] text-white"
-                    : "text-white/30 hover:text-white/50"
-                }`}
-              >
-                Auto
-              </button>
-              <div className="relative shrink-0">
-                <div
-                  className="w-5 h-5 rounded-md border border-white/[0.15]"
-                  style={{ backgroundColor: merged.trackColor || "#ccc" }}
-                />
-                <input
-                  type="color"
-                  value={merged.trackColor || "#cccccc"}
-                  onChange={(e) => onUpdate({ trackColor: e.target.value, autoAdapt: false })}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              </div>
             </div>
           </div>
 
@@ -628,7 +544,7 @@ export function ScreenLogicPanel({
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
           <AppWindow size={12} className="text-fuchsia-400/60" />
-          <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+          <span className="text-[10px] font-semibold text-white/80 uppercase tracking-wider">
             {importedPayload
               ? importedPayload.kind === "imported-code"
                 ? "Code-backed Import"
@@ -673,7 +589,7 @@ export function ScreenLogicPanel({
           </div>
         ) : (
           <>
-            <p className="text-[10px] text-white/25 leading-relaxed">
+            <p className="text-[10px] text-white/40 leading-relaxed">
               Link this step to a host-app screen registry key when you want the app to render a native screen here.
             </p>
 
@@ -728,7 +644,7 @@ export function ScreenLogicPanel({
             {customPayloadError ? (
               <p className="text-[11px] text-rose-300/80">{customPayloadError}</p>
             ) : (
-              <p className="text-[11px] text-white/25">
+              <p className="text-[11px] text-white/40">
                 Sent to the host app when this screen resolves through the native registry.
               </p>
             )}
@@ -740,16 +656,16 @@ export function ScreenLogicPanel({
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
           <GitBranch size={12} className="text-purple-400/60" />
-          <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+          <span className="text-[10px] font-semibold text-white/80 uppercase tracking-wider">
             Branch Rules
           </span>
         </div>
-        <p className="text-[10px] text-white/25 leading-relaxed">
+        <p className="text-[10px] text-white/60 leading-relaxed">
           Route to a specific screen based on user input. Rules are checked top-to-bottom; first match wins.
         </p>
 
         {fieldKeys.length === 0 && branchRules.length === 0 && (
-          <p className="text-[10px] text-white/20 italic py-2">
+          <p className="text-[10px] text-white/40 italic py-2">
             Add input components (select, text input, slider) to this screen to create branch rules.
           </p>
         )}
@@ -800,11 +716,11 @@ export function ScreenLogicPanel({
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
           <SkipForward size={12} className="text-amber-400/60" />
-          <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+          <span className="text-[10px] font-semibold text-white/80 uppercase tracking-wider">
             Skip Conditions
           </span>
         </div>
-        <p className="text-[10px] text-white/25 leading-relaxed">
+        <p className="text-[10px] text-white/40 leading-relaxed">
           Skip this screen entirely when conditions are met. Conditions check answers from previous screens.
         </p>
 
@@ -829,7 +745,7 @@ export function ScreenLogicPanel({
 
         <button
           onClick={addSkipCondition}
-          className="flex items-center justify-center gap-1.5 w-full py-2 bg-white/[0.02] border border-dashed border-white/[0.08] rounded-xl text-[11px] text-white/30 hover:text-white/60 hover:border-white/[0.15] transition-all"
+          className="flex items-center justify-center gap-1.5 w-full py-2 bg-white/[0.02] border border-dashed border-white/[0.08] rounded-xl text-[11px] text-white/50 hover:text-white/70 hover:border-white/[0.15] transition-all"
         >
           <Plus size={12} />
           Add Skip Condition

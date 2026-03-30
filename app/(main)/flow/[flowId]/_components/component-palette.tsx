@@ -1,19 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Sparkles } from "lucide-react";
+import { Search } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { COMPONENT_TYPES, COLOR_MAP } from "../_lib/constants";
-
-export const FEATURED_COMPONENTS = [
-  "TEXT",
-  "BUTTON",
-  "SINGLE_SELECT",
-  "MULTI_SELECT",
-  "IMAGE",
-  "SOCIAL_PROOF",
-];
+import { COMPONENT_TYPES } from "../_lib/constants";
 
 export const COMPONENT_HINTS: Record<string, string> = {
   TEXT: "Headlines, supporting copy, and microcopy.",
@@ -35,90 +26,45 @@ export const COMPONENT_HINTS: Record<string, string> = {
   CUSTOM_COMPONENT: "App-native components registered by the SDK.",
 };
 
-function PaletteCard({
+/* ── Full-width card for category lists ── */
+function ListCard({
   type,
   label,
   icon: Icon,
-  color,
-  category,
   hint,
-  compact = false,
   onAdd,
 }: {
   type: string;
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  color: string;
-  category: string;
   hint: string;
-  compact?: boolean;
   onAdd: (type: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `palette:${type}`,
-    data: {
-      source: "palette",
-      componentType: type,
-      label,
-    },
+    data: { source: "palette", componentType: type, label },
   });
-  const colors = COLOR_MAP[color];
 
-  return compact ? (
+  return (
     <button
       ref={setNodeRef}
       onClick={() => onAdd(type)}
-      className="group rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 text-left transition-all hover:border-white/[0.16] hover:bg-white/[0.05]"
+      className="group flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-left transition-all hover:border-white/[0.12] hover:bg-white/[0.045]"
       style={{
         transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0.45 : 1,
+        opacity: isDragging ? 0.4 : 1,
       }}
       {...attributes}
       {...listeners}
     >
-      <div className="flex items-center gap-2">
-        <div
-          className={`flex h-8 w-8 items-center justify-center rounded-xl border ${colors.border} ${colors.bg}`}
-        >
-          <Icon size={15} className={colors.text} />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-[11px] font-semibold text-white/72 group-hover:text-white">
-            {label}
-          </p>
-          <p className="text-[9px] uppercase tracking-[0.16em] text-white/24">
-            {category}
-          </p>
-        </div>
-      </div>
-    </button>
-  ) : (
-    <button
-      ref={setNodeRef}
-      onClick={() => onAdd(type)}
-      className="group flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 text-left transition-all hover:border-white/[0.16] hover:bg-white/[0.045]"
-      style={{
-        transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0.45 : 1,
-      }}
-      {...attributes}
-      {...listeners}
-    >
-      <div
-        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${colors.border} ${colors.bg}`}
-      >
-        <Icon size={16} className={colors.text} />
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">
+        <Icon size={15} className="text-white/50 group-hover:text-white/80 transition-colors" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-[12px] font-medium text-white/70 group-hover:text-white">
-            {label}
-          </span>
-          <span className="rounded-full border border-white/[0.08] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-white/20">
-            {type.replace("_", " ")}
-          </span>
-        </div>
-        <p className="mt-1 text-[11px] leading-5 text-white/28">{hint}</p>
+        <p className="truncate text-[12px] font-medium text-white/70 group-hover:text-white/90 transition-colors">
+          {label}
+        </p>
+        <p className="mt-0.5 truncate text-[10px] leading-relaxed text-white/30">{hint}</p>
       </div>
     </button>
   );
@@ -129,10 +75,7 @@ export function ComponentPalette({ onAdd }: { onAdd: (type: string) => void }) {
 
   const filteredComponents = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) {
-      return COMPONENT_TYPES;
-    }
-
+    if (!query) return COMPONENT_TYPES;
     return COMPONENT_TYPES.filter((component) => {
       const hint = COMPONENT_HINTS[component.type] || "";
       return (
@@ -145,111 +88,59 @@ export function ComponentPalette({ onAdd }: { onAdd: (type: string) => void }) {
   }, [search]);
 
   const categories = useMemo(
-    () => [...new Set(filteredComponents.map((component) => component.category))],
+    () => [...new Set(filteredComponents.map((c) => c.category))],
     [filteredComponents],
   );
 
-  const featured = useMemo(
-    () => COMPONENT_TYPES.filter((component) => FEATURED_COMPONENTS.includes(component.type)),
-    [],
-  );
-
   return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
-              Insert
-            </p>
-            <p className="mt-1 text-[11px] leading-5 text-white/32">
-              Build faster with the same blocks used across modern onboarding flows.
-            </p>
-          </div>
-          <div className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/40">
-            {filteredComponents.length} blocks
-          </div>
-        </div>
-
-        <div className="relative mt-3">
-          <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
-          <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search blocks, actions, or layouts..."
-            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-2 pl-9 pr-3 text-[12px] text-white placeholder:text-white/25 outline-none transition-colors focus:border-white/[0.16]"
-          />
-        </div>
+    <div className="flex flex-col gap-5">
+      {/* ── Search ── */}
+      <div className="relative">
+        <Search
+          size={14}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/25"
+        />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search blocks..."
+          className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-2.5 pl-9 pr-3 text-[12px] text-white placeholder:text-white/25 outline-none transition-colors focus:border-white/[0.18] focus:bg-white/[0.06]"
+        />
       </div>
 
-      {!search.trim() && (
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-3">
-          <div className="mb-3 flex items-center gap-2">
-            <Sparkles size={13} className="text-amber-400" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">
-              Starter Blocks
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {featured.map((component) => {
-              return (
-                <PaletteCard
-                  key={component.type}
-                  type={component.type}
-                  label={component.label}
-                  icon={component.icon}
-                  color={component.color}
-                  category={component.category}
-                  hint={COMPONENT_HINTS[component.type] || ""}
-                  compact
+      {/* ── Category lists ── */}
+      {categories.map((category) => {
+        const items = filteredComponents.filter((c) => c.category === category);
+        return (
+          <div key={category}>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                {category}
+              </p>
+              <span className="text-[10px] tabular-nums text-white/25">{items.length}</span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {items.map((c) => (
+                <ListCard
+                  key={c.type}
+                  type={c.type}
+                  label={c.label}
+                  icon={c.icon}
+                  hint={COMPONENT_HINTS[c.type] || "Flexible building block."}
                   onAdd={onAdd}
                 />
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-
-      {categories.map((category) => (
-        <div key={category}>
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/30">
-              {category}
-            </p>
-            <span className="text-[10px] text-white/18">
-              {filteredComponents.filter((component) => component.category === category).length}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            {filteredComponents
-              .filter((component) => component.category === category)
-              .map((component) => {
-                return (
-                  <PaletteCard
-                    key={component.type}
-                    type={component.type}
-                    label={component.label}
-                    icon={component.icon}
-                    color={component.color}
-                    category={component.category}
-                    hint={
-                      COMPONENT_HINTS[component.type] ||
-                      "Flexible building block for richer onboarding screens."
-                    }
-                    onAdd={onAdd}
-                  />
-                );
-              })}
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
       {filteredComponents.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-4 py-8 text-center">
-          <p className="text-[12px] font-medium text-white/45">No matching blocks</p>
-          <p className="mt-1 text-[11px] text-white/25">
-            Try searching by component name, category, or use case.
+        <div className="rounded-2xl border border-dashed border-white/[0.08] px-4 py-10 text-center">
+          <p className="text-[12px] font-medium text-white/40">No matching blocks</p>
+          <p className="mt-1 text-[11px] text-white/20">
+            Try a different name or category.
           </p>
         </div>
       )}
