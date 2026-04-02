@@ -21,7 +21,7 @@ model Project {
   userId    String // from Clerk auth, e.g. "user_2x7..."
   apiKeys   ApiKey[]
   flows     Flow[]
-  placements Placement[]
+  entryPoints EntryPoint[]
   registryKeys CustomRegistryKey[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -68,7 +68,7 @@ model Flow {
   productionVersionId  String?       @unique
   productionVersion    FlowVersion?  @relation("ProductionPublishedVersion", fields: [productionVersionId], references: [id])
   versions             FlowVersion[] @relation("FlowVersions")
-  placements           Placement[]
+  entryPoints          EntryPoint[]
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -101,7 +101,7 @@ model FlowVersion {
   @@map("flow_versions")
 }
 
-model Placement {
+model EntryPoint {
   id          String      @id @default(cuid())
   projectId   String
   project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -116,7 +116,7 @@ model Placement {
   @@unique([projectId, key, environment])
   @@index([projectId])
   @@index([flowId])
-  @@map("placements")
+  @@map("entry_points")
 }
 
 model CustomRegistryKey {

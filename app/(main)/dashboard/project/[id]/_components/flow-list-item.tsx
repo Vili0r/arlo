@@ -103,7 +103,7 @@ export function FlowListItem({ projectId, flow }: FlowListItemProps) {
             <AlertDialogTitle>Delete {flow.name}?</AlertDialogTitle>
             <AlertDialogDescription className="text-left text-[#777]">
               This permanently deletes the flow, its saved versions, and any
-              placements pointing to it. This action cannot be undone.
+              entry points pointing to it. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="border-[#1f1f1f] bg-[#101010]">

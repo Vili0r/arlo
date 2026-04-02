@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
 import { Prisma } from "@/app/generated/prisma/client";
 import prisma from "@/lib/prisma";
 import type { FlowConfig } from "@/lib/types";
@@ -21,9 +22,13 @@ import {
 import {
   compileEditorDocument,
   createStoredEditorDocument,
+  flowConfigToEditorDocument,
   readStoredFlow,
   type EditorDocument,
 } from "./_lib/editor-document";
+import { DEFAULT_FLOW_CONFIG } from "./_lib/default-flow-config";
+import { applyImportedScreensToDocument, resolveTargetScreenIndex } from "./_lib/import-flow";
+import type { ImportMode } from "./_lib/code-import";
 
 /* ── helpers ──────────────────────────────────────────── */
 
@@ -486,5 +491,46 @@ export async function getFigmaConnectionStatus(input: {
   return {
     ...status,
     connectUrl: status.mode === "oauth" ? `/api/figma/connect?flowId=${encodeURIComponent(input.flowId)}` : null,
+  };
+}
+
+export async function applyImportedScreens(input: {
+  flowId: string;
+  screenIndex: number;
+  mode: ImportMode;
+  screens: FlowConfig["screens"];
+}): Promise<{ success: true; selectedScreenIndex: number }> {
+  const userId = await requireUser();
+  await requireFlowAccess(input.flowId, userId);
+
+  const latest = await prisma.flowVersion.findFirst({
+    where: { flowId: input.flowId },
+    orderBy: { version: "desc" },
+    select: { config: true },
+  });
+
+  const currentDocument = latest
+    ? readStoredFlow(latest.config).document
+    : flowConfigToEditorDocument(DEFAULT_FLOW_CONFIG);
+
+  const { document, selectedScreenIndex } = applyImportedScreensToDocument({
+    document: currentDocument,
+    importedScreens: input.screens,
+    mode: input.mode,
+    screenIndex: resolveTargetScreenIndex(input.screenIndex, currentDocument.screens.length),
+  });
+
+  await autoSaveDraft({
+    flowId: input.flowId,
+    document,
+  });
+
+  revalidatePath(`/flow/${input.flowId}`);
+  revalidatePath(`/flow/${input.flowId}/import`);
+  revalidatePath(`/flow/${input.flowId}/import/figma`);
+
+  return {
+    success: true,
+    selectedScreenIndex,
   };
 }

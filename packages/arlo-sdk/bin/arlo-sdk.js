@@ -18,7 +18,7 @@ Usage:
 
 Options:
   --project-id=<id>         Required. Arlo project id to bind the app to.
-  --placement-key=<key>     Placement key to present. Defaults to onboarding_home.
+  --entry-point-key=<key>   Entry point key to present. Defaults to onboarding_home.
   --flow-slug=<slug>        Optional flow slug fallback.
   --api-key=<key>           Optional Arlo API key to prefill the generated config.
   --base-url=<url>          Optional base URL. Defaults to EXPO_PUBLIC_ARLO_BASE_URL.
@@ -120,10 +120,10 @@ function writeFileIfAllowed(filePath, contents, options) {
   return { wrote: true, skipped: false };
 }
 
-function createConfigFile({ projectId, placementKey, flowSlug, apiKey, baseUrl }) {
+function createConfigFile({ projectId, entryPointKey, flowSlug, apiKey, baseUrl }) {
   return `export const arloConfig = {
   projectId: ${JSON.stringify(projectId)},
-  placementKey: ${JSON.stringify(placementKey)},
+  entryPointKey: ${JSON.stringify(entryPointKey)},
   flowSlug: ${JSON.stringify(flowSlug)},
   apiKey: process.env.EXPO_PUBLIC_ARLO_API_KEY ?? ${JSON.stringify(apiKey)},
   baseUrl: process.env.EXPO_PUBLIC_ARLO_BASE_URL ?? ${JSON.stringify(baseUrl)},
@@ -177,8 +177,8 @@ export function ArloOnboardingScreen() {
         return;
       }
 
-      if (arloConfig.placementKey) {
-        await presenter.presentPlacement(arloConfig.placementKey);
+      if (arloConfig.entryPointKey) {
+        await presenter.presentEntryPoint(arloConfig.entryPointKey);
         return;
       }
 
@@ -251,8 +251,10 @@ function runInit(rawArgs) {
   const arloDir = path.join(cwd, "arlo");
   const configPath = path.join(arloDir, "arlo.config.ts");
   const screenPath = path.join(arloDir, "ArloOnboardingScreen.tsx");
-  const placementKey =
-    typeof rawArgs["placement-key"] === "string" ? rawArgs["placement-key"] : "onboarding_home";
+  const entryPointKey =
+    typeof rawArgs["entry-point-key"] === "string"
+      ? rawArgs["entry-point-key"]
+      : "onboarding_home";
   const flowSlug = typeof rawArgs["flow-slug"] === "string" ? rawArgs["flow-slug"] : "";
   const apiKey = typeof rawArgs["api-key"] === "string" ? rawArgs["api-key"] : "";
   const baseUrl =
@@ -274,7 +276,7 @@ function runInit(rawArgs) {
     configPath,
     createConfigFile({
       projectId,
-      placementKey,
+      entryPointKey,
       flowSlug,
       apiKey,
       baseUrl,
@@ -325,7 +327,7 @@ function runInit(rawArgs) {
   console.log("Next steps:");
   console.log(`1. Add <ArloOnboardingScreen /> from ${path.relative(cwd, screenPath) || "arlo/ArloOnboardingScreen.tsx"} to your app.`);
   console.log("2. Set EXPO_PUBLIC_ARLO_API_KEY and EXPO_PUBLIC_ARLO_BASE_URL in your Expo env.");
-  console.log(`3. Launch the app and load placement "${placementKey}"${flowSlug ? ` or flow "${flowSlug}"` : ""}.`);
+  console.log(`3. Launch the app and load entry point "${entryPointKey}"${flowSlug ? ` or flow "${flowSlug}"` : ""}.`);
 }
 
 function main() {

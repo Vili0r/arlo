@@ -17,7 +17,7 @@ function hasExpectedModelDelegates(client: PrismaClient | undefined): client is 
     "apiKey",
     "flow",
     "flowVersion",
-    "placement",
+    "entryPoint",
     "customRegistryKey",
     "figmaConnection",
   ].every((key) => Boolean(runtimeClient[key]));

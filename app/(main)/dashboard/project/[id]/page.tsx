@@ -14,7 +14,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { CreateFlowButton } from "@/app/(main)/dashboard/project/[id]/_components/create-flow-dialog";
 import { FlowsCard } from "@/app/(main)/dashboard/project/[id]/_components/flows-card";
 import { ApiKeysCard } from "@/app/(main)/dashboard/key/_components/api-keys-card";
-import { PlacementsCard } from "@/app/(main)/dashboard/project/[id]/_components/placements-card";
+import { EntryPointsCard } from "@/app/(main)/dashboard/project/[id]/_components/entry-points-card";
 import { RegistryKeysCard } from "@/app/(main)/dashboard/project/[id]/_components/registry-keys-card";
 import { FlowListItem } from "@/app/(main)/dashboard/project/[id]/_components/flow-list-item";
 
@@ -38,7 +38,7 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
     throw error;
   }
 
-  const placements = project.placements ?? [];
+  const entryPoints = project.entryPoints ?? [];
   const registryKeys = project.registryKeys ?? [];
   const flowCount = project.flows.length;
   const publishedFlows = project.flows.filter(
@@ -288,36 +288,36 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
               }))}
             />
 
-            <PlacementsCard
+            <EntryPointsCard
               projectId={project.id}
-              placements={placements.map((placement) => ({
-                id: placement.id,
-                key: placement.key,
-                name: placement.name,
-                environment: placement.environment,
+              entryPoints={entryPoints.map((entryPoint) => ({
+                id: entryPoint.id,
+                key: entryPoint.key,
+                name: entryPoint.name,
+                environment: entryPoint.environment,
                 flow: {
-                  id: placement.flow.id,
-                  name: placement.flow.name,
-                  slug: placement.flow.slug,
-                  status: placement.flow.status,
+                  id: entryPoint.flow.id,
+                  name: entryPoint.flow.name,
+                  slug: entryPoint.flow.slug,
+                  status: entryPoint.flow.status,
                   developmentVersion:
-                    flowVersionMap.get(placement.flow.id)?.developmentVersion
+                    flowVersionMap.get(entryPoint.flow.id)?.developmentVersion
                       ? {
-                          id: flowVersionMap.get(placement.flow.id)!.developmentVersion!.id,
+                          id: flowVersionMap.get(entryPoint.flow.id)!.developmentVersion!.id,
                           version:
-                            flowVersionMap.get(placement.flow.id)!.developmentVersion!.version,
+                            flowVersionMap.get(entryPoint.flow.id)!.developmentVersion!.version,
                         }
                       : null,
                   productionVersion:
-                    flowVersionMap.get(placement.flow.id)?.productionVersion
+                    flowVersionMap.get(entryPoint.flow.id)?.productionVersion
                       ? {
-                          id: flowVersionMap.get(placement.flow.id)!.productionVersion!.id,
+                          id: flowVersionMap.get(entryPoint.flow.id)!.productionVersion!.id,
                           version:
-                            flowVersionMap.get(placement.flow.id)!.productionVersion!.version,
+                            flowVersionMap.get(entryPoint.flow.id)!.productionVersion!.version,
                         }
                       : null,
                 },
-                createdAt: placement.createdAt.toISOString(),
+                createdAt: entryPoint.createdAt.toISOString(),
               }))}
               flows={project.flows.map((flow) => ({
                 id: flow.id,

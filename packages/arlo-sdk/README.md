@@ -22,7 +22,7 @@ Useful options:
 ```bash
 npx arlo-sdk init \
   --project-id=cmmq9kh7u0000qw9kpqnqwq9d \
-  --placement-key=onboarding_home \
+  --entry-point-key=onboarding_home \
   --api-key=ob_test_xxx \
   --base-url=http://192.168.1.10:3000
 ```
@@ -95,13 +95,13 @@ const state = presenter.getState();
 console.log(state.status, state.session?.getSnapshot().currentScreenId);
 ```
 
-## Placement API
+## Entry Point API
 
 ```ts
-const response = await client.getPlacement("onboarding_home");
+const response = await client.getEntryPoint("onboarding_home");
 console.log(response.flow.slug);
 
-await presenter.presentPlacement("onboarding_home");
+await presenter.presentEntryPoint("onboarding_home");
 ```
 
 ## Persistent Cache

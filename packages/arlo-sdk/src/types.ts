@@ -67,9 +67,9 @@ export interface ArloClient {
   identify(input: ArloIdentifyInput): void;
   getIdentity(): ArloIdentifyInput | null;
   getFlow(slug: string, options?: GetFlowOptions): Promise<SDKFlowResponse>;
-  getPlacement(placementKey: string, options?: GetFlowOptions): Promise<SDKFlowResponse>;
+  getEntryPoint(entryPointKey: string, options?: GetFlowOptions): Promise<SDKFlowResponse>;
   preloadFlow(slug: string): Promise<SDKFlowResponse>;
-  preloadPlacement(placementKey: string): Promise<SDKFlowResponse>;
+  preloadEntryPoint(entryPointKey: string): Promise<SDKFlowResponse>;
   clearCachedFlow(slug: string): Promise<void>;
   on<K extends keyof ArloEventMap>(
     event: K,

@@ -24,6 +24,10 @@ import {
 import { icons, X, Plus } from "lucide-react";
 import { getSpacingValues, makeSpacingOnChange, PropAxisToggle, PropBackgroundTypeToggle, PropPositionGrid } from "./shared";
 
+function generateEditorItemId(prefix: string) {
+  return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function CustomComponentEditor({
   registryKeys,
   props,
@@ -471,8 +475,8 @@ export function getFallbackEditors(
           label="Required"
         />
         <SectionLabel>Options</SectionLabel>
-        {p.options?.map((opt: { id: string; label: string }, i: number) => (
-          <div key={opt.id} className="mt-1.5">
+        {(p.options || []).map((opt: { id: string; label: string }, i: number) => (
+          <div key={opt.id || i} className="group/option relative mt-1.5">
             <PropInput
               value={opt.label}
               onChange={(v) => {
@@ -480,9 +484,36 @@ export function getFallbackEditors(
                 opts[i] = { ...opts[i], label: v };
                 onUpdateProp("options", opts);
               }}
+              className="pr-10"
             />
+            {(p.options?.length || 0) > 1 && (
+              <button
+                onClick={() => {
+                  const opts = [...p.options];
+                  opts.splice(i, 1);
+                  onUpdateProp("options", opts);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/20 transition-colors hover:bg-red-400/10 hover:text-red-400"
+                title="Remove option"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
         ))}
+        <button
+          onClick={() => {
+            const nextIndex = (p.options?.length || 0) + 1;
+            onUpdateProp("options", [
+              ...(p.options || []),
+              { id: generateEditorItemId("opt"), label: `Option ${nextIndex}` },
+            ]);
+          }}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.1] bg-white/[0.03] py-2.5 text-sm text-white/40 transition-all hover:border-white/[0.2] hover:bg-white/[0.05] hover:text-white/60"
+        >
+          <Plus size={14} />
+          Add Option
+        </button>
       </>
     ),
     MULTI_SELECT: (
@@ -521,8 +552,8 @@ export function getFallbackEditors(
           />
         </PropField>
         <SectionLabel>Options</SectionLabel>
-        {p.options?.map((opt: { id: string; label: string }, i: number) => (
-          <div key={opt.id} className="mt-1.5">
+        {(p.options || []).map((opt: { id: string; label: string }, i: number) => (
+          <div key={opt.id || i} className="group/option relative mt-1.5">
             <PropInput
               value={opt.label}
               onChange={(v) => {
@@ -530,9 +561,36 @@ export function getFallbackEditors(
                 opts[i] = { ...opts[i], label: v };
                 onUpdateProp("options", opts);
               }}
+              className="pr-10"
             />
+            {(p.options?.length || 0) > 1 && (
+              <button
+                onClick={() => {
+                  const opts = [...p.options];
+                  opts.splice(i, 1);
+                  onUpdateProp("options", opts);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/20 transition-colors hover:bg-red-400/10 hover:text-red-400"
+                title="Remove option"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
         ))}
+        <button
+          onClick={() => {
+            const nextIndex = (p.options?.length || 0) + 1;
+            onUpdateProp("options", [
+              ...(p.options || []),
+              { id: generateEditorItemId("opt"), label: `Option ${nextIndex}` },
+            ]);
+          }}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.1] bg-white/[0.03] py-2.5 text-sm text-white/40 transition-all hover:border-white/[0.2] hover:bg-white/[0.05] hover:text-white/60"
+        >
+          <Plus size={14} />
+          Add Option
+        </button>
       </>
     ),
     SLIDER: (
@@ -541,6 +599,12 @@ export function getFallbackEditors(
           <PropInput
             value={p.label}
             onChange={(v) => onUpdateProp("label", v)}
+          />
+        </PropField>
+        <PropField label="Field Key">
+          <PropInput
+            value={p.fieldKey}
+            onChange={(v) => onUpdateProp("fieldKey", v)}
           />
         </PropField>
         <PropField label="Min">
@@ -569,6 +633,20 @@ export function getFallbackEditors(
             value={p.defaultValue}
             onChange={(v) => onUpdateProp("defaultValue", v)}
             type="number"
+          />
+        </PropField>
+        <PropField label="Min Label">
+          <PropInput
+            value={p.minLabel ?? ""}
+            onChange={(v) => onUpdateProp("minLabel", v)}
+            placeholder="Optional"
+          />
+        </PropField>
+        <PropField label="Max Label">
+          <PropInput
+            value={p.maxLabel ?? ""}
+            onChange={(v) => onUpdateProp("maxLabel", v)}
+            placeholder="Optional"
           />
         </PropField>
       </>
@@ -605,8 +683,21 @@ export function getFallbackEditors(
           ) => (
             <div
               key={item.id}
-              className="p-3 bg-white/[0.03] border border-white/[0.06] rounded-xl mt-1.5 space-y-1.5"
+              className="relative mt-1.5 space-y-1.5 rounded-xl border border-white/[0.06] bg-white/[0.03] p-3"
             >
+              {(p.items?.length || 0) > 1 && (
+                <button
+                  onClick={() => {
+                    const items = [...p.items];
+                    items.splice(i, 1);
+                    onUpdateProp("items", items);
+                  }}
+                  className="absolute right-2 top-2 rounded-lg p-1 text-white/20 transition-colors hover:bg-red-400/10 hover:text-red-400"
+                  title="Delete slide"
+                >
+                  <X size={12} />
+                </button>
+              )}
               <PropInput
                 value={item.title}
                 onChange={(v) => {
@@ -628,6 +719,23 @@ export function getFallbackEditors(
             </div>
           )
         )}
+        <button
+          onClick={() => {
+            const nextIndex = (p.items?.length || 0) + 1;
+            onUpdateProp("items", [
+              ...(p.items || []),
+              {
+                id: generateEditorItemId("item"),
+                title: `Slide ${nextIndex}`,
+                subtitle: "Description",
+              },
+            ]);
+          }}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.1] bg-white/[0.03] py-2.5 text-sm text-white/40 transition-all hover:border-white/[0.2] hover:bg-white/[0.05] hover:text-white/60"
+        >
+          <Plus size={14} />
+          Add Slide
+        </button>
       </>
     ),
     SOCIAL_PROOF: (

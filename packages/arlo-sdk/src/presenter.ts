@@ -35,12 +35,12 @@ export interface ArloPresentationState {
 export interface ArloPresenter {
   getState(): ArloPresentationState;
   presentFlow(slug: string, options?: PresentFlowOptions): Promise<ArloPresentationState>;
-  presentPlacement(
-    placementKey: string,
+  presentEntryPoint(
+    entryPointKey: string,
     options?: PresentFlowOptions
   ): Promise<ArloPresentationState>;
   preloadFlow(slug: string): Promise<SDKFlowResponse>;
-  preloadPlacement(placementKey: string): Promise<SDKFlowResponse>;
+  preloadEntryPoint(entryPointKey: string): Promise<SDKFlowResponse>;
   dismiss(): Promise<ArloPresentationState>;
   syncSession(): ArloPresentationState;
   clear(): ArloPresentationState;
@@ -167,21 +167,21 @@ export function createArloPresenter(
         presentOptions
       );
     },
-    presentPlacement(
-      placementKey: string,
+    presentEntryPoint(
+      entryPointKey: string,
       presentOptions: PresentFlowOptions = {}
     ): Promise<ArloPresentationState> {
       return presentResolvedFlow(
-        placementKey,
-        () => options.client.getPlacement(placementKey, presentOptions),
+        entryPointKey,
+        () => options.client.getEntryPoint(entryPointKey, presentOptions),
         presentOptions
       );
     },
     preloadFlow(slug: string): Promise<SDKFlowResponse> {
       return options.client.preloadFlow(slug);
     },
-    preloadPlacement(placementKey: string): Promise<SDKFlowResponse> {
-      return options.client.preloadPlacement(placementKey);
+    preloadEntryPoint(entryPointKey: string): Promise<SDKFlowResponse> {
+      return options.client.preloadEntryPoint(entryPointKey);
     },
     async dismiss(): Promise<ArloPresentationState> {
       if (!state.session) {

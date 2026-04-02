@@ -20,16 +20,16 @@ function jsonError(
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ projectId: string; placementKey: string }> }
+  context: { params: Promise<{ projectId: string; entryPointKey: string }> }
 ) {
   try {
-    const { projectId, placementKey } = await context.params;
+    const { projectId, entryPointKey } = await context.params;
     const apiKey = await resolveSDKAuth(request.headers.get("x-api-key"), projectId);
 
-    const placement = await prisma.placement.findFirst({
+    const entryPoint = await prisma.entryPoint.findFirst({
       where: {
         projectId,
-        key: placementKey,
+        key: entryPointKey,
         environment: apiKey.environment,
       },
       include: {
@@ -42,21 +42,21 @@ export async function GET(
       },
     });
 
-    if (!placement) {
+    if (!entryPoint) {
       return jsonError(404, "Flow not found", "FLOW_NOT_FOUND");
     }
 
     const publishedVersion = getPublishedVersionForEnvironment(
-      placement.flow,
+      entryPoint.flow,
       apiKey.environment
     );
 
-    if (placement.flow.status !== "PUBLISHED" || !publishedVersion) {
+    if (entryPoint.flow.status !== "PUBLISHED" || !publishedVersion) {
       return jsonError(404, "Flow is not published", "FLOW_NOT_PUBLISHED");
     }
 
     const response = buildSDKFlowResponse({
-      slug: placement.flow.slug,
+      slug: entryPoint.flow.slug,
       version: publishedVersion.version,
       config: publishedVersion.config,
     });
@@ -68,7 +68,7 @@ export async function GET(
       headers: {
         "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
         "X-Arlo-Environment": apiKey.environment,
-        "X-Arlo-Placement": placement.key,
+        "X-Arlo-Entry-Point": entryPoint.key,
       },
     });
   } catch (error) {
@@ -76,7 +76,7 @@ export async function GET(
       return jsonError(error.status, error.message, error.code);
     }
 
-    console.error("Error resolving SDK placement", error);
-    return jsonError(500, "Failed to load placement", "FLOW_NOT_FOUND");
+    console.error("Error resolving SDK entry point", error);
+    return jsonError(500, "Failed to load entry point", "FLOW_NOT_FOUND");
   }
 }

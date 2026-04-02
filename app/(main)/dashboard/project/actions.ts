@@ -7,7 +7,7 @@ import prisma from "@/lib/prisma";
 import { createProjectSchema, updateProjectSchema } from "@/lib/validations";
 import { projectListInclude, projectDetailInclude } from "@/lib/types";
 
-type ProjectPlacement = {
+type ProjectEntryPoint = {
   id: string;
   key: string;
   name: string | null;
@@ -65,17 +65,17 @@ export async function getProject(projectId: string) {
   }
 
   const runtimePrisma = prisma as typeof prisma & {
-    placement?: {
-      findMany: (args: unknown) => Promise<ProjectPlacement[]>;
+    entryPoint?: {
+      findMany: (args: unknown) => Promise<ProjectEntryPoint[]>;
     };
     customRegistryKey?: {
       findMany: (args: unknown) => Promise<ProjectRegistryKey[]>;
     };
   };
 
-  const [placements, registryKeys] = await Promise.all([
-    runtimePrisma.placement
-      ? runtimePrisma.placement.findMany({
+  const [entryPoints, registryKeys] = await Promise.all([
+    runtimePrisma.entryPoint
+      ? runtimePrisma.entryPoint.findMany({
           where: { projectId },
           include: {
             flow: {
@@ -91,7 +91,7 @@ export async function getProject(projectId: string) {
             createdAt: "desc",
           },
         })
-      : Promise.resolve<ProjectPlacement[]>([]),
+      : Promise.resolve<ProjectEntryPoint[]>([]),
     runtimePrisma.customRegistryKey
       ? runtimePrisma.customRegistryKey.findMany({
           where: { projectId },
@@ -104,7 +104,7 @@ export async function getProject(projectId: string) {
 
   return {
     ...project,
-    placements,
+    entryPoints,
     registryKeys,
   };
 }

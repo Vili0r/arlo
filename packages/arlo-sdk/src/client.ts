@@ -216,13 +216,13 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
     );
   }
 
-  async function getPlacement(
-    placementKey: string,
+  async function getEntryPoint(
+    entryPointKey: string,
     flowOptions?: GetFlowOptions
   ): Promise<SDKFlowResponse> {
     return getResource(
-      createCacheKey(options.projectId, `placement:${placementKey}`),
-      `/api/sdk/projects/${encodeURIComponent(options.projectId)}/placements/${encodeURIComponent(placementKey)}`,
+      createCacheKey(options.projectId, `entry-point:${entryPointKey}`),
+      `/api/sdk/projects/${encodeURIComponent(options.projectId)}/entry-points/${encodeURIComponent(entryPointKey)}`,
       flowOptions
     );
   }
@@ -238,14 +238,14 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
     getFlow(slug: string, flowOptions?: GetFlowOptions): Promise<SDKFlowResponse> {
       return getFlow(slug, flowOptions);
     },
-    getPlacement(placementKey: string, flowOptions?: GetFlowOptions): Promise<SDKFlowResponse> {
-      return getPlacement(placementKey, flowOptions);
+    getEntryPoint(entryPointKey: string, flowOptions?: GetFlowOptions): Promise<SDKFlowResponse> {
+      return getEntryPoint(entryPointKey, flowOptions);
     },
     preloadFlow(slug: string): Promise<SDKFlowResponse> {
       return getFlow(slug, { useCache: true });
     },
-    preloadPlacement(placementKey: string): Promise<SDKFlowResponse> {
-      return getPlacement(placementKey, { useCache: true });
+    preloadEntryPoint(entryPointKey: string): Promise<SDKFlowResponse> {
+      return getEntryPoint(entryPointKey, { useCache: true });
     },
     async clearCachedFlow(slug: string): Promise<void> {
       const cacheKey = createCacheKey(options.projectId, `flow:${slug}`);

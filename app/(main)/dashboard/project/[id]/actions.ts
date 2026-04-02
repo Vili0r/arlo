@@ -61,7 +61,7 @@ export async function deleteFlow(projectId: string, flowId: string) {
       });
     }
 
-    await tx.placement.deleteMany({
+    await tx.entryPoint.deleteMany({
       where: { flowId },
     });
 
@@ -124,7 +124,7 @@ export async function deleteApiKey(projectId: string, keyId: string) {
   revalidatePath(`/dashboard/project/${projectId}`);
 }
 
-export async function createPlacement(
+export async function createEntryPoint(
   projectId: string,
   data: {
     key: string;
@@ -146,7 +146,7 @@ export async function createPlacement(
   });
   if (!flow) throw new Error("Flow not found");
 
-  const placement = await prisma.placement.create({
+  const entryPoint = await prisma.entryPoint.create({
     data: {
       projectId,
       flowId: data.flowId,
@@ -157,10 +157,10 @@ export async function createPlacement(
   });
 
   revalidatePath(`/dashboard/project/${projectId}`);
-  return placement;
+  return entryPoint;
 }
 
-export async function deletePlacement(projectId: string, placementId: string) {
+export async function deleteEntryPoint(projectId: string, entryPointId: string) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
@@ -169,16 +169,16 @@ export async function deletePlacement(projectId: string, placementId: string) {
   });
   if (!project) throw new Error("Project not found");
 
-  const placement = await prisma.placement.findFirst({
+  const entryPoint = await prisma.entryPoint.findFirst({
     where: {
-      id: placementId,
+      id: entryPointId,
       projectId,
     },
   });
-  if (!placement) throw new Error("Placement not found");
+  if (!entryPoint) throw new Error("Entry point not found");
 
-  await prisma.placement.delete({
-    where: { id: placementId },
+  await prisma.entryPoint.delete({
+    where: { id: entryPointId },
   });
 
   revalidatePath(`/dashboard/project/${projectId}`);

@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 
-import type { FlowComponent, Screen } from "@/lib/types";
+import type { ComponentInteraction, ComponentType, FlowComponent, Screen } from "@/lib/types";
 import { COLOR_MAP, COMPONENT_TYPES } from "../_lib/constants";
 import type {
   EditorConstraints,
@@ -32,6 +32,7 @@ import type {
 } from "../_lib/animation-presets";
 import { AnimationPropertyEditor, ScreenTransitionEditor } from "./animation-property-editor";
 import { ComponentPropertyEditor } from "./component-property-editor";
+import { BehaviorPropertyEditor } from "./behavior-property-editor";
 import { PropNumberUnit, PropRow, PropToggle, Section } from "./property-fields";
 
 interface InspectorNode {
@@ -139,6 +140,8 @@ export function PropertySheet({
   onClose,
   onDelete,
   onUpdateProp,
+  onUpdateInteractions,
+  onConvertComponent,
   onUpdateSelectionProps,
   onUpdateAnimation,
   onUpdateScreenStyle,
@@ -164,6 +167,8 @@ export function PropertySheet({
   onClose: () => void;
   onDelete?: () => void;
   onUpdateProp?: (key: string, value: unknown) => void;
+  onUpdateInteractions?: (interactions: ComponentInteraction[]) => void;
+  onConvertComponent?: (type: ComponentType) => void;
   onUpdateSelectionProps?: (key: string, value: unknown) => void;
   onUpdateAnimation?: (anim: ComponentAnimation) => void;
   onUpdateScreenStyle?: (patch: Record<string, unknown>) => void;
@@ -198,6 +203,8 @@ export function PropertySheet({
     ? COMPONENT_TYPES.find((entry) => entry.type === component.type)
     : null;
   const colors = meta ? COLOR_MAP[meta.color] || COLOR_MAP.blue : COLOR_MAP.blue;
+
+  const [activeTab, setActiveTab] = React.useState<"appearance" | "behavior">("appearance");
 
   const sharedVisible = getSharedValue(selectedNodes.map((node) => node.visible));
   const sharedLocked = getSharedValue(selectedNodes.map((node) => node.locked));
@@ -350,6 +357,32 @@ export function PropertySheet({
         ) : null}
 
         {isSingle && singleNode && component ? (
+          <div className="mb-4 flex border-b border-white/[0.08] px-2 shrink-0">
+            <button
+              onClick={() => setActiveTab("appearance")}
+              className={`mr-4 border-b-2 py-2 text-[11px] font-medium transition-colors ${
+                activeTab === "appearance"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-white/40 hover:text-white/70"
+              }`}
+            >
+              Appearance
+            </button>
+            <button
+              onClick={() => setActiveTab("behavior")}
+              className={`border-b-2 py-2 text-[11px] font-medium transition-colors ${
+                activeTab === "behavior"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-white/40 hover:text-white/70"
+              }`}
+            >
+              Behavior
+            </button>
+          </div>
+        ) : null}
+
+        {isSingle && singleNode && component ? (
+          activeTab === "appearance" ? (
           <div className="space-y-4">
             <SectionCard title="Transform">
               <div className="grid grid-cols-2 gap-2">
@@ -566,6 +599,16 @@ export function PropertySheet({
               />
             </SectionCard>
           </div>
+          ) : (
+            <div className="space-y-4">
+              <BehaviorPropertyEditor
+                component={component}
+                screens={screens}
+                onUpdateInteractions={(interactions) => onUpdateInteractions?.(interactions)}
+                onConvertComponent={(type) => onConvertComponent?.(type)}
+              />
+            </div>
+          )
         ) : null}
 
         {isMulti ? (

@@ -435,6 +435,7 @@ interface FlowComponentBase {
   order: number;
   animation?: ComponentAnimation;
   layout?: ComponentLayout;
+  interactions?: ComponentInteraction[];
 }
 
 export type FlowComponent =
@@ -459,6 +460,47 @@ export type FlowComponent =
   | (FlowComponentBase & { type: "FEATURE_LIST"; props: FeatureListProps })
   | (FlowComponentBase & { type: "AWARD"; props: AwardProps })
   | (FlowComponentBase & { type: "CUSTOM_COMPONENT"; props: CustomComponentProps });
+
+// Component Behaviors
+
+export type TriggerType = 
+  | "ON_PRESS"
+  | "ON_VALUE_CHANGE"
+  | "ON_MOUNT"
+  | "ON_LONG_PRESS";
+
+export type ActionType = 
+  | "NAVIGATE"
+  | "SET_VARIABLE"
+  | "OPEN_URL"
+  | "TRIGGER_HAPTIC"
+  | "CUSTOM_EVENT"
+  | "API_REQUEST";
+
+export interface NavigateActionConfig {
+  targetType: "NEXT" | "PREVIOUS" | "SPECIFIC_SCREEN" | "DISMISS";
+  targetScreenId?: string;
+  animation?: "SLIDE" | "FADE" | "NONE";
+  durationMs?: number;
+}
+
+export interface SetVariableActionConfig {
+  variableKey: string;
+  valueSource: "LITERAL" | "EVENT_VALUE";
+  literalValue?: string | number | boolean;
+}
+
+export interface ComponentAction {
+  id: string;
+  type: ActionType;
+  config: NavigateActionConfig | SetVariableActionConfig | Record<string, unknown>;
+}
+
+export interface ComponentInteraction {
+  id: string;
+  trigger: TriggerType;
+  actions: ComponentAction[];
+}
 
 // Flow logic
 
@@ -530,9 +572,16 @@ export interface FlowSettings {
   screenTransition?: ScreenTransitionConfig;  
 }
 
+export interface FlowVariable {
+  key: string; 
+  type: "STRING" | "NUMBER" | "BOOLEAN" | "ARRAY";
+  defaultValue: any;
+}
+
 export interface FlowConfig {
   screens: Screen[];
   settings?: FlowSettings;
+  variables?: FlowVariable[];
 }
 
 // ============================================

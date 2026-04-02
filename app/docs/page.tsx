@@ -11,12 +11,12 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Arlo Docs | Placements and Registry Keys",
+  title: "Arlo Docs | Entry Points and Registry Keys",
   description:
-    "Understand how placements route apps into flows and how registry keys connect those flows to native screens and components.",
+    "Understand how entry points route apps into flows and how registry keys connect those flows to native screens and components.",
 };
 
-const placementExample = `const flow = await arlo.getPlacement("onboarding_home");`;
+const entryPointExample = `const flow = await arlo.getEntryPoint("onboarding_home");`;
 
 const registryExample = `import { createArloRegistry } from "arlo-react-native";
 
@@ -30,18 +30,18 @@ registry.registerComponent("native_benefits_card", ({ component }) => (
   <BenefitsCard {...component.props.payload} />
 ));`;
 
-const runtimeExample = `App asks for placement key
-  -> Arlo resolves the placement to a published flow
+const runtimeExample = `App asks for entry point key
+  -> Arlo resolves the entry point to a published flow
   -> The flow may reference native registry keys
   -> The host app renders those native screens/components`;
 
 const cards = [
   {
     icon: MapPinned,
-    title: "Placements",
+    title: "Entry Points",
     subtitle: "Public runtime entry points",
     body:
-      "A placement is the stable key your app calls at runtime. It maps something like onboarding_home to one specific flow in the project.",
+      "An entry point is the stable key your app calls at runtime. It maps something like onboarding_home to one specific flow in the project.",
     accent: "from-cyan-400/25 via-cyan-400/10 to-transparent",
     border: "border-cyan-400/20",
     iconColor: "text-cyan-300",
@@ -62,12 +62,12 @@ const steps = [
   {
     title: "1. Create or publish a flow",
     text:
-      "Flows hold the versioned config Arlo can deliver to the SDK. Placements only resolve to something useful once the linked flow has a published version.",
+      "Flows hold the versioned config Arlo can deliver to the SDK. Entry points only resolve to something useful once the linked flow has a published version.",
   },
   {
-    title: "2. Attach a placement key",
+    title: "2. Attach an entry point key",
     text:
-      "The placement key becomes the stable app-facing entry point. Your app can keep requesting the same placement while you swap which flow sits behind it.",
+      "The entry point key becomes the stable app-facing entry point. Your app can keep requesting the same entry point while you swap which flow sits behind it.",
   },
   {
     title: "3. Reference registry keys inside the flow",
@@ -81,7 +81,7 @@ const steps = [
   },
 ];
 
-export default function DocsPlacementsAndRegistryPage() {
+export default function DocsEntryPointsAndRegistryPage() {
   return (
     <div className="min-h-screen bg-[#0b0d10] text-[#f7f2e7]">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(50,189,201,0.14),transparent_34%),radial-gradient(circle_at_top_right,rgba(251,191,36,0.12),transparent_28%),linear-gradient(180deg,#0b0d10_0%,#0d1117_42%,#0b0d10_100%)]" />
@@ -94,7 +94,7 @@ export default function DocsPlacementsAndRegistryPage() {
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-[0.28em] text-white/35">Arlo Docs</p>
-              <h1 className="text-sm font-semibold text-white">Placements and Registry Keys</h1>
+              <h1 className="text-sm font-semibold text-white">Entry Points and Registry Keys</h1>
             </div>
           </div>
 
@@ -116,10 +116,10 @@ export default function DocsPlacementsAndRegistryPage() {
             </div>
             <div className="space-y-4">
               <h2 className="max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-6xl">
-                Placements decide which flow loads. Registry keys decide what the app renders.
+                Entry points decide which flow loads. Registry keys decide what the app renders.
               </h2>
               <p className="max-w-2xl text-base leading-7 text-white/68 md:text-lg">
-                If you only remember one thing, remember this split: placements are for
+                If you only remember one thing, remember this split: entry points are for
                 finding flows, registry keys are for rendering native surfaces inside those
                 flows.
               </p>
@@ -159,7 +159,7 @@ export default function DocsPlacementsAndRegistryPage() {
             </div>
             <div className="space-y-4 text-sm leading-6 text-white/70">
               <p>
-                A placement key should stay stable even if you later change the flow behind it.
+                An entry point key should stay stable even if you later change the flow behind it.
               </p>
               <p>
                 A registry key should match something the host app already knows how to render,
@@ -186,23 +186,23 @@ export default function DocsPlacementsAndRegistryPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10">
                 <MapPinned size={18} className="text-cyan-300" />
               </div>
-              <h3 className="text-xl font-semibold text-white">Placements in practice</h3>
+              <h3 className="text-xl font-semibold text-white">Entry points in practice</h3>
             </div>
             <div className="space-y-4 text-sm leading-6 text-white/72">
               <p>
-                The dashboard describes placements as mapping SDK placement keys to published
+                The dashboard describes entry points as mapping SDK entry point keys to published
                 flows. That is exactly what they are: app-facing lookup keys.
               </p>
               <p>
                 Example: your app asks for <code className="font-mono text-cyan-200">onboarding_home</code>.
-                Arlo resolves that placement to the linked flow and returns the latest published
+                Arlo resolves that entry point to the linked flow and returns the latest published
                 version of that flow.
               </p>
             </div>
             <div className="mt-5 rounded-3xl border border-white/10 bg-black/20 p-4">
               <p className="mb-2 text-[11px] uppercase tracking-[0.22em] text-white/35">SDK Example</p>
               <pre className="overflow-x-auto whitespace-pre-wrap text-sm leading-6 text-[#d9f8ff]">
-                {placementExample}
+                {entryPointExample}
               </pre>
             </div>
           </div>
@@ -293,7 +293,7 @@ export default function DocsPlacementsAndRegistryPage() {
         <section className="rounded-[2rem] border border-cyan-300/12 bg-cyan-300/[0.05] p-6">
           <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-100/55">Common Confusion</p>
           <p className="mt-3 max-w-4xl text-base leading-7 text-white/75">
-            A placement key is not something the host app renders directly. It only finds a flow.
+            An entry point key is not something the host app renders directly. It only finds a flow.
             A registry key does not fetch a flow. It only tells Arlo how to hand rendering off to
             native code once the flow is already running.
           </p>

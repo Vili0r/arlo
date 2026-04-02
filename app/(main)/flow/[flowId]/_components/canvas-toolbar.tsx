@@ -7,8 +7,6 @@ import {
   Circle,
   Check,
   Loader2,
-  Code2,
-  PenTool,
   Minus,
   Plus,
   Maximize2,
@@ -85,12 +83,9 @@ export function CanvasToolbar({
   onPromoteToProduction,
   developmentVersion,
   productionVersion,
-  onImportCode,
-  onImportFigma,
+  onImport,
   toolMode,
   onSelectToolMode,
-  importCodeLabel = "Import Code",
-  importFigmaLabel = "Import Figma",
 }: {
   zoom: number;
   onBack: () => void;
@@ -121,12 +116,9 @@ export function CanvasToolbar({
   onPromoteToProduction: () => void;
   developmentVersion: { id: string; version: number } | null;
   productionVersion: { id: string; version: number } | null;
-  onImportCode: () => void;
-  onImportFigma: () => void;
+  onImport: () => void;
   toolMode: ToolMode;
   onSelectToolMode: (mode: ToolMode) => void;
-  importCodeLabel?: string;
-  importFigmaLabel?: string;
 }) {
   const [publishAction, setPublishAction] = useState<string | undefined>(undefined);
   const iconBtn =
@@ -278,17 +270,10 @@ export function CanvasToolbar({
 
           <div className="w-px h-5 bg-white/[0.1] mx-1" />
 
-          {/* Import Figma */}
-          <FloatingToolbarLabel label={importFigmaLabel}>
-            <button onClick={onImportFigma} className={iconBtn} aria-label={importFigmaLabel} title={importFigmaLabel}>
-              <PenTool size={15} />
-            </button>
-          </FloatingToolbarLabel>
-
-          {/* Import Code */}
-          <FloatingToolbarLabel label={importCodeLabel}>
-            <button onClick={onImportCode} className={iconBtn} aria-label={importCodeLabel} title={importCodeLabel}>
-              <Code2 size={15} />
+          {/* Import */}
+          <FloatingToolbarLabel label="Import">
+            <button onClick={onImport} className={iconBtn} aria-label="Import" title="Import">
+              <Upload size={15} />
             </button>
           </FloatingToolbarLabel>
 

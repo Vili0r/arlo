@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useRouter } from "next/navigation";
 import { arrayMove } from "@dnd-kit/sortable";
-import type { FlowConfig, FlowComponent } from "@/lib/types";
+import type { ComponentType, FlowComponent, FlowConfig } from "@/lib/types";
 import { SIDEBAR_TABS, type SidebarTab } from "../_lib/constants";
 import { createDefaultComponent } from "../_lib/defaults";
 import { useCanvas } from "../_lib/use-canvas";
@@ -58,7 +58,6 @@ import { TemplatePalette, QuickFlowTemplates } from "./template-picker";
 import { ALL_TEMPLATES, type TemplateDefinition } from "../_lib/templates";
 import type { ImportMode } from "../_lib/code-import";
 import { CodeImportDialog } from "./code-import-dialog";
-import { FigmaImportDialog } from "./figma-import-dialog";
 import {
   appendComponentNode,
   compileEditorDocument,
@@ -72,6 +71,8 @@ import {
   type EditorNodeTransform,
 } from "../_lib/editor-document";
 import { useEditorInteractionStore } from "../_lib/editor-interaction-store";
+import { DEFAULT_FLOW_CONFIG } from "../_lib/default-flow-config";
+import { applyImportedScreensToDocument } from "../_lib/import-flow";
 
 import { DeviceFrame } from "./device-frame";
 import { NodeRenderer } from "./node-renderer";
@@ -84,24 +85,6 @@ import {
  } from "./sidebar-panels";
 import type { ScreenTransitionConfig } from "../_lib/animation-presets";
 import { FlowPreviewOverlay } from "./flow-preview-overlay";
-
-const DEFAULT_FLOW_CONFIG: FlowConfig = {
-  screens: [
-    {
-      id: "screen_1",
-      name: "Welcome",
-      order: 0,
-      layoutMode: "absolute",
-      style: { backgroundColor: "#FFFFFF", padding: 24 },
-      components: [],
-    },
-  ],
-  settings: {
-    dismissible: true,
-    showProgressBar: true,
-    transitionAnimation: "slide",
-  },
-};
 
 type PositionedComponentProps = Record<string, unknown> & {
   position?: string;
@@ -146,6 +129,27 @@ type InlineTextEditState = {
 const DEFAULT_ABSOLUTE_INSERT_SIZE = {
   width: 180,
   height: 80,
+};
+
+type OneClickInteractiveType =
+  | "BUTTON"
+  | "TEXT_INPUT"
+  | "TAB_BUTTON"
+  | "SINGLE_SELECT"
+  | "MULTI_SELECT"
+  | "SLIDER"
+  | "CAROUSEL";
+
+const ONE_CLICK_INTERACTIVE_SIZES: Partial<
+  Record<OneClickInteractiveType, { width: number; height: number }>
+> = {
+  BUTTON: { width: 220, height: 56 },
+  TEXT_INPUT: { width: 240, height: 72 },
+  TAB_BUTTON: { width: 280, height: 76 },
+  SINGLE_SELECT: { width: 260, height: 180 },
+  MULTI_SELECT: { width: 260, height: 140 },
+  SLIDER: { width: 260, height: 96 },
+  CAROUSEL: { width: 320, height: 220 },
 };
 
 function setValueAtPath<T extends object>(
@@ -198,6 +202,102 @@ function getComponentCanvasSize(component: FlowComponent) {
   };
 }
 
+function getComponentPrimaryCopy(component: FlowComponent) {
+  const props = component.props as Record<string, unknown>;
+
+  if (typeof props.label === "string" && props.label.trim()) return props.label.trim();
+  if (typeof props.content === "string" && props.content.trim()) return props.content.trim();
+  if (typeof props.text === "string" && props.text.trim()) return props.text.trim();
+  if (typeof props.title === "string" && props.title.trim()) return props.title.trim();
+
+  return "";
+}
+
+function getFieldKeyPrefix(type: ComponentType) {
+  switch (type) {
+    case "TEXT_INPUT":
+      return "field";
+    case "SINGLE_SELECT":
+      return "select";
+    case "MULTI_SELECT":
+      return "multi";
+    case "SLIDER":
+      return "slider";
+    default:
+      return "value";
+  }
+}
+
+function buildFieldKey(type: ComponentType, componentId: string) {
+  const suffix = componentId.replace(/^comp_/, "").slice(-6).toLowerCase();
+  return `${getFieldKeyPrefix(type)}_${suffix || "value"}`;
+}
+
+function buildOneClickInteractiveComponent(
+  source: FlowComponent,
+  nextType: OneClickInteractiveType,
+): FlowComponent {
+  if (source.type === nextType) return source;
+
+  const nextComponent = createDefaultComponent(nextType, source.order);
+  const nextProps = structuredClone(nextComponent.props) as Record<string, unknown>;
+  const carryCopy = getComponentPrimaryCopy(source);
+
+  if (typeof nextProps.fieldKey === "string") {
+    nextProps.fieldKey = buildFieldKey(nextType, source.id);
+  }
+
+  if (
+    carryCopy &&
+    ["BUTTON", "TEXT_INPUT", "SINGLE_SELECT", "MULTI_SELECT", "SLIDER"].includes(nextType)
+  ) {
+    nextProps.label = carryCopy;
+  }
+
+  if (nextType === "TEXT_INPUT" && carryCopy) {
+    nextProps.placeholder = `Enter ${carryCopy.toLowerCase()}...`;
+  }
+
+  if (nextType === "TAB_BUTTON" && carryCopy && Array.isArray(nextProps.tabs) && nextProps.tabs[0]) {
+    nextProps.tabs = nextProps.tabs.map((tab, index) =>
+      index === 0 && tab && typeof tab === "object"
+        ? { ...(tab as Record<string, unknown>), label: carryCopy }
+        : tab,
+    );
+  }
+
+  if (nextType === "CAROUSEL" && carryCopy && Array.isArray(nextProps.items) && nextProps.items[0]) {
+    nextProps.items = nextProps.items.map((item, index) =>
+      index === 0 && item && typeof item === "object"
+        ? { ...(item as Record<string, unknown>), title: carryCopy }
+        : item,
+    );
+  }
+
+  return {
+    ...nextComponent,
+    id: source.id,
+    order: source.order,
+    animation: source.animation,
+    layout: source.layout,
+    interactions: source.interactions,
+    props: nextProps as typeof nextComponent.props,
+  } as FlowComponent;
+}
+
+function getComponentDisplayName(component: FlowComponent, fallback: string) {
+  const copy = getComponentPrimaryCopy(component);
+  if (copy) return copy;
+
+  const label = component.type
+    .toLowerCase()
+    .split("_")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+
+  return label || fallback;
+}
+
 
 /* ── DARK BG HELPER (for indicator bar) ────────────────── */
 function isDarkColor(hex: string): boolean {
@@ -218,7 +318,7 @@ export function FlowBuilderClient({
   initialDevelopmentVersion,
   initialProductionVersion,
   registryKeys,
-  initialOpenImportSource = null,
+  initialSelectedScreenIndex = 0,
 }: {
   flowId: string;
   initialDocument: EditorDocument | null;
@@ -226,7 +326,7 @@ export function FlowBuilderClient({
   initialDevelopmentVersion: { id: string; version: number } | null;
   initialProductionVersion: { id: string; version: number } | null;
   registryKeys: { id: string; key: string; type: "SCREEN" | "COMPONENT"; description: string | null }[];
-  initialOpenImportSource?: "figma" | null;
+  initialSelectedScreenIndex?: number;
 }) {
   const router = useRouter();
   const projectId = initialProjectId;
@@ -246,7 +346,7 @@ export function FlowBuilderClient({
     resetView,
   } = useCanvas();
 
-  const [selectedScreenIndex, setSelectedScreenIndex] = useState(0);
+  const [selectedScreenIndex, setSelectedScreenIndex] = useState(initialSelectedScreenIndex);
   const [activeTab, setActiveTab] = useState<SidebarTab>("screens");
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(true);
@@ -254,7 +354,6 @@ export function FlowBuilderClient({
   const [developmentVersion, setDevelopmentVersion] = useState(initialDevelopmentVersion);
   const [productionVersion, setProductionVersion] = useState(initialProductionVersion);
   const [codeImportOpen, setCodeImportOpen] = useState(false);
-  const [figmaImportOpen, setFigmaImportOpen] = useState(initialOpenImportSource === "figma");
 
   const [selectedDevice, setSelectedDevice] = useState<DevicePreset>(
     ALL_DEVICES.find((d) => d.id === DEFAULT_DEVICE_ID) || ALL_DEVICES[0],
@@ -303,7 +402,6 @@ export function FlowBuilderClient({
   const currentImportedFigmaPayload =
     currentScreenDoc?.source.kind === "imported-figma" ? currentScreenDoc.source : null;
   const isEditingImportedScreen = Boolean(currentImportedCodePayload);
-  const codeImportLabel = isEditingImportedScreen ? "Edit Code" : "Import Code";
   const codeImportDialogTitle = isEditingImportedScreen
     ? "Update imported code"
     : "Import React or React Native code";
@@ -311,26 +409,11 @@ export function FlowBuilderClient({
     ? `Edit the stored source for ${currentImportedCodePayload?.componentName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and keep it editable on the canvas.`
     : "Paste a component or upload a `.tsx`, `.jsx`, `.ts`, or `.js` file. Arlo will normalize supported elements into editable builder layers and preserve the original source for future updates.";
   const codeImportSubmitLabel = isEditingImportedScreen ? "Update screen" : "Import to builder";
-  const isEditingImportedFigmaScreen = Boolean(currentImportedFigmaPayload);
-  const figmaImportLabel = isEditingImportedFigmaScreen ? "Update Figma" : "Import Figma";
-  const figmaImportDialogTitle = isEditingImportedFigmaScreen
-    ? "Update imported Figma screen"
-    : "Import from Figma";
-  const figmaImportDialogDescription = isEditingImportedFigmaScreen
-    ? `Refresh the stored Figma source for ${currentImportedFigmaPayload?.nodeName || currentScreen?.name || "this screen"}. Arlo will replace the current screen in place and keep the imported layers editable.`
-    : "Paste a Figma frame, section, or page URL with a node-id. Arlo will fetch the selection, normalize supported layers, and preserve the source metadata for future updates.";
-  const figmaImportSubmitLabel = isEditingImportedFigmaScreen ? "Update screen" : "Import to builder";
   const screenRegistryKeys = registryKeys.filter((entry) => entry.type === "SCREEN");
   const frame = getFrameDimensions(selectedDevice, orientation);
   const effectiveTool: ToolMode = isSpacePressed ? "hand" : toolMode;
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-
-  useEffect(() => {
-    if (initialOpenImportSource === "figma") {
-      router.replace(`/flow/${flowId}`);
-    }
-  }, [flowId, initialOpenImportSource, router]);
 
   // — Save draft handler —
   const handleSaveDraft = useCallback(async () => {
@@ -389,6 +472,33 @@ export function FlowBuilderClient({
       setTimeout(() => setSaveState("idle"), 3000);
     }
   }, [flowId]);
+
+  const autoSaveBeforeNavigation = useCallback(async () => {
+    if (!flowId || !history.isDirty) return true;
+
+    setSaveState("saving");
+    try {
+      await autoSaveDraft({ flowId, document: history.state });
+      history.markSaved();
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2000);
+      return true;
+    } catch (err) {
+      console.error("Auto-save before navigation failed:", err);
+      setSaveState("error");
+      setTimeout(() => setSaveState("idle"), 3000);
+      return false;
+    }
+  }, [flowId, history]);
+
+  const navigateToImportRoute = useCallback(
+    async (path: string) => {
+      const canNavigate = await autoSaveBeforeNavigation();
+      if (!canNavigate) return;
+      router.push(path);
+    },
+    [autoSaveBeforeNavigation, router],
+  );
   
   // — Auto-save on a 30s debounce when dirty —
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -811,6 +921,49 @@ export function FlowBuilderClient({
                       ? setValueAtPath(node.component.props, key, value)
                       : { ...node.component.props, [key]: value },
                   } as FlowComponent,
+                },
+              },
+            };
+          }),
+        };
+      });
+    },
+    [selectedScreenIndex, updateConfig],
+  );
+
+  const convertSelectedComponentType = useCallback(
+    (componentId: string, nextType: OneClickInteractiveType) => {
+      updateConfig((prev) => {
+        return {
+          ...prev,
+          screens: prev.screens.map((screen, index) => {
+            if (index !== selectedScreenIndex) return screen;
+            const node = screen.nodes[componentId];
+            if (!node || node.kind !== "component") return screen;
+
+            const nextComponent = buildOneClickInteractiveComponent(node.component, nextType);
+            const suggestedSize =
+              ONE_CLICK_INTERACTIVE_SIZES[nextType] ?? getComponentCanvasSize(nextComponent);
+
+            return {
+              ...screen,
+              nodes: {
+                ...screen.nodes,
+                [componentId]: {
+                  ...node,
+                  name: getComponentDisplayName(nextComponent, node.name),
+                  transform: {
+                    ...node.transform,
+                    width:
+                      node.transform.width == null
+                        ? suggestedSize.width
+                        : Math.max(node.transform.width, suggestedSize.width),
+                    height:
+                      node.transform.height == null
+                        ? suggestedSize.height
+                        : Math.max(node.transform.height, suggestedSize.height),
+                  },
+                  component: nextComponent,
                 },
               },
             };
@@ -1492,45 +1645,20 @@ export function FlowBuilderClient({
     ({ screens: importedScreens, mode }: { screens: FlowConfig["screens"]; mode: ImportMode }) => {
       if (importedScreens.length === 0) return;
 
-      const importedEditorScreens = flowConfigToEditorDocument({
-        screens: importedScreens.map((screen, index) => ({ ...screen, order: index })),
-      }).screens;
+      const result = applyImportedScreensToDocument({
+        document: history.state,
+        importedScreens,
+        mode,
+        screenIndex: selectedScreenIndex,
+      });
 
-      if (mode === "replace") {
-        updateConfig((prev) => {
-          const screens = [...prev.screens];
-          const existing = screens[selectedScreenIndex];
-          const nextScreens = importedEditorScreens.map((screen, index) => ({
-            ...screen,
-            id: index === 0 ? existing.id : screen.id,
-          }));
-          screens.splice(selectedScreenIndex, 1, ...nextScreens);
-          return {
-            ...prev,
-            screens: screens.map((screen, index) => ({
-              ...screen,
-              order: index,
-            })),
-          };
-        });
-      } else {
-        updateConfig((prev) => ({
-          ...prev,
-          screens: [
-            ...prev.screens,
-            ...importedEditorScreens.map((screen, index) => ({
-              ...screen,
-              order: prev.screens.length + index,
-            })),
-          ],
-        }));
-        setSelectedScreenIndex(config.screens.length);
-      }
+      history.set(result.document);
+      setSelectedScreenIndex(result.selectedScreenIndex);
 
       clearSelection();
       setActiveTab("screens");
     },
-    [clearSelection, config.screens.length, selectedScreenIndex, updateConfig],
+    [clearSelection, history, selectedScreenIndex],
   );
 
   const handlePaletteDrop = useCallback(
@@ -1669,11 +1797,6 @@ export function FlowBuilderClient({
         ? [...screen.components].sort((a, b) => a.order - b.order)
         : [];
 
-      // Split into main content vs bottom-pinned components
-      const mainComponents = sorted.filter((component) => {
-        const props = component.props as PositionedComponentProps;
-        return props.position !== "bottom";
-      });
       const bottomComponents = sorted.filter((component) => {
         const props = component.props as PositionedComponentProps;
         return props.position === "bottom";
@@ -2164,7 +2287,7 @@ export function FlowBuilderClient({
                 onSelect={(i) => {
                   setSelectedScreenIndex(i);
                   clearSelection();
-                  setSheetOpen(false);
+                  setSheetOpen(true);
                 }}
                 selectedComponentId={selectedComponentId}
                 onSelectComponent={(id) => {
@@ -2248,7 +2371,9 @@ export function FlowBuilderClient({
                   screenRegistryKeys={screenRegistryKeys}
                   onEditImportedSource={() => {
                     if (currentImportedFigmaPayload) {
-                      setFigmaImportOpen(true);
+                      void navigateToImportRoute(
+                        `/flow/${flowId}/import/figma?screenIndex=${selectedScreenIndex}`,
+                      );
                       return;
                     }
                     setCodeImportOpen(true);
@@ -2362,12 +2487,11 @@ export function FlowBuilderClient({
           onPromoteToProduction={handlePromoteToProduction}
           developmentVersion={developmentVersion}
           productionVersion={productionVersion}
-          onImportCode={() => setCodeImportOpen(true)}
-          onImportFigma={() => setFigmaImportOpen(true)}
+          onImport={() => {
+            void navigateToImportRoute(`/flow/${flowId}/import?screenIndex=${selectedScreenIndex}`);
+          }}
           toolMode={toolMode}
           onSelectToolMode={setToolMode}
-          importCodeLabel={codeImportLabel}
-          importFigmaLabel={figmaImportLabel}
         />
 
         {previewOpen ? (
@@ -2394,22 +2518,6 @@ export function FlowBuilderClient({
             title={codeImportDialogTitle}
             description={codeImportDialogDescription}
             submitLabel={codeImportSubmitLabel}
-            onImport={handleImportScreen}
-          />
-        ) : null}
-
-        {figmaImportOpen ? (
-          <FigmaImportDialog
-            open={figmaImportOpen}
-            onOpenChange={setFigmaImportOpen}
-            flowId={flowId}
-            currentScreenName={currentScreen?.name || "Untitled"}
-            initialSource={currentImportedFigmaPayload?.sourceUrl}
-            defaultMode={currentImportedFigmaPayload ? "replace" : "append"}
-            lockMode={Boolean(currentImportedFigmaPayload)}
-            title={figmaImportDialogTitle}
-            description={figmaImportDialogDescription}
-            submitLabel={figmaImportSubmitLabel}
             onImport={handleImportScreen}
           />
         ) : null}
@@ -2606,6 +2714,9 @@ export function FlowBuilderClient({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            selectScreen(idx);
+                            clearSelection();
+                            setSheetOpen(true);
                           }}
                           className="p-1 text-white/20 hover:text-white/60 hover:bg-white/[0.06] rounded transition-colors"
                         >
@@ -2695,6 +2806,41 @@ export function FlowBuilderClient({
         }
         onUpdateProp={
           selectedComponent ? (key, value) => updateComponentProp(selectedComponent.id, key, value) : undefined
+        }
+        onUpdateInteractions={
+          selectedComponent
+            ? (interactions) =>
+                updateConfig((prev) => ({
+                  ...prev,
+                  screens: prev.screens.map((screen, index) => {
+                    if (index !== selectedScreenIndex) return screen;
+                    const node = screen.nodes[selectedComponent.id];
+                    if (!node || node.kind !== "component") return screen;
+                    return {
+                      ...screen,
+                      nodes: {
+                        ...screen.nodes,
+                        [selectedComponent.id]: {
+                          ...node,
+                          component: {
+                            ...node.component,
+                            interactions,
+                          },
+                        },
+                      },
+                    };
+                  }),
+                }))
+            : undefined
+        }
+        onConvertComponent={
+          selectedComponent
+            ? (type) =>
+                convertSelectedComponentType(
+                  selectedComponent.id,
+                  type as OneClickInteractiveType,
+                )
+            : undefined
         }
         onUpdateSelectionProps={updateSelectedComponentProps}
         onUpdateAnimation={
