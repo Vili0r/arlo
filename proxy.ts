@@ -6,6 +6,8 @@ const isPublicRoute = createRouteMatcher([
   "/docs(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/api/sdk(.*)",
+  "/api/debug(.*)",
 ]);
 
 function isDocsHost(host: string): boolean {

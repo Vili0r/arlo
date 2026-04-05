@@ -36,6 +36,12 @@ interface EntryPointsCardProps {
   flows: FlowOption[];
 }
 
+const toEntryPointKey = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
 export function EntryPointsCard({
   projectId,
   entryPoints,
@@ -45,12 +51,26 @@ export function EntryPointsCard({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
+  const [keyTouched, setKeyTouched] = useState(false);
   const [environment, setEnvironment] = useState<"DEVELOPMENT" | "PRODUCTION">("DEVELOPMENT");
   const selectableFlows = flows.filter((flow) =>
     environment === "PRODUCTION" ? flow.productionVersion : flow.developmentVersion
   );
   const [flowId, setFlowId] = useState(selectableFlows[0]?.id ?? "");
   const [isPending, startTransition] = useTransition();
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (!keyTouched) {
+      setKey(toEntryPointKey(value));
+    }
+  };
+
+  const handleKeyChange = (value: string) => {
+    const nextKey = toEntryPointKey(value);
+    setKeyTouched(nextKey.length > 0);
+    setKey(nextKey);
+  };
 
   const developmentCount = entryPoints.filter(
     (entryPoint) => entryPoint.environment === "DEVELOPMENT"
@@ -86,6 +106,7 @@ export function EntryPointsCard({
         setDialogOpen(false);
         setName("");
         setKey("");
+        setKeyTouched(false);
       } catch (error) {
         console.error(error);
       }
@@ -262,7 +283,7 @@ export function EntryPointsCard({
               </label>
               <input
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => handleNameChange(event.target.value)}
                 placeholder='e.g. "Home Onboarding"'
                 className="w-full px-3 py-2.5 rounded-lg bg-[#0a0a0a] border border-[#1f1f1f] text-sm text-white placeholder:text-[#333] focus:outline-none focus:border-[#333]"
               />
@@ -273,7 +294,7 @@ export function EntryPointsCard({
               </label>
               <input
                 value={key}
-                onChange={(event) => setKey(event.target.value.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, ""))}
+                onChange={(event) => handleKeyChange(event.target.value)}
                 placeholder="e.g. onboarding_home"
                 className="w-full px-3 py-2.5 rounded-lg bg-[#0a0a0a] border border-[#1f1f1f] text-sm text-white font-mono placeholder:text-[#333] focus:outline-none focus:border-[#333]"
               />

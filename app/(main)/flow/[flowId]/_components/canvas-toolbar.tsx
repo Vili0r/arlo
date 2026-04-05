@@ -358,13 +358,19 @@ export function CanvasToolbar({
 
           {/* Versions */}
           <div className="flex items-center gap-1.5 px-0.5">
-            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-1 text-[10px] text-white/55">
+            <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/70">
               <Circle size={6} className={developmentVersion ? "text-emerald-400 fill-emerald-400" : "text-amber-400 fill-amber-400"} />
-              <span>Dev{developmentVersion && ` v${developmentVersion.version}`}</span>
+              <span className="leading-none">Dev</span>
+              {developmentVersion ? (
+                <span className="leading-none text-white/45">{`v${developmentVersion.version}`}</span>
+              ) : null}
             </div>
-            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-1 text-[10px] text-white/55">
+            <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/70">
               <Circle size={6} className={productionVersion ? "text-emerald-400 fill-emerald-400" : "text-amber-400 fill-amber-400"} />
-              <span>Prod{productionVersion && ` v${productionVersion.version}`}</span>
+              <span className="leading-none">Prod</span>
+              {productionVersion ? (
+                <span className="leading-none text-white/45">{`v${productionVersion.version}`}</span>
+              ) : null}
             </div>
           </div>
         </div>

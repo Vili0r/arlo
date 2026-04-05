@@ -6,7 +6,9 @@ const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
-const SDK_VERSION = "0.1.0";
+const packageJsonPath = path.join(__dirname, "..", "package.json");
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+const SDK_VERSION = packageJson.version;
 const ASYNC_STORAGE_VERSION = "^2.1.0";
 
 function printHelp() {

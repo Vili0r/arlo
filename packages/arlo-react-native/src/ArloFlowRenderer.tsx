@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
   Pressable,
@@ -191,7 +191,9 @@ function DefaultTextInputComponent({
       {component.props.label ? <Text style={styles.fieldLabel}>{component.props.label}</Text> : null}
       <TextInput
         value={value}
-        onChangeText={(nextValue) => context.onValueChange(component.props.fieldKey, nextValue)}
+        onChangeText={(nextValue: string) =>
+          context.onValueChange(component.props.fieldKey, nextValue)
+        }
         placeholder={component.props.placeholder}
         placeholderTextColor="#7a7a85"
         keyboardType={
@@ -450,21 +452,29 @@ export function ArloFlowRenderer({
   unsupportedScreen,
   onSnapshotChange,
 }: ArloFlowRendererProps) {
+  const handlersRef = useRef(handlers);
+  const onSnapshotChangeRef = useRef(onSnapshotChange);
+
+  useEffect(() => {
+    handlersRef.current = handlers;
+    onSnapshotChangeRef.current = onSnapshotChange;
+  });
+
   const [snapshot, setSnapshot] = useState(() => session.getSnapshot());
 
   useEffect(() => {
     const nextSnapshot = session.getSnapshot();
     setSnapshot(nextSnapshot);
-    onSnapshotChange?.(nextSnapshot);
+    onSnapshotChangeRef.current?.(nextSnapshot);
 
     if (autoStart && session.getSnapshot().status === "idle") {
       const effect = session.start();
       const startedSnapshot = session.getSnapshot();
       setSnapshot(startedSnapshot);
-      onSnapshotChange?.(startedSnapshot);
-      void applyFlowSessionEffect(session, effect, handlers);
+      onSnapshotChangeRef.current?.(startedSnapshot);
+      void applyFlowSessionEffect(session, effect, handlersRef.current);
     }
-  }, [autoStart, handlers, onSnapshotChange, session]);
+  }, [autoStart, session]);
 
   const sortedComponents = useMemo(
     () =>
