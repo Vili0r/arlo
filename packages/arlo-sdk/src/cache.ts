@@ -15,6 +15,7 @@ export interface CreatePersistentFlowCacheOptions {
 interface SerializedCacheEntry {
   cachedAt: number;
   response: ArloFlowCacheEntry["response"];
+  etag?: string;
 }
 
 function makeStorageKey(namespace: string, key: string): string {
@@ -44,6 +45,7 @@ export function createPersistentFlowCache(
         return {
           cachedAt: parsed.cachedAt,
           response: parsed.response,
+          etag: parsed.etag,
         };
       } catch {
         await options.storage.removeItem(makeStorageKey(namespace, key));
@@ -54,6 +56,7 @@ export function createPersistentFlowCache(
       const serialized: SerializedCacheEntry = {
         cachedAt: value.cachedAt,
         response: value.response,
+        etag: value.etag,
       };
 
       await options.storage.setItem(

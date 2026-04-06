@@ -212,7 +212,7 @@ export function ImportPageClient({
             type="button"
             variant="outline"
             onClick={() => router.push(buildBuilderHref())}
-            className="border-white/10 bg-transparent text-white hover:bg-white/[0.06] hover:text-white"
+            className="border-white/[0.08] bg-white/[0.02] text-white/70 hover:bg-white/[0.06] hover:text-white hover:border-white/[0.15] transition-all rounded-xl h-11"
           >
             Cancel
           </Button>
@@ -220,7 +220,7 @@ export function ImportPageClient({
             type="button"
             onClick={handleImport}
             disabled={!canImport || isPending}
-            className="bg-white text-black hover:bg-white/90"
+            className="bg-white text-black hover:bg-white/90 h-11 rounded-xl font-medium transition-transform active:scale-95 disabled:hover:scale-100 shadow-[0_0_20px_rgba(255,255,255,0.15)] disabled:shadow-none"
           >
             {isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
             {tab === "figma"
@@ -231,18 +231,23 @@ export function ImportPageClient({
       }
     >
       <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col">
-        <div className="border-b border-white/10 px-6">
-          <div className="flex gap-0">
+        <div className="border-b border-white/[0.06] px-6 py-4 flex justify-center bg-[#0a0a0a]/50 backdrop-blur-sm z-10 sticky top-[80px]">
+          <div className="relative flex p-1 rounded-full bg-white/[0.02] border border-white/[0.08] shadow-inner items-center">
+            <div
+              className={`absolute top-1 bottom-1 w-[130px] rounded-full bg-white/[0.12] shadow-sm transition-transform duration-300 ease-out border border-white/[0.08] ${
+                tab === "figma" ? "translate-x-0" : "translate-x-full"
+              }`}
+            />
             <button
               type="button"
               onClick={() => {
                 setTab("figma");
                 router.replace(buildImportHref("figma"));
               }}
-              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`relative z-10 flex w-[130px] items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors duration-300 ${
                 tab === "figma"
-                  ? "border-white text-white"
-                  : "border-transparent text-white/40 hover:text-white/70"
+                  ? "text-white"
+                  : "text-white/50 hover:text-white/80"
               }`}
             >
               <PenTool size={14} />
@@ -254,10 +259,10 @@ export function ImportPageClient({
                 setTab("code");
                 router.replace(buildImportHref("code"));
               }}
-              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`relative z-10 flex w-[130px] items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors duration-300 ${
                 tab === "code"
-                  ? "border-white text-white"
-                  : "border-transparent text-white/40 hover:text-white/70"
+                  ? "text-white"
+                  : "text-white/50 hover:text-white/80"
               }`}
             >
               <Code2 size={14} />
@@ -266,9 +271,11 @@ export function ImportPageClient({
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col lg:flex-row">
-          <div className="min-w-0 flex-1 border-b border-white/10 px-6 py-5 lg:border-b-0 lg:border-r">
-            {tab === "figma" ? (
+        <div className="flex flex-1 flex-col lg:flex-row bg-[#0a0a0a]/20">
+          <div className="min-w-0 flex-1 border-b border-white/[0.06] px-6 py-8 lg:border-b-0 lg:border-r relative overflow-hidden">
+            <div className={`transition-all duration-500 transform-gpu ${
+                 tab === "figma" ? "opacity-100 translate-y-0 relative z-10" : "opacity-0 translate-y-4 absolute inset-x-6 pointer-events-none z-0"
+               }`}>
               <FigmaImportContent
                 source={figmaSource}
                 onSourceChange={setFigmaSource}
@@ -289,7 +296,10 @@ export function ImportPageClient({
                 onSelectAll={() => setSelectedScreenIds(new Set(resolvedImports.map((item) => item.nodeId)))}
                 onDeselectAll={() => setSelectedScreenIds(new Set())}
               />
-            ) : (
+            </div>
+            <div className={`transition-all duration-500 transform-gpu ${
+                 tab === "code" ? "opacity-100 translate-y-0 relative z-10" : "opacity-0 translate-y-4 absolute inset-x-6 top-8 pointer-events-none z-0"
+               }`}>
               <CodeImportContent
                 code={code}
                 onCodeChange={setCode}
@@ -297,11 +307,11 @@ export function ImportPageClient({
                 onFrameworkChange={setFramework}
                 onFileImport={handleFileImport}
               />
-            )}
+            </div>
           </div>
 
-          <div className="w-full shrink-0 bg-white/[0.02] px-6 py-5 lg:w-[360px]">
-            <div className="flex flex-col gap-4">
+          <div className="w-full shrink-0 bg-[#0f1115]/80 backdrop-blur-md px-6 py-6 lg:w-[380px] relative z-20 shadow-[-10px_0_30px_rgba(0,0,0,0.2)]">
+            <div className="flex flex-col gap-5 sticky top-[160px]">
               <ImportModeSelector
                 mode={activeMode}
                 onSelectMode={setActiveMode}
@@ -310,24 +320,28 @@ export function ImportPageClient({
               />
 
               {submitError ? (
-                <div className="rounded-[24px] border border-rose-400/20 bg-rose-400/10 p-5 text-sm leading-6 text-rose-100/85">
-                  <div className="flex items-center gap-2 font-medium text-white">
-                    <AlertTriangle size={16} className="text-rose-300" />
+                <div className="rounded-[24px] border border-rose-500/20 bg-rose-500/5 p-5 text-sm leading-6 text-rose-200/90 shadow-inner animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center gap-2 font-medium text-white mb-2">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-rose-500/10 text-rose-400">
+                       <AlertTriangle size={14} />
+                    </div>
                     Import failed
                   </div>
-                  <p className="mt-3">{submitError}</p>
+                  <p className="ml-8">{submitError}</p>
                 </div>
               ) : null}
 
-              {tab === "figma" ? (
-                <FigmaImportSummary
-                  primaryImport={primaryImport}
-                  selectedCount={selectedImports.length}
-                  helperText="Arlo stores each imported screen with its direct Figma node URL, file metadata, warnings, and generated preview screen. The imported result stays read-only in the builder."
-                />
-              ) : (
-                <CodeImportSummary parsed={parsed} />
-              )}
+              <div className="transition-all duration-500">
+                {tab === "figma" ? (
+                  <FigmaImportSummary
+                    primaryImport={primaryImport}
+                    selectedCount={selectedImports.length}
+                    helperText="Arlo stores each imported screen with its direct Figma node URL, file metadata, warnings, and generated preview screen. The imported result stays read-only in the builder."
+                  />
+                ) : (
+                  <CodeImportSummary parsed={parsed} />
+                )}
+              </div>
             </div>
           </div>
         </div>

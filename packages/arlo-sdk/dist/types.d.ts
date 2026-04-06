@@ -26,6 +26,7 @@ export interface ArloClientOptions {
 export interface ArloFlowCacheEntry {
     response: SDKFlowResponse;
     cachedAt: number;
+    etag?: string;
 }
 export interface ArloFlowCache {
     get(key: string): Promise<ArloFlowCacheEntry | null> | ArloFlowCacheEntry | null;

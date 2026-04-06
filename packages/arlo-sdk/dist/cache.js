@@ -22,6 +22,7 @@ function createPersistentFlowCache(options) {
                 return {
                     cachedAt: parsed.cachedAt,
                     response: parsed.response,
+                    etag: parsed.etag,
                 };
             }
             catch {
@@ -33,6 +34,7 @@ function createPersistentFlowCache(options) {
             const serialized = {
                 cachedAt: value.cachedAt,
                 response: value.response,
+                etag: value.etag,
             };
             await options.storage.setItem(makeStorageKey(namespace, key), JSON.stringify(serialized));
         },

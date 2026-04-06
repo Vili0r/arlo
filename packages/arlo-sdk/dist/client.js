@@ -103,17 +103,21 @@ function createArloClient(options) {
     const cache = options.cache ?? new MemoryFlowCache();
     const baseUrl = normalizeBaseUrl(options.baseUrl);
     let identity = null;
-    async function loadFromPath(pathname) {
+    async function loadFromPath(pathname, etag) {
         let response;
         try {
+            const headers = {
+                "Content-Type": "application/json",
+                "x-api-key": options.apiKey,
+                ...(identity?.userId ? { "x-arlo-user-id": identity.userId } : {}),
+                ...options.headers,
+            };
+            if (etag) {
+                headers["If-None-Match"] = etag;
+            }
             response = await fetchImpl(`${baseUrl}${pathname}`, {
                 method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": options.apiKey,
-                    ...(identity?.userId ? { "x-arlo-user-id": identity.userId } : {}),
-                    ...options.headers,
-                },
+                headers,
             });
         }
         catch (cause) {
@@ -126,7 +130,12 @@ function createArloClient(options) {
             emitter.emit("flow:error", error);
             throw error;
         }
-        return parseFlowResponse(response, emitter);
+        if (response.status === 304) {
+            return { type: "not-modified" };
+        }
+        const parsedResponse = await parseFlowResponse(response, emitter);
+        const responseEtag = response.headers.get("etag") ?? undefined;
+        return { type: "ok", response: parsedResponse, etag: responseEtag };
     }
     async function getResource(cacheKey, pathname, flowOptions) {
         const useCache = flowOptions?.useCache !== false;
@@ -139,9 +148,26 @@ function createArloClient(options) {
                 return cached.response;
             }
         }
-        let response;
+        let fetchedResponse;
         try {
-            response = await loadFromPath(pathname);
+            const result = await loadFromPath(pathname, cached?.etag);
+            if (result.type === "not-modified" && cached?.response) {
+                emitter.emit("flow:cache-hit", cached.response);
+                return cached.response;
+            }
+            else if (result.type === "ok") {
+                fetchedResponse = result.response;
+                if (useCache) {
+                    await cache.set(cacheKey, {
+                        response: fetchedResponse,
+                        cachedAt: Date.now(),
+                        etag: result.etag,
+                    });
+                }
+            }
+            else {
+                throw new Error("Unexpected load response");
+            }
         }
         catch (error) {
             if (allowOfflineFallback && cached) {
@@ -150,14 +176,8 @@ function createArloClient(options) {
             }
             throw error;
         }
-        if (useCache) {
-            await cache.set(cacheKey, {
-                response,
-                cachedAt: Date.now(),
-            });
-        }
-        emitter.emit("flow:fetched", response);
-        return response;
+        emitter.emit("flow:fetched", fetchedResponse);
+        return fetchedResponse;
     }
     async function getFlow(slug, flowOptions) {
         return getResource(createCacheKey(options.projectId, `flow:${slug}`), `/api/sdk/projects/${encodeURIComponent(options.projectId)}/flows/${encodeURIComponent(slug)}`, flowOptions);

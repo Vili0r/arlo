@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 import prisma from "@/lib/prisma";
 import {
   buildSDKFlowResponse,
@@ -47,6 +49,11 @@ export async function GET(
       return jsonError(404, "Flow is not published", "FLOW_NOT_PUBLISHED");
     }
 
+    const etag = `"${publishedVersion.version}"`;
+    if (request.headers.get("if-none-match") === etag) {
+      return new NextResponse(null, { status: 304 });
+    }
+
     const response = buildSDKFlowResponse({
       slug: flow.slug,
       version: publishedVersion.version,
@@ -58,7 +65,8 @@ export async function GET(
     return NextResponse.json<SDKFlowResponse>(response, {
       status: 200,
       headers: {
-        "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "ETag": etag,
         "X-Arlo-Environment": apiKey.environment,
       },
     });
