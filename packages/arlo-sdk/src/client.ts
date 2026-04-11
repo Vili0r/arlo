@@ -10,6 +10,8 @@ import type {
 } from "./types";
 import { ArloSDKError } from "./types";
 
+const DEFAULT_MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 class MemoryFlowCache {
   private readonly map = new Map<string, ArloFlowCacheEntry>();
 
@@ -23,6 +25,10 @@ class MemoryFlowCache {
 
   delete(key: string): void {
     this.map.delete(key);
+  }
+
+  keys(): string[] {
+    return Array.from(this.map.keys());
   }
 }
 
@@ -132,9 +138,14 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
   const emitter = new ArloEventEmitter();
   const cache = options.cache ?? new MemoryFlowCache();
   const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const maxStaleMs = options.maxStaleMs ?? DEFAULT_MAX_STALE_MS;
   let identity: ArloIdentifyInput | null = null;
 
-  type LoadResponse = 
+  // Track known cache keys so we can clear them all on identity change,
+  // even if the cache implementation doesn't support keys().
+  const knownCacheKeys = new Set<string>();
+
+  type LoadResponse =
     | { type: "ok"; response: SDKFlowResponse; etag?: string }
     | { type: "not-modified" };
 
@@ -183,35 +194,38 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
     return { type: "ok", response: parsedResponse, etag: responseEtag };
   }
 
-  async function getResource(
+  /**
+   * Perform a blocking fetch, cache the result, and return it.
+   * Used for cold starts (no cache), forceRefresh, and stale cache expiry.
+   */
+  async function fetchAndCache(
     cacheKey: string,
     pathname: string,
-    flowOptions?: GetFlowOptions
+    useCache: boolean,
+    allowOfflineFallback: boolean,
+    cached: ArloFlowCacheEntry | null
   ): Promise<SDKFlowResponse> {
-    const useCache = flowOptions?.useCache !== false;
-    const forceRefresh = flowOptions?.forceRefresh === true;
-    const allowOfflineFallback =
-      flowOptions?.allowOfflineFallback ?? options.offlineFallback ?? true;
-    const cached = useCache ? await cache.get(cacheKey) : null;
-
-    if (useCache && !forceRefresh) {
-      if (cached) {
-        emitter.emit("flow:cache-hit", cached.response);
-        return cached.response;
-      }
-    }
-
     let fetchedResponse: SDKFlowResponse;
 
     try {
       const result = await loadFromPath(pathname, cached?.etag);
 
       if (result.type === "not-modified" && cached?.response) {
+        // Server confirmed cache is still valid — refresh the cachedAt timestamp
+        if (useCache) {
+          knownCacheKeys.add(cacheKey);
+          await cache.set(cacheKey, {
+            response: cached.response,
+            cachedAt: Date.now(),
+            etag: cached.etag,
+          });
+        }
         emitter.emit("flow:cache-hit", cached.response);
         return cached.response;
       } else if (result.type === "ok") {
         fetchedResponse = result.response;
         if (useCache) {
+          knownCacheKeys.add(cacheKey);
           await cache.set(cacheKey, {
             response: fetchedResponse,
             cachedAt: Date.now(),
@@ -234,6 +248,81 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
     return fetchedResponse;
   }
 
+  /**
+   * Fire-and-forget: ETag-conditional fetch in the background.
+   * If the server returns new data, update the cache and emit `flow:updated`.
+   */
+  function revalidateInBackground(
+    cacheKey: string,
+    pathname: string,
+    cached: ArloFlowCacheEntry
+  ): void {
+    loadFromPath(pathname, cached.etag)
+      .then(async (result) => {
+        if (result.type === "ok") {
+          // New data from the server — update cache
+          knownCacheKeys.add(cacheKey);
+          await cache.set(cacheKey, {
+            response: result.response,
+            cachedAt: Date.now(),
+            etag: result.etag,
+          });
+          // Notify the app that a newer version is available
+          emitter.emit("flow:updated", result.response);
+        }
+        // 304 = cache is still valid, nothing to do
+      })
+      .catch(() => {
+        // Network error during background revalidation — silently ignore.
+        // The cached version is still perfectly usable.
+      });
+  }
+
+  /**
+   * Stale-While-Revalidate resource loader.
+   *
+   * 1. forceRefresh → blocking fetch, skip cache
+   * 2. Cache exists & not too stale → return cached immediately, revalidate in background
+   * 3. Cache exists but too stale (> maxStaleMs) → blocking fetch
+   *    (avoids showing very old A/B variant assignments)
+   * 4. No cache → blocking fetch
+   */
+  async function getResource(
+    cacheKey: string,
+    pathname: string,
+    flowOptions?: GetFlowOptions
+  ): Promise<SDKFlowResponse> {
+    const useCache = flowOptions?.useCache !== false;
+    const forceRefresh = flowOptions?.forceRefresh === true;
+    const allowOfflineFallback =
+      flowOptions?.allowOfflineFallback ?? options.offlineFallback ?? true;
+    const cached = useCache ? await cache.get(cacheKey) : null;
+
+    // ── Force refresh: always block on network ──
+    if (forceRefresh) {
+      return fetchAndCache(cacheKey, pathname, useCache, allowOfflineFallback, cached);
+    }
+
+    // ── Has cache: use SWR strategy ──
+    if (useCache && cached) {
+      const cacheAge = Date.now() - cached.cachedAt;
+
+      if (maxStaleMs > 0 && cacheAge > maxStaleMs) {
+        // Cache is too old — can't serve it (stale A/B variant, etc.)
+        // Fall through to a blocking fetch, but keep cached as offline fallback.
+        return fetchAndCache(cacheKey, pathname, useCache, allowOfflineFallback, cached);
+      }
+
+      // Cache is fresh enough — return it immediately, revalidate in background
+      revalidateInBackground(cacheKey, pathname, cached);
+      emitter.emit("flow:cache-hit", cached.response);
+      return cached.response;
+    }
+
+    // ── No cache: must fetch ──
+    return fetchAndCache(cacheKey, pathname, useCache, allowOfflineFallback, cached);
+  }
+
   async function getFlow(slug: string, flowOptions?: GetFlowOptions): Promise<SDKFlowResponse> {
     return getResource(
       createCacheKey(options.projectId, `flow:${slug}`),
@@ -253,10 +342,30 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
     );
   }
 
+  async function clearAllCachedFlows(): Promise<void> {
+    // Use cache.keys() if available, otherwise fall back to our tracked set
+    const keys = cache.keys ? await cache.keys() : Array.from(knownCacheKeys);
+    for (const key of keys) {
+      await cache.delete?.(key);
+    }
+    knownCacheKeys.clear();
+  }
+
   return {
     identify(input: ArloIdentifyInput): void {
+      const previousUserId = identity?.userId;
       identity = input;
       emitter.emit("user:identified", input);
+
+      // When the user identity changes, clear all cached flows.
+      // This is critical for A/B testing: different users may be assigned
+      // different variants, so we can't reuse a cached variant from a
+      // previous user.
+      if (previousUserId !== input.userId) {
+        clearAllCachedFlows().catch(() => {
+          // Best-effort cache clear — don't crash the app
+        });
+      }
     },
     getIdentity(): ArloIdentifyInput | null {
       return identity;
@@ -276,7 +385,9 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
     async clearCachedFlow(slug: string): Promise<void> {
       const cacheKey = createCacheKey(options.projectId, `flow:${slug}`);
       await cache.delete?.(cacheKey);
+      knownCacheKeys.delete(cacheKey);
     },
+    clearAllCachedFlows,
     on<K extends keyof ArloEventMap>(
       event: K,
       handler: (payload: ArloEventMap[K]) => void

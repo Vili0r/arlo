@@ -9,6 +9,7 @@ export type {
   ArloComponentRendererMap,
   ArloCustomScreenRenderer,
   ArloFlowRendererProps,
+  ArloIconRenderer,
 } from "./types";
 export type {
   ArloRegistry,

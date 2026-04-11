@@ -84,6 +84,9 @@ function normalizeTargetScreenIndex(visibleScreens, orderedScreens, targetScreen
 }
 function getButtonTargetIndex(action, props, visibleScreens, orderedScreens, currentScreenIndex) {
     if (action === "NEXT_SCREEN" || action === "PREV_SCREEN") {
+        if (props.actionTarget === "previous") {
+            return currentScreenIndex > 0 ? currentScreenIndex - 1 : null;
+        }
         if (props.actionTarget === "first") {
             return visibleScreens.length > 0 ? 0 : null;
         }

@@ -63,6 +63,8 @@ model Flow {
   name                 String // display name in dashboard
   slug                 String // SDK identifier, e.g. "welcome", "upgrade-prompt"
   status               FlowStatus    @default(DRAFT)
+  draftConfig          Json?
+  draftUpdatedAt       DateTime?
   developmentVersionId String?       @unique
   developmentVersion   FlowVersion?  @relation("DevelopmentPublishedVersion", fields: [developmentVersionId], references: [id])
   productionVersionId  String?       @unique

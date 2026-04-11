@@ -16,6 +16,7 @@ export type {
   ArloClient,
   ArloClientOptions,
   ArloCacheStorage,
+  ArloEventMap,
   ArloFlowCache,
   ArloFlowCacheEntry,
   ArloIdentifyInput,

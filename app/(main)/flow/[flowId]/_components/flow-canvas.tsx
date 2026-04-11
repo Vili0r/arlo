@@ -13,9 +13,6 @@ import {
   Settings2,
   Copy,
   Trash2,
-  ChevronRight,
-  ZoomIn,
-  ZoomOut,
   Maximize2,
   Minus,
   GitBranch,
@@ -62,6 +59,26 @@ interface FlowCanvasProps {
   onRenameScreen: (index: number, newName: string) => void;
   device: DevicePreset;
   orientation: Orientation;
+}
+
+function getScreenPadding(screen: Screen) {
+  return {
+    top: screen.style?.paddingTop ?? screen.style?.padding ?? 24,
+    right: screen.style?.paddingHorizontal ?? screen.style?.padding ?? 20,
+    bottom: screen.style?.paddingBottom ?? screen.style?.padding ?? 24,
+    left: screen.style?.paddingHorizontal ?? screen.style?.padding ?? 20,
+  };
+}
+
+function sortComponentsForCanvas(screen: Screen): FlowComponent[] {
+  if (screen.layoutMode === "absolute") {
+    return [...screen.components].sort(
+      (left, right) =>
+        (left.layout?.zIndex ?? left.order) - (right.layout?.zIndex ?? right.order),
+    );
+  }
+
+  return [...screen.components].sort((left, right) => left.order - right.order);
 }
 
 export function FlowCanvas({
@@ -341,7 +358,6 @@ export function FlowCanvas({
                   isSelected={isSelected}
                   isFirst={index === 0}
                   isLast={index === screens.length - 1}
-                  totalScreens={screens.length}
                   onSelect={() => {
                     onSelectScreen(index);
                     onSelectComponent(index, null);
@@ -434,7 +450,6 @@ function ScreenLabel({
   isSelected,
   isFirst,
   isLast,
-  totalScreens,
   onSelect,
   onDelete,
   onDuplicate,
@@ -447,7 +462,6 @@ function ScreenLabel({
   isSelected: boolean;
   isFirst: boolean;
   isLast: boolean;
-  totalScreens: number;
   onSelect: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -619,10 +633,8 @@ function InteractiveDeviceFrame({
 }) {
   const isLandscape = orientation === "landscape";
   const spec = device.frame;
-  const sortedComponents = useMemo(
-    () => [...screen.components].sort((a, b) => a.order - b.order),
-    [screen.components],
-  );
+  const sortedComponents = useMemo(() => sortComponentsForCanvas(screen), [screen]);
+  const screenPadding = useMemo(() => getScreenPadding(screen), [screen]);
 
   return (
     <div
@@ -717,14 +729,17 @@ function InteractiveDeviceFrame({
         style={{ borderRadius: frame.innerRadius, backgroundColor: "#fff" }}
       >
         {/* Status bar */}
-        <MiniStatusBar device={device} spec={spec} isLandscape={isLandscape} />
+        <MiniStatusBar spec={spec} />
 
         {/* Scrollable content area with interactive components */}
         <div
-          className="flex-1 overflow-y-auto"
+          className={screen.layoutMode === "absolute" ? "flex-1 min-h-0 overflow-hidden" : "flex-1 overflow-y-auto"}
           style={{
             backgroundColor: screen.style?.backgroundColor || "#FFFFFF",
-            padding: screen.style?.padding || 24,
+            backgroundImage: screen.style?.backgroundImage,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            padding: screen.layoutMode === "absolute" ? 0 : screen.style?.padding || 24,
             cursor: "default",
           }}
           onMouseDown={(e) => e.stopPropagation()}
@@ -740,6 +755,50 @@ function InteractiveDeviceFrame({
               <p className="text-[9px] text-gray-300 mt-0.5">
                 Add from the sidebar
               </p>
+            </div>
+          ) : screen.layoutMode === "absolute" ? (
+            <div className="relative h-full w-full">
+              <div
+                className="absolute"
+                style={{
+                  top: screenPadding.top,
+                  right: screenPadding.right,
+                  bottom: screenPadding.bottom,
+                  left: screenPadding.left,
+                }}
+              >
+                {sortedComponents.map((comp) => (
+                  <div
+                    key={comp.id}
+                    data-component-item
+                    className="absolute left-0 top-0"
+                    style={{
+                      width: comp.layout?.width,
+                      height: comp.layout?.height,
+                      display: comp.layout?.visible === false ? "none" : undefined,
+                      zIndex: comp.layout?.zIndex ?? comp.order,
+                      transform: `translate3d(${comp.layout?.x ?? 0}px, ${comp.layout?.y ?? 0}px, 0px) rotate(${comp.layout?.rotation ?? 0}deg)`,
+                      transformOrigin: "top left",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectComponent(comp.id);
+                    }}
+                  >
+                    <AnimatedWrapper
+                      componentId={comp.id}
+                      animation={comp.animation}
+                      screenIndex={screenIndex}
+                    >
+                      <PhonePreviewComponent
+                        component={comp}
+                        isSelected={comp.id === selectedComponentId}
+                        onSelect={() => onSelectComponent(comp.id)}
+                      />
+                    </AnimatedWrapper>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -796,13 +855,9 @@ function InteractiveDeviceFrame({
 
 /* ── Compact status bar ────────────────────────────────── */
 function MiniStatusBar({
-  device,
   spec,
-  isLandscape,
 }: {
-  device: DevicePreset;
   spec: DevicePreset["frame"];
-  isLandscape: boolean;
 }) {
   if (spec.statusBarHeight === 0) return null;
 

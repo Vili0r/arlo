@@ -925,6 +925,20 @@ export function PhonePreviewComponent({
         const borderWidth = p.borderWidth ?? 0;
         const borderColor = p.borderColor || "#000000";
         const boxShadow = getBoxShadow(p);
+        const fontFamily = FONT_FAMILY_MAP[p.fontFamily || "system"];
+        const fontSize = Number(p.fontSize) || 16;
+        const fontWeight = p.fontWeight || "600";
+        const iconName = p.iconName || "";
+        const showIcon = Boolean(p.showIcon && iconName);
+        const iconPosition = p.iconPosition || "left";
+        const iconSize = Number(p.iconSize) || 18;
+        const iconColor = p.iconColor || textColor;
+        const iconSpacing = p.iconSpacing ?? 8;
+        const ButtonIcon = ((icons as Record<string, unknown>)[iconName] as React.ComponentType<{
+          size?: number | string;
+          color?: string;
+          strokeWidth?: number | string;
+        }>) || Smile;
 
         // Size
         const widthMode = p.widthMode || "fill";
@@ -1007,6 +1021,10 @@ export function PhonePreviewComponent({
           </span>
         ) : null;
 
+        const iconEl = showIcon ? (
+          <ButtonIcon size={iconSize} color={iconColor} strokeWidth={2.25} />
+        ) : null;
+
         return (
           <div className="relative" style={{ width }}>
             {/* Badge above */}
@@ -1047,7 +1065,23 @@ export function PhonePreviewComponent({
                 </div>
               )}
 
-              {p.label}
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: iconPosition === "only" ? 0 : iconSpacing,
+                  textAlign: (p.textAlign as React.CSSProperties["textAlign"]) || "center",
+                  fontFamily,
+                  fontSize,
+                  fontWeight,
+                  lineHeight: 1,
+                }}
+              >
+                {iconPosition !== "right" && iconEl}
+                {iconPosition !== "only" && <span>{p.label}</span>}
+                {iconPosition === "right" && iconEl}
+              </div>
             </div>
 
             {/* Badge below */}

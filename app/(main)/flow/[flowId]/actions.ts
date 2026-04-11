@@ -15,6 +15,7 @@ import {
 import {
   buildFigmaImports,
   collectFigmaImageNodeIds,
+  collectFigmaSnapshotNodeIds,
   parseFigmaSource,
   type FigmaNodesResponse,
   type ParsedFigmaImport,
@@ -58,25 +59,147 @@ async function requireFlowAccess(flowId: string, userId: string) {
 }
 
 const FIGMA_API_BASE_URL = "https://api.figma.com/v1";
-async function fetchFigmaJson<T>(path: string, headers: HeadersInit): Promise<T> {
-  const response = await fetch(`${FIGMA_API_BASE_URL}${path}`, {
-    headers,
-    cache: "no-store",
-  });
+const FIGMA_RESPONSE_CACHE_TTL_MS = 60_000;
+const FIGMA_RATE_LIMIT_RETRY_FALLBACK_MS = 1_000; // Shorter fallback for transient retries
+const FIGMA_RATE_LIMIT_BAN_FALLBACK_MS = 60_000;  // Longer "ban" if we actually hit it and are told to wait
+const FIGMA_REQUEST_CACHE_MAX_ENTRIES = 100;
+const MAX_FIGMA_SNAPSHOT_EXPORTS = 24;
 
-  const payload = (await response.json().catch(() => null)) as
-    | { err?: string; message?: string }
-    | null;
+const figmaResponseCache = new Map<string, { expiresAt: number; payload: unknown }>();
+const figmaInFlightRequests = new Map<string, Promise<unknown>>();
+const figmaRateLimitUntil = new Map<string, number>();
 
-  if (!response.ok) {
-    const message =
-      payload?.err ||
-      payload?.message ||
-      `Figma request failed with status ${response.status}.`;
-    throw new Error(message);
+function pruneFigmaRequestCaches(now = Date.now()) {
+  if (
+    figmaResponseCache.size <= FIGMA_REQUEST_CACHE_MAX_ENTRIES &&
+    figmaRateLimitUntil.size <= FIGMA_REQUEST_CACHE_MAX_ENTRIES
+  ) {
+    return;
   }
 
-  return payload as T;
+  for (const [key, entry] of figmaResponseCache) {
+    if (entry.expiresAt <= now) figmaResponseCache.delete(key);
+  }
+
+  for (const [key, retryAt] of figmaRateLimitUntil) {
+    if (retryAt <= now) figmaRateLimitUntil.delete(key);
+  }
+
+  while (figmaResponseCache.size > FIGMA_REQUEST_CACHE_MAX_ENTRIES) {
+    const oldestKey = figmaResponseCache.keys().next().value;
+    if (!oldestKey) break;
+    figmaResponseCache.delete(oldestKey);
+  }
+
+  while (figmaRateLimitUntil.size > FIGMA_REQUEST_CACHE_MAX_ENTRIES) {
+    const oldestKey = figmaRateLimitUntil.keys().next().value;
+    if (!oldestKey) break;
+    figmaRateLimitUntil.delete(oldestKey);
+  }
+}
+
+function getRetryAfterMs(response: Response, isInternalRetry = false): number {
+  const retryAfter = response.headers.get("retry-after");
+  if (!retryAfter) {
+    return isInternalRetry ? FIGMA_RATE_LIMIT_RETRY_FALLBACK_MS : FIGMA_RATE_LIMIT_BAN_FALLBACK_MS;
+  }
+
+  const retryAfterSeconds = Number(retryAfter);
+  if (Number.isFinite(retryAfterSeconds)) {
+    return Math.max(1_000, retryAfterSeconds * 1_000);
+  }
+
+  const retryAfterDate = Date.parse(retryAfter);
+  if (Number.isFinite(retryAfterDate)) {
+    return Math.max(1_000, retryAfterDate - Date.now());
+  }
+
+  return isInternalRetry ? FIGMA_RATE_LIMIT_RETRY_FALLBACK_MS : FIGMA_RATE_LIMIT_BAN_FALLBACK_MS;
+}
+
+async function fetchFigmaJson<T>(
+  path: string,
+  headers: HeadersInit,
+  options: { cacheKey?: string; cacheTtlMs?: number } = {},
+): Promise<T> {
+  const { cacheKey, cacheTtlMs = FIGMA_RESPONSE_CACHE_TTL_MS } = options;
+  const now = Date.now();
+
+  if (cacheKey) {
+    pruneFigmaRequestCaches(now);
+
+    const retryAt = figmaRateLimitUntil.get(cacheKey);
+    if (retryAt && retryAt > now) {
+      const secondsUntilRetry = Math.ceil((retryAt - now) / 1_000);
+      throw new Error(`Figma is rate limiting this import. Try again in about ${secondsUntilRetry} seconds.`);
+    }
+
+    const cached = figmaResponseCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.payload as T;
+    }
+
+    const inFlight = figmaInFlightRequests.get(cacheKey);
+    if (inFlight) {
+      return (await inFlight) as T;
+    }
+  }
+
+  const performRequest = async (attempt = 0): Promise<T> => {
+    const response = await fetch(`${FIGMA_API_BASE_URL}${path}`, {
+      headers,
+      cache: "no-store",
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | { err?: string; message?: string }
+      | null;
+
+    if (!response.ok) {
+      if (response.status === 429 && attempt < 2) {
+        const retryAfterMs = getRetryAfterMs(response, true);
+        // If the rate limit is short (less than 10 seconds), let's try waiting and retrying once or twice.
+        if (retryAfterMs <= 10_000) {
+          await new Promise((resolve) => setTimeout(resolve, retryAfterMs + 200 * attempt));
+          return performRequest(attempt + 1);
+        }
+      }
+
+      const retryAfterMs = response.status === 429 ? getRetryAfterMs(response) : null;
+      if (cacheKey && retryAfterMs) {
+        figmaRateLimitUntil.set(cacheKey, Date.now() + retryAfterMs);
+      }
+
+      const message =
+        payload?.err ||
+        payload?.message ||
+        (retryAfterMs
+          ? `Figma rate limit exceeded. Try again in about ${Math.ceil(retryAfterMs / 1_000)} seconds.`
+          : `Figma request failed with status ${response.status}.`);
+      throw new Error(message);
+    }
+
+    if (cacheKey) {
+      figmaResponseCache.set(cacheKey, {
+        expiresAt: Date.now() + cacheTtlMs,
+        payload,
+      });
+    }
+
+    return payload as T;
+  };
+
+  const request = performRequest();
+
+  if (cacheKey) {
+    figmaInFlightRequests.set(cacheKey, request);
+    request.then(
+      () => figmaInFlightRequests.delete(cacheKey),
+      () => figmaInFlightRequests.delete(cacheKey),
+    );
+  }
+
+  return (await request) as T;
 }
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue {
@@ -120,95 +243,45 @@ export async function saveDraft(input: {
   config?: FlowConfig;
   document?: EditorDocument;
   changelog?: string;
-}): Promise<{ success: true; versionId: string; version: number }> {
+}): Promise<{ success: true }> {
   const userId = await requireUser();
   const flow = await requireFlowAccess(input.flowId, userId);
   const { draftPayload } = requireFlowPayload(input);
 
-  // Get the latest version number for this flow
-  const latestVersion = await prisma.flowVersion.findFirst({
-    where: { flowId: flow.id },
-    orderBy: { version: "desc" },
-    select: { version: true },
-  });
-
-  const nextVersion = (latestVersion?.version ?? 0) + 1;
-
-  const version = await prisma.flowVersion.create({
-    data: {
-      flowId: flow.id,
-      version: nextVersion,
-      config: toPrismaJson(draftPayload),
-      changelog: input.changelog ?? `Draft v${nextVersion}`,
-    },
-  });
-
-  // Make sure flow status reflects DRAFT
   await prisma.flow.update({
     where: { id: flow.id },
     data: {
+      draftConfig: toPrismaJson(draftPayload),
+      draftUpdatedAt: new Date(),
       status: getFlowStatus(flow),
       updatedAt: new Date(),
     },
   });
 
-  return { success: true, versionId: version.id, version: version.version };
+  return { success: true };
 }
 
-/* ── Auto-save Draft (upserts latest unpublished version) ── */
+/* ── Auto-save Draft ─────────────────────────────────── */
 
 export async function autoSaveDraft(input: {
   flowId: string;
   config?: FlowConfig;
   document?: EditorDocument;
-}): Promise<{ success: true; versionId: string }> {
+}): Promise<{ success: true }> {
   const userId = await requireUser();
   const flow = await requireFlowAccess(input.flowId, userId);
   const { draftPayload } = requireFlowPayload(input);
 
-  // Find the latest unpublished version
-  const latestUnpublished = await prisma.flowVersion.findFirst({
-    where: {
-      flowId: flow.id,
-      publishedAt: null,
-    },
-    orderBy: { version: "desc" },
-  });
-
-  if (latestUnpublished) {
-    // Update existing draft version in-place
-    await prisma.flowVersion.update({
-      where: { id: latestUnpublished.id },
-      data: { config: toPrismaJson(draftPayload) },
-    });
-
-    await prisma.flow.update({
-      where: { id: flow.id },
-      data: { updatedAt: new Date() },
-    });
-
-    return { success: true, versionId: latestUnpublished.id };
-  }
-
-  // No unpublished version — create one
-  const latestVersion = await prisma.flowVersion.findFirst({
-    where: { flowId: flow.id },
-    orderBy: { version: "desc" },
-    select: { version: true },
-  });
-
-  const nextVersion = (latestVersion?.version ?? 0) + 1;
-
-  const version = await prisma.flowVersion.create({
+  await prisma.flow.update({
+    where: { id: flow.id },
     data: {
-      flowId: flow.id,
-      version: nextVersion,
-      config: toPrismaJson(draftPayload),
-      changelog: "Auto-saved draft",
+      draftConfig: toPrismaJson(draftPayload),
+      draftUpdatedAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
-  return { success: true, versionId: version.id };
+  return { success: true };
 }
 
 /* ── Publish ──────────────────────────────────────────── */
@@ -253,6 +326,8 @@ export async function publishFlow(input: {
     data: {
       status: "PUBLISHED",
       [publishedField]: version.id,
+      draftConfig: Prisma.DbNull,
+      draftUpdatedAt: null,
       updatedAt: new Date(),
     },
   });
@@ -336,7 +411,7 @@ export async function getFlow(flowId: string): Promise<{
   const userId = await requireUser();
   const flow = await requireFlowAccess(flowId, userId);
 
-  // Load the latest version if it exists
+  // Prefer the mutable draft state when it exists; numbered versions are only published snapshots.
   const latest = await prisma.flowVersion.findFirst({
     where: { flowId: flow.id },
     orderBy: { version: "desc" },
@@ -368,7 +443,11 @@ export async function getFlow(flowId: string): Promise<{
       })
     : [];
 
-  const latestFlow = latest ? readStoredFlow(latest.config) : null;
+  const latestFlow = flow.draftConfig
+    ? readStoredFlow(flow.draftConfig)
+    : latest
+      ? readStoredFlow(latest.config)
+      : null;
 
   return {
     flowId: flow.id,
@@ -393,7 +472,7 @@ export async function loadLatestVersion(flowId: string): Promise<{
   status: string;
 } | null> {
   const userId = await requireUser();
-  await requireFlowAccess(flowId, userId);
+  const flow = await requireFlowAccess(flowId, userId);
 
   const latest = await prisma.flowVersion.findFirst({
     where: { flowId },
@@ -401,16 +480,16 @@ export async function loadLatestVersion(flowId: string): Promise<{
     include: { flow: { select: { status: true } } },
   });
 
-  if (!latest) return null;
+  if (!latest && !flow.draftConfig) return null;
 
-  const resolved = readStoredFlow(latest.config);
+  const resolved = readStoredFlow(flow.draftConfig ?? latest!.config);
 
   return {
     document: resolved.document,
     config: resolved.runtimeConfig,
-    versionId: latest.id,
-    version: latest.version,
-    status: latest.flow.status,
+    versionId: latest?.id ?? "",
+    version: latest?.version ?? 0,
+    status: latest?.flow.status ?? flow.status,
   };
 }
 
@@ -439,30 +518,60 @@ export async function fetchFigmaImportPreview(input: {
       ? buildFigmaApiHeaders(tokenResult.accessToken)
       : buildFigmaFallbackHeaders();
 
-  const fileResponse = await fetchFigmaJson<FigmaNodesResponse>(
-    `/files/${parsedSource.fileKey}/nodes?ids=${encodeURIComponent(parsedSource.nodeId)}`,
-    figmaHeaders,
-  );
+  const filePath = `/files/${parsedSource.fileKey}/nodes?ids=${encodeURIComponent(parsedSource.nodeId)}`;
+  const fileResponse = await fetchFigmaJson<FigmaNodesResponse>(filePath, figmaHeaders, {
+    cacheKey: `${userId}:${filePath}`,
+  });
 
   const rootNode = fileResponse.nodes[parsedSource.nodeId]?.document;
   if (!rootNode) {
     throw new Error("That Figma node could not be loaded. Check that the URL points to a valid frame or layer you can access.");
   }
 
-  const imageNodeIds = collectFigmaImageNodeIds(rootNode);
+  const importWarnings: string[] = [];
+  const directImageNodeIds = collectFigmaImageNodeIds(rootNode);
+  const snapshotNodeIds = collectFigmaSnapshotNodeIds(rootNode);
+  const cappedSnapshotNodeIds = snapshotNodeIds.slice(0, MAX_FIGMA_SNAPSHOT_EXPORTS);
+  const skippedSnapshotCount = snapshotNodeIds.length - cappedSnapshotNodeIds.length;
+
+  if (skippedSnapshotCount > 0) {
+    importWarnings.push(
+      `Skipped ${skippedSnapshotCount} visual-only Figma layers during preview to avoid image export rate limits.`,
+    );
+  }
+
+  const imageNodeIds = Array.from(
+    new Set([
+      ...directImageNodeIds,
+      ...cappedSnapshotNodeIds,
+    ]),
+  );
   let imageUrls: Record<string, string> | undefined;
 
   if (imageNodeIds.length > 0) {
-    const imagesResponse = await fetchFigmaJson<{ images?: Record<string, string | null> }>(
-      `/images/${parsedSource.fileKey}?ids=${encodeURIComponent(imageNodeIds.join(","))}&format=png&use_absolute_bounds=true`,
-      figmaHeaders,
-    );
+    const imagesPath = `/images/${parsedSource.fileKey}?ids=${encodeURIComponent(
+      imageNodeIds.join(","),
+    )}&format=png&use_absolute_bounds=true`;
+    try {
+      const imagesResponse = await fetchFigmaJson<{ images?: Record<string, string | null> }>(imagesPath, figmaHeaders, {
+        cacheKey: `${userId}:${imagesPath}`,
+      });
 
-    imageUrls = Object.fromEntries(
-      Object.entries(imagesResponse.images ?? {}).filter(
-        (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0,
-      ),
-    );
+      imageUrls = Object.fromEntries(
+        Object.entries(imagesResponse.images ?? {}).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0,
+        ),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Figma image export failed.";
+      if (/rate limit/i.test(message)) {
+        importWarnings.push(
+          "Figma rate limited image exports, so Arlo continued with text and layout but skipped some visual-only artwork. Retry in a minute for a higher-fidelity import.",
+        );
+      } else {
+        throw error;
+      }
+    }
   }
 
   return buildFigmaImports({
@@ -471,6 +580,7 @@ export async function fetchFigmaImportPreview(input: {
     sourceUrl: parsedSource.sourceUrl,
     response: fileResponse,
     imageUrls,
+    warnings: importWarnings,
   });
 }
 
@@ -501,16 +611,17 @@ export async function applyImportedScreens(input: {
   screens: FlowConfig["screens"];
 }): Promise<{ success: true; selectedScreenIndex: number }> {
   const userId = await requireUser();
-  await requireFlowAccess(input.flowId, userId);
-
+  const flow = await requireFlowAccess(input.flowId, userId);
   const latest = await prisma.flowVersion.findFirst({
     where: { flowId: input.flowId },
     orderBy: { version: "desc" },
     select: { config: true },
   });
 
-  const currentDocument = latest
-    ? readStoredFlow(latest.config).document
+  const currentDocument = flow.draftConfig
+    ? readStoredFlow(flow.draftConfig).document
+    : latest
+      ? readStoredFlow(latest.config).document
     : flowConfigToEditorDocument(DEFAULT_FLOW_CONFIG);
 
   const { document, selectedScreenIndex } = applyImportedScreensToDocument({

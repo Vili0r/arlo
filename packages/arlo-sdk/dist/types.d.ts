@@ -22,6 +22,13 @@ export interface ArloClientOptions {
     cache?: ArloFlowCache;
     headers?: Record<string, string>;
     offlineFallback?: boolean;
+    /**
+     * Maximum age (in ms) of a cached entry before a blocking fetch is required
+     * instead of returning stale data. Defaults to 7 days.
+     * Set to 0 to always require a fresh fetch (disables SWR).
+     * Set to Infinity to never force a blocking fetch.
+     */
+    maxStaleMs?: number;
 }
 export interface ArloFlowCacheEntry {
     response: SDKFlowResponse;
@@ -32,6 +39,8 @@ export interface ArloFlowCache {
     get(key: string): Promise<ArloFlowCacheEntry | null> | ArloFlowCacheEntry | null;
     set(key: string, value: ArloFlowCacheEntry): Promise<void> | void;
     delete?(key: string): Promise<void> | void;
+    /** Return all stored cache keys. Used to clear the entire cache on identity change. */
+    keys?(): Promise<string[]> | string[];
 }
 export interface GetFlowOptions {
     useCache?: boolean;
@@ -41,6 +50,8 @@ export interface GetFlowOptions {
 export interface ArloEventMap {
     "flow:fetched": SDKFlowResponse;
     "flow:cache-hit": SDKFlowResponse;
+    /** Emitted when background SWR revalidation discovers a newer version. */
+    "flow:updated": SDKFlowResponse;
     "flow:error": ArloSDKError;
     "user:identified": ArloIdentifyInput;
 }
@@ -52,6 +63,8 @@ export interface ArloClient {
     preloadFlow(slug: string): Promise<SDKFlowResponse>;
     preloadEntryPoint(entryPointKey: string): Promise<SDKFlowResponse>;
     clearCachedFlow(slug: string): Promise<void>;
+    /** Clear all cached flows. Automatically called when identity changes (for A/B consistency). */
+    clearAllCachedFlows(): Promise<void>;
     on<K extends keyof ArloEventMap>(event: K, handler: (payload: ArloEventMap[K]) => void): () => void;
 }
 export declare class ArloSDKError extends Error {

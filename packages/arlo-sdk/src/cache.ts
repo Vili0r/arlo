@@ -28,10 +28,15 @@ export function createPersistentFlowCache(
   const namespace = options.namespace ?? "arlo-cache";
   const maxAgeMs = options.maxAgeMs ?? 1000 * 60 * 60 * 24;
 
+  // Track known keys so we can enumerate them for bulk deletion.
+  // AsyncStorage doesn't natively support listing keys by prefix.
+  const knownKeys = new Set<string>();
+
   return {
     async get(key: string): Promise<ArloFlowCacheEntry | null> {
       const raw = await options.storage.getItem(makeStorageKey(namespace, key));
       if (!raw) {
+        knownKeys.delete(key);
         return null;
       }
 
@@ -39,9 +44,11 @@ export function createPersistentFlowCache(
         const parsed = JSON.parse(raw) as SerializedCacheEntry;
         if (Date.now() - parsed.cachedAt > maxAgeMs) {
           await options.storage.removeItem(makeStorageKey(namespace, key));
+          knownKeys.delete(key);
           return null;
         }
 
+        knownKeys.add(key);
         return {
           cachedAt: parsed.cachedAt,
           response: parsed.response,
@@ -49,6 +56,7 @@ export function createPersistentFlowCache(
         };
       } catch {
         await options.storage.removeItem(makeStorageKey(namespace, key));
+        knownKeys.delete(key);
         return null;
       }
     },
@@ -63,9 +71,14 @@ export function createPersistentFlowCache(
         makeStorageKey(namespace, key),
         JSON.stringify(serialized)
       );
+      knownKeys.add(key);
     },
     async delete(key: string): Promise<void> {
       await options.storage.removeItem(makeStorageKey(namespace, key));
+      knownKeys.delete(key);
+    },
+    keys(): string[] {
+      return Array.from(knownKeys);
     },
   };
 }

@@ -1,4 +1,4 @@
-import type { FlowComponent, Screen, ScreenStyle } from "@/lib/types";
+import type { FlowComponent, Screen, ScreenStyle, TextProps } from "@/lib/types";
 import type { CSSProperties } from "react";
 import type { ImportedPreviewNode } from "./code-import";
 
@@ -130,12 +130,31 @@ export function collectFigmaImageNodeIds(node: FigmaNode): string[] {
   return [...ids];
 }
 
+export function collectFigmaSnapshotNodeIds(node: FigmaNode): string[] {
+  const ids = new Set<string>();
+
+  const visit = (current: FigmaNode, isRoot = false) => {
+    if (!isRoot && shouldRequestImageSnapshot(current)) {
+      ids.add(current.id);
+      return;
+    }
+
+    for (const child of collectVisibleChildren(current)) {
+      visit(child);
+    }
+  };
+
+  visit(node, true);
+  return [...ids];
+}
+
 interface BuildFigmaImportInput {
   fileKey: string;
   nodeId: string;
   sourceUrl: string;
   response: FigmaNodesResponse;
   imageUrls?: Record<string, string>;
+  warnings?: string[];
 }
 
 function createId(prefix: "screen" | "comp"): string {
@@ -252,6 +271,35 @@ function getBounds(node: FigmaNode): FigmaBoundingBox | null {
   const { x, y, width, height } = node.absoluteBoundingBox;
   if (![x, y, width, height].every((value) => Number.isFinite(value))) return null;
   return node.absoluteBoundingBox;
+}
+
+function shouldRequestImageSnapshot(node: FigmaNode): boolean {
+  if (
+    isTextNode(node) ||
+    node.type === "LINE" ||
+    isTextInputLike(node) ||
+    isButtonLike(node)
+  ) {
+    return false;
+  }
+  if (!getBounds(node)) return false;
+
+  const children = collectVisibleChildren(node);
+  if (children.length === 0) {
+    return [
+      "GROUP",
+      "INSTANCE",
+      "COMPONENT",
+      "COMPONENT_SET",
+      "VECTOR",
+      "STAR",
+      "POLYGON",
+      "ELLIPSE",
+      "RECTANGLE",
+    ].includes(node.type);
+  }
+
+  return collectTextNodes(node).length === 0;
 }
 
 function toChannel(value: number): number {
@@ -537,6 +585,7 @@ function buildTextComponent(
       content,
       fontSize: node.style?.fontSize ? Math.round(node.style.fontSize) : 16,
       fontWeight: normalizeFontWeight(node.style?.fontWeight) ?? "normal",
+      fontFamily: node.style?.fontFamily,
       color: getSolidFillHex(node) ?? "#111827",
       textAlign:
         node.style?.textAlignHorizontal === "CENTER"
@@ -544,12 +593,11 @@ function buildTextComponent(
           : node.style?.textAlignHorizontal === "RIGHT"
             ? "right"
             : "left",
-      lineHeight:
-        node.style?.lineHeightPx && node.style?.fontSize
-          ? round(node.style.lineHeightPx / node.style.fontSize)
-          : undefined,
-      opacity: clamp(node.opacity ?? 1, 0, 1),
-    },
+      lineHeight: node.style?.lineHeightPx ? round(node.style.lineHeightPx) : undefined,
+      letterSpacing:
+        typeof node.style?.letterSpacing === "number" ? round(node.style.letterSpacing) : undefined,
+      opacity: Math.round(clamp(node.opacity ?? 1, 0, 1) * 100),
+    } as TextProps,
   };
 }
 
@@ -653,6 +701,7 @@ function buildComponentFromNode(
   order: number,
   imageUrls: Record<string, string> | undefined,
   rootBounds: FigmaBoundingBox | null,
+  isRoot = false,
 ): FlowComponent | null {
   if (isTextNode(node)) {
     return buildTextComponent(node, order, rootBounds);
@@ -666,7 +715,12 @@ function buildComponentFromNode(
     return buildButtonComponent(node, order, rootBounds);
   }
 
-  if (getImagePaint(node)) {
+  if (
+    !isRoot &&
+    imageUrls &&
+    getImageUrl(node, imageUrls) &&
+    (getImagePaint(node) || shouldRequestImageSnapshot(node))
+  ) {
     return buildImageComponent(node, order, imageUrls, rootBounds);
   }
 
@@ -679,10 +733,22 @@ function collectMappedComponents(
   imageUrls: Record<string, string> | undefined,
   rootBounds: FigmaBoundingBox | null,
   warnings: string[],
+  isRoot = false,
 ): void {
-  const component = buildComponentFromNode(node, components.length, imageUrls, rootBounds);
+  const component = buildComponentFromNode(
+    node,
+    components.length,
+    imageUrls,
+    rootBounds,
+    isRoot,
+  );
   if (component) {
     components.push(component);
+    return;
+  }
+
+  if (!isRoot && shouldRequestImageSnapshot(node) && !getImageUrl(node, imageUrls)) {
+    warnings.push(`Skipped ${node.name} because its Figma image snapshot was unavailable.`);
     return;
   }
 
@@ -929,7 +995,7 @@ function buildSingleFigmaImport(
 ): ParsedFigmaImport | null {
   const components: FlowComponent[] = [];
   const rootBounds = getBounds(root);
-  collectMappedComponents(root, components, input.imageUrls, rootBounds, warnings);
+  collectMappedComponents(root, components, input.imageUrls, rootBounds, warnings, true);
 
   const previewRoot = buildPreviewNode(root, input.imageUrls, null, true);
   const previewTree = previewRoot ? [previewRoot] : [];
@@ -980,7 +1046,7 @@ export function buildFigmaImports(input: BuildFigmaImportInput): ParsedFigmaImpo
     throw new Error("That Figma node could not be found. Make sure the URL includes a valid node-id.");
   }
 
-  const warnings: string[] = [];
+  const warnings = [...(input.warnings ?? [])];
 
   if (collectVisibleChildren(root).some((child) => Boolean(getImagePaint(child))) && !input.imageUrls) {
     warnings.push("Image fills could not be resolved, so some image layers may appear as placeholders.");

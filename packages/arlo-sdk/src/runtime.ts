@@ -184,6 +184,10 @@ function getButtonTargetIndex(
   currentScreenIndex: number
 ): number | null {
   if (action === "NEXT_SCREEN" || action === "PREV_SCREEN") {
+    if (props.actionTarget === "previous") {
+      return currentScreenIndex > 0 ? currentScreenIndex - 1 : null;
+    }
+
     if (props.actionTarget === "first") {
       return visibleScreens.length > 0 ? 0 : null;
     }

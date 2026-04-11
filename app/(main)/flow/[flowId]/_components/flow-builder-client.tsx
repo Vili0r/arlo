@@ -2200,6 +2200,18 @@ export function FlowBuilderClient({
       screen.components.forEach((comp) => {
         if (comp.type !== "BUTTON") return;
         const p = comp.props as ButtonActionProps;
+        if (p.action === "NEXT_SCREEN" && p.actionTarget === "previous") {
+          const toIdx = fromIdx - 1;
+          if (toIdx >= 0) {
+            connections.push({
+              fromScreenIndex: fromIdx,
+              toScreenIndex: toIdx,
+              label: p.label || "Button",
+              source: "button",
+            });
+          }
+          return;
+        }
         if (p.action === "NEXT_SCREEN" && p.actionTarget === "specific" && p.actionTargetScreenId) {
           const toIdx = screenIdToIndex.get(p.actionTargetScreenId);
           if (toIdx !== undefined && toIdx !== fromIdx) {

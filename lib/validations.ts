@@ -92,7 +92,7 @@ export const textPropsSchema = z.object({
   textAlign: textAlignEnum.optional(),
   lineHeight: z.number().min(0.8).max(3).optional(),
   opacity: z.number().min(0).max(1).optional(),
-});
+}).passthrough();
 
 export const imagePropsSchema = z.object({
   src: z.string().url("Must be a valid URL"),
@@ -101,7 +101,7 @@ export const imagePropsSchema = z.object({
   borderRadius: z.number().min(0).max(999).optional(),
   resizeMode: z.enum(["cover", "contain", "stretch", "center"]).optional(),
   alt: z.string().max(200).optional(),
-});
+}).passthrough();
 
 export const lottiePropsSchema = z.object({
   src: z.string().url("Must be a valid URL"),
@@ -109,7 +109,7 @@ export const lottiePropsSchema = z.object({
   height: z.number().min(1).max(2000).optional(),
   autoPlay: z.boolean().optional(),
   loop: z.boolean().optional(),
-});
+}).passthrough();
 
 export const videoPropsSchema = z.object({
   src: z.string().url("Must be a valid URL"),
@@ -119,13 +119,13 @@ export const videoPropsSchema = z.object({
   loop: z.boolean().optional(),
   muted: z.boolean().optional(),
   posterUrl: z.string().url().optional(),
-});
+}).passthrough();
 
 export const iconPropsSchema = z.object({
   name: z.string().min(1, "Icon name is required"),
   size: z.number().min(8).max(128).optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color").optional(),
-});
+}).passthrough();
 
 export const iconLibraryPropsSchema = z.object({
   iconName: z.string().min(1, "Icon name is required"),
@@ -139,7 +139,7 @@ export const iconLibraryPropsSchema = z.object({
   marginVertical: z.number().min(0).max(100).optional(),
   marginHorizontal: z.number().min(0).max(100).optional(),
   backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-});
+}).passthrough();
 
 export const buttonStyleSchema = z.object({
   backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
@@ -147,30 +147,67 @@ export const buttonStyleSchema = z.object({
   borderRadius: z.number().min(0).max(999).optional(),
   borderColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   borderWidth: z.number().min(0).max(10).optional(),
-});
+}).passthrough();
 
 export const buttonPropsSchema = z.object({
-  label: z.string().min(1, "Button label is required").max(50, "Button label must be under 50 characters"),
+  label: z.string().max(50, "Button label must be under 50 characters"),
   action: buttonActionEnum,
-  actionTarget: z.enum(["", "first", "last", "specific"]).optional(),
-  actionTargetScreenId: z.string().min(1).optional(),
+  actionTarget: z.enum(["", "previous", "first", "last", "specific"]).optional(),
+  actionTargetScreenId: z.string().min(1).optional().or(z.literal("")),
   url: z.string().url("Must be a valid URL").optional(), // required when action is OPEN_URL
   deepLinkUrl: z.string().min(1).optional(),
   eventName: z.string().max(100).optional(), // required when action is CUSTOM_EVENT
+  showIcon: z.boolean().optional(),
+  iconName: z.string().min(1, "Icon name is required").optional(),
+  iconPosition: z.enum(["left", "right", "only"]).optional(),
+  iconSize: z.number().min(8).max(128).optional(),
+  iconColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color").optional(),
+  iconSpacing: z.number().min(0).max(100).optional(),
   style: buttonStyleSchema.optional(),
-}).refine(
-  (data) => data.action !== "OPEN_URL" || (data.url && data.url.length > 0),
-  { message: "URL is required when action is OPEN_URL", path: ["url"] }
-).refine(
-  (data) => data.action !== "DEEP_LINK" || (data.deepLinkUrl && data.deepLinkUrl.length > 0),
-  { message: "Deep link URL is required when action is DEEP_LINK", path: ["deepLinkUrl"] }
-).refine(
-  (data) => data.action !== "CUSTOM_EVENT" || (data.eventName && data.eventName.length > 0),
-  { message: "Event name is required when action is CUSTOM_EVENT", path: ["eventName"] }
-).refine(
-  (data) => data.actionTarget !== "specific" || (data.actionTargetScreenId && data.actionTargetScreenId.length > 0),
-  { message: "A target screen ID is required when action target is specific", path: ["actionTargetScreenId"] }
-);
+}).passthrough().superRefine((data, ctx) => {
+  if (
+    data.label.trim().length === 0 &&
+    !(data.showIcon === true && Boolean(data.iconName) && data.iconPosition === "only")
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["label"],
+      message: "Button label is required unless this is an icon-only button",
+    });
+  }
+
+  if (data.action === "OPEN_URL" && !data.url) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["url"],
+      message: "URL is required when action is OPEN_URL",
+    });
+  }
+
+  if (data.action === "DEEP_LINK" && !data.deepLinkUrl) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["deepLinkUrl"],
+      message: "Deep link URL is required when action is DEEP_LINK",
+    });
+  }
+
+  if (data.action === "CUSTOM_EVENT" && !data.eventName) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["eventName"],
+      message: "Event name is required when action is CUSTOM_EVENT",
+    });
+  }
+
+  if (data.actionTarget === "specific" && !data.actionTargetScreenId) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["actionTargetScreenId"],
+      message: "A target screen ID is required when action target is specific",
+    });
+  }
+});
 
 export const textInputPropsSchema = z.object({
   placeholder: z.string().max(100).optional(),
@@ -179,7 +216,7 @@ export const textInputPropsSchema = z.object({
   required: z.boolean().optional(),
   keyboardType: z.enum(["default", "email", "numeric", "phone"]).optional(),
   maxLength: z.number().min(1).max(1000).optional(),
-});
+}).passthrough();
 
 export const selectOptionSchema = z.object({
   id: z.string().min(1),
@@ -194,14 +231,14 @@ export const multiSelectPropsSchema = z.object({
   minSelections: z.number().min(0).optional(),
   maxSelections: z.number().min(1).optional(),
   required: z.boolean().optional(),
-});
+}).passthrough();
 
 export const singleSelectPropsSchema = z.object({
   label: z.string().max(200).optional(),
   fieldKey: z.string().min(1).max(50).regex(/^[a-zA-Z0-9_]+$/),
   options: z.array(selectOptionSchema).min(2, "At least 2 options required").max(20),
   required: z.boolean().optional(),
-});
+}).passthrough();
 
 export const sliderPropsSchema = z.object({
   label: z.string().max(200).optional(),
@@ -212,19 +249,19 @@ export const sliderPropsSchema = z.object({
   defaultValue: z.number().optional(),
   minLabel: z.string().max(30).optional(),
   maxLabel: z.string().max(30).optional(),
-});
+}).passthrough();
 
 export const progressBarPropsSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   height: z.number().min(1).max(20).optional(),
-});
+}).passthrough();
 
 export const pageIndicatorPropsSchema = z.object({
   activeColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   inactiveColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   size: z.number().min(4).max(20).optional(),
-});
+}).passthrough();
 
 export const stackPropsSchema = z.object({
   direction: z.enum(["vertical", "horizontal"]).optional(),
@@ -232,7 +269,7 @@ export const stackPropsSchema = z.object({
   padding: z.number().min(0).max(100).optional(),
   backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   borderRadius: z.number().min(0).max(999).optional(),
-});
+}).passthrough();
 
 export const footerPropsSchema = z.object({
   text: z.string().min(1).max(200),
@@ -240,7 +277,7 @@ export const footerPropsSchema = z.object({
   fontSize: z.number().min(8).max(48).optional(),
   backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   showDivider: z.boolean().optional(),
-});
+}).passthrough();
 
 export const tabButtonPropsSchema = z.object({
   tabs: z.array(z.object({
@@ -250,7 +287,7 @@ export const tabButtonPropsSchema = z.object({
   })).min(1).max(5),
   activeColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   inactiveColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-});
+}).passthrough();
 
 export const carouselPropsSchema = z.object({
   variant: z.enum(["image", "card"]).optional(),
@@ -263,7 +300,7 @@ export const carouselPropsSchema = z.object({
   height: z.number().min(1).max(2000).optional(),
   borderRadius: z.number().min(0).max(999).optional(),
   showDots: z.boolean().optional(),
-});
+}).passthrough();
 
 export const socialProofReviewSchema = z.object({
   id: z.string().min(1),
@@ -279,7 +316,7 @@ export const socialProofPropsSchema = z.object({
   reviews: z.array(socialProofReviewSchema).max(20).optional(),
   showStars: z.boolean().optional(),
   compact: z.boolean().optional(),
-});
+}).passthrough();
 
 export const featureItemSchema = z.object({
   id: z.string().min(1),
@@ -292,7 +329,7 @@ export const featureListPropsSchema = z.object({
   features: z.array(featureItemSchema).min(1).max(20),
   iconColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-});
+}).passthrough();
 
 export const awardPropsSchema = z.object({
   variant: z.enum(["badge", "laurel", "minimal"]).optional(),
@@ -303,12 +340,12 @@ export const awardPropsSchema = z.object({
   showLaurels: z.boolean().optional(),
   backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-});
+}).passthrough();
 
 export const customComponentPropsSchema = z.object({
   registryKey: z.string().min(1).max(100),
   payload: z.record(z.string(), z.unknown()).optional(),
-});
+}).passthrough();
 
 // ========== Component Schema ==========
 // Uses a discriminated union so each component type
@@ -320,127 +357,127 @@ export const componentSchema = z.discriminatedUnion("type", [
     type: z.literal("TEXT"),
     order: z.number().int().min(0),
     props: textPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("IMAGE"),
     order: z.number().int().min(0),
     props: imagePropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("LOTTIE"),
     order: z.number().int().min(0),
     props: lottiePropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("VIDEO"),
     order: z.number().int().min(0),
     props: videoPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("ICON"),
     order: z.number().int().min(0),
     props: iconPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("ICON_LIBRARY"),
     order: z.number().int().min(0),
     props: iconLibraryPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("BUTTON"),
     order: z.number().int().min(0),
     props: buttonPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("TEXT_INPUT"),
     order: z.number().int().min(0),
     props: textInputPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("MULTI_SELECT"),
     order: z.number().int().min(0),
     props: multiSelectPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("SINGLE_SELECT"),
     order: z.number().int().min(0),
     props: singleSelectPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("SLIDER"),
     order: z.number().int().min(0),
     props: sliderPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("PROGRESS_BAR"),
     order: z.number().int().min(0),
     props: progressBarPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("PAGE_INDICATOR"),
     order: z.number().int().min(0),
     props: pageIndicatorPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("STACK"),
     order: z.number().int().min(0),
     props: stackPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("FOOTER"),
     order: z.number().int().min(0),
     props: footerPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("TAB_BUTTON"),
     order: z.number().int().min(0),
     props: tabButtonPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("CAROUSEL"),
     order: z.number().int().min(0),
     props: carouselPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("SOCIAL_PROOF"),
     order: z.number().int().min(0),
     props: socialProofPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("FEATURE_LIST"),
     order: z.number().int().min(0),
     props: featureListPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("AWARD"),
     order: z.number().int().min(0),
     props: awardPropsSchema,
-  }),
+  }).passthrough(),
   z.object({
     id: z.string().min(1),
     type: z.literal("CUSTOM_COMPONENT"),
     order: z.number().int().min(0),
     props: customComponentPropsSchema,
-  }),
+  }).passthrough(),
 ]);
 
 export const ruleOperatorEnum = z.enum([
@@ -478,7 +515,7 @@ export const screenStyleSchema = z.object({
   paddingHorizontal: z.number().min(0).max(100).optional(),
   justifyContent: z.enum(["flex-start", "center", "flex-end", "space-between", "space-around"]).optional(),
   alignItems: z.enum(["flex-start", "center", "flex-end", "stretch"]).optional(),
-});
+}).passthrough();
 
 export const screenSchema = z.object({
   id: z.string().min(1),
@@ -490,7 +527,7 @@ export const screenSchema = z.object({
   components: z.array(componentSchema).max(20, "A screen can have at most 20 components"),
   branchRules: z.array(branchRuleSchema).max(20).optional(),
   skipWhen: z.array(skipConditionSchema).max(20).optional(),
-});
+}).passthrough();
 
 // ========== Flow Config ==========
 // This is the JSON blob stored in FlowVersion.config
@@ -503,14 +540,14 @@ export const flowSettingsSchema = z.object({
   showBackButton: z.boolean().optional(),
   showSkipButton: z.boolean().optional(),
   skipButtonLabel: z.string().max(30).optional(),
-});
+}).passthrough();
 
 export const flowConfigSchema = z.object({
   screens: z.array(screenSchema)
     .min(1, "Flow must have at least one screen")
     .max(20, "Flow can have at most 20 screens"),
   settings: flowSettingsSchema.optional(),
-});
+}).passthrough();
 
 export type FlowConfig = z.infer<typeof flowConfigSchema>;
 

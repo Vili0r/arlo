@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import {
   Upload,
+  Download,
   ChevronLeft,
   Circle,
   Check,
@@ -36,16 +37,22 @@ export type ToolMode = "select" | "hand" | "text" | "frame" | "rectangle";
 function FloatingToolbarLabel({
   label,
   children,
+  showOnFocus = true,
 }: {
   label: string;
   children: ReactNode;
+  showOnFocus?: boolean;
 }) {
   return (
     <div className="group/floating-label relative flex items-center">
       {children}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg border border-white/[0.1] bg-[#141414] px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-2xl transition-all duration-150 group-hover/floating-label:translate-y-0 group-hover/floating-label:opacity-100 group-focus-within/floating-label:translate-y-0 group-focus-within/floating-label:opacity-100"
+        className={`pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg border border-white/[0.1] bg-[#141414] px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-2xl transition-all duration-150 group-hover/floating-label:translate-y-0 group-hover/floating-label:opacity-100 ${
+          showOnFocus
+            ? "group-focus-within/floating-label:translate-y-0 group-focus-within/floating-label:opacity-100"
+            : ""
+        }`}
       >
         {label}
       </div>
@@ -120,7 +127,7 @@ export function CanvasToolbar({
   toolMode: ToolMode;
   onSelectToolMode: (mode: ToolMode) => void;
 }) {
-  const [publishAction, setPublishAction] = useState<string | undefined>(undefined);
+  const [publishAction, setPublishAction] = useState("");
   const iconBtn =
     "p-2 text-white/50 hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed";
   const toolBtn = (active: boolean) =>
@@ -133,14 +140,14 @@ export function CanvasToolbar({
   const handlePublishAction = (value: string | null) => {
     if (!value) return;
 
-    setPublishAction(undefined);
+    setPublishAction("");
 
-    if (value === "publish-dev") {
+    if (value === "publishDev") {
       onPublish();
       return;
     }
 
-    if (value === "push-prod") {
+    if (value === "pushProd") {
       onPromoteToProduction();
     }
   };
@@ -223,7 +230,7 @@ export function CanvasToolbar({
         </div>
 
         <Select value={publishAction} onValueChange={handlePublishAction}>
-          <FloatingToolbarLabel label="Publish Actions">
+          <FloatingToolbarLabel label="Publish Actions" showOnFocus={false}>
             <SelectTrigger
               aria-label="Publish actions"
               className="h-8 min-w-8 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2 text-white hover:bg-white/[0.08] [&>svg]:hidden"
@@ -236,12 +243,12 @@ export function CanvasToolbar({
             sideOffset={8}
             className="min-w-48 rounded-xl border border-white/[0.1] bg-[#141414] p-1 text-white shadow-2xl"
           >
-            <SelectItem value="publish-dev" className="rounded-lg px-2 py-2">
+            <SelectItem value="publishDev" className="rounded-lg px-2 py-2">
               <Upload size={14} />
               Publish Dev
             </SelectItem>
             <SelectItem
-              value="push-prod"
+              value="pushProd"
               className="rounded-lg px-2 py-2"
               disabled={saveState === "saving" || !developmentVersion}
             >
@@ -273,7 +280,7 @@ export function CanvasToolbar({
           {/* Import */}
           <FloatingToolbarLabel label="Import">
             <button onClick={onImport} className={iconBtn} aria-label="Import" title="Import">
-              <Upload size={15} />
+              <Download size={15} />
             </button>
           </FloatingToolbarLabel>
 

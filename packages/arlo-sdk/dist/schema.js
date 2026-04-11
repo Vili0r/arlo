@@ -37,7 +37,7 @@ exports.textPropsSchema = zod_1.z.object({
     textAlign: exports.textAlignSchema.optional(),
     lineHeight: zod_1.z.number().min(0.8).max(3).optional(),
     opacity: zod_1.z.number().min(0).max(1).optional(),
-});
+}).passthrough();
 exports.imagePropsSchema = zod_1.z.object({
     src: zod_1.z.string().url(),
     width: zod_1.z.number().min(1).max(2000).optional(),
@@ -45,14 +45,14 @@ exports.imagePropsSchema = zod_1.z.object({
     borderRadius: zod_1.z.number().min(0).max(999).optional(),
     resizeMode: zod_1.z.enum(["cover", "contain", "stretch", "center"]).optional(),
     alt: zod_1.z.string().max(200).optional(),
-});
+}).passthrough();
 exports.lottiePropsSchema = zod_1.z.object({
     src: zod_1.z.string().url(),
     width: zod_1.z.number().min(1).max(2000).optional(),
     height: zod_1.z.number().min(1).max(2000).optional(),
     autoPlay: zod_1.z.boolean().optional(),
     loop: zod_1.z.boolean().optional(),
-});
+}).passthrough();
 exports.videoPropsSchema = zod_1.z.object({
     src: zod_1.z.string().url(),
     width: zod_1.z.number().min(1).max(2000).optional(),
@@ -61,12 +61,12 @@ exports.videoPropsSchema = zod_1.z.object({
     loop: zod_1.z.boolean().optional(),
     muted: zod_1.z.boolean().optional(),
     posterUrl: zod_1.z.string().url().optional(),
-});
+}).passthrough();
 exports.iconPropsSchema = zod_1.z.object({
     name: zod_1.z.string().min(1),
     size: zod_1.z.number().min(8).max(128).optional(),
     color: optionalHexColorSchema,
-});
+}).passthrough();
 exports.iconLibraryPropsSchema = zod_1.z.object({
     iconName: zod_1.z.string().min(1),
     size: zod_1.z.number().min(8).max(128).optional(),
@@ -79,26 +79,41 @@ exports.iconLibraryPropsSchema = zod_1.z.object({
     marginVertical: zod_1.z.number().min(0).max(100).optional(),
     marginHorizontal: zod_1.z.number().min(0).max(100).optional(),
     backgroundColor: optionalHexColorSchema,
-});
+}).passthrough();
 exports.buttonStyleSchema = zod_1.z.object({
     backgroundColor: optionalHexColorSchema,
     textColor: optionalHexColorSchema,
     borderRadius: zod_1.z.number().min(0).max(999).optional(),
     borderColor: optionalHexColorSchema,
     borderWidth: zod_1.z.number().min(0).max(10).optional(),
-});
+}).passthrough();
 exports.buttonPropsSchema = zod_1.z
     .object({
-    label: zod_1.z.string().min(1).max(50),
+    label: zod_1.z.string().max(50),
     action: exports.buttonActionSchema,
-    actionTarget: zod_1.z.enum(["", "first", "last", "specific"]).optional(),
-    actionTargetScreenId: zod_1.z.string().min(1).optional(),
+    actionTarget: zod_1.z.enum(["", "previous", "first", "last", "specific"]).optional(),
+    actionTargetScreenId: zod_1.z.string().min(1).optional().or(zod_1.z.literal("")),
     url: zod_1.z.string().url().optional(),
     deepLinkUrl: zod_1.z.string().min(1).optional(),
     eventName: zod_1.z.string().max(100).optional(),
+    showIcon: zod_1.z.boolean().optional(),
+    iconName: zod_1.z.string().min(1).optional(),
+    iconPosition: zod_1.z.enum(["left", "right", "only"]).optional(),
+    iconSize: zod_1.z.number().min(8).max(128).optional(),
+    iconColor: optionalHexColorSchema,
+    iconSpacing: zod_1.z.number().min(0).max(100).optional(),
     style: exports.buttonStyleSchema.optional(),
 })
+    .passthrough()
     .superRefine((data, ctx) => {
+    if (data.label.trim().length === 0 &&
+        !(data.showIcon === true && Boolean(data.iconName) && data.iconPosition === "only")) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["label"],
+            message: "Button label is required unless this is an icon-only button",
+        });
+    }
     if (data.action === "OPEN_URL" && !data.url) {
         ctx.addIssue({
             code: "custom",
@@ -135,7 +150,7 @@ exports.textInputPropsSchema = zod_1.z.object({
     required: zod_1.z.boolean().optional(),
     keyboardType: zod_1.z.enum(["default", "email", "numeric", "phone"]).optional(),
     maxLength: zod_1.z.number().min(1).max(1000).optional(),
-});
+}).passthrough();
 exports.selectOptionSchema = zod_1.z.object({
     id: zod_1.z.string().min(1),
     label: zod_1.z.string().min(1).max(100),
@@ -148,13 +163,13 @@ exports.multiSelectPropsSchema = zod_1.z.object({
     minSelections: zod_1.z.number().min(0).optional(),
     maxSelections: zod_1.z.number().min(1).optional(),
     required: zod_1.z.boolean().optional(),
-});
+}).passthrough();
 exports.singleSelectPropsSchema = zod_1.z.object({
     label: zod_1.z.string().max(200).optional(),
     fieldKey: zod_1.z.string().min(1).max(50).regex(/^[a-zA-Z0-9_]+$/),
     options: zod_1.z.array(exports.selectOptionSchema).min(2).max(20),
     required: zod_1.z.boolean().optional(),
-});
+}).passthrough();
 exports.sliderPropsSchema = zod_1.z.object({
     label: zod_1.z.string().max(200).optional(),
     fieldKey: zod_1.z.string().min(1).max(50).regex(/^[a-zA-Z0-9_]+$/),
@@ -164,31 +179,31 @@ exports.sliderPropsSchema = zod_1.z.object({
     defaultValue: zod_1.z.number().optional(),
     minLabel: zod_1.z.string().max(30).optional(),
     maxLabel: zod_1.z.string().max(30).optional(),
-});
+}).passthrough();
 exports.progressBarPropsSchema = zod_1.z.object({
     color: optionalHexColorSchema,
     backgroundColor: optionalHexColorSchema,
     height: zod_1.z.number().min(1).max(20).optional(),
-});
+}).passthrough();
 exports.pageIndicatorPropsSchema = zod_1.z.object({
     activeColor: optionalHexColorSchema,
     inactiveColor: optionalHexColorSchema,
     size: zod_1.z.number().min(4).max(20).optional(),
-});
+}).passthrough();
 exports.stackPropsSchema = zod_1.z.object({
     direction: zod_1.z.enum(["vertical", "horizontal"]).optional(),
     gap: zod_1.z.number().min(0).max(100).optional(),
     padding: zod_1.z.number().min(0).max(100).optional(),
     backgroundColor: optionalHexColorSchema,
     borderRadius: zod_1.z.number().min(0).max(999).optional(),
-});
+}).passthrough();
 exports.footerPropsSchema = zod_1.z.object({
     text: zod_1.z.string().min(1).max(200),
     textColor: optionalHexColorSchema,
     fontSize: zod_1.z.number().min(8).max(48).optional(),
     backgroundColor: optionalHexColorSchema,
     showDivider: zod_1.z.boolean().optional(),
-});
+}).passthrough();
 exports.tabButtonPropsSchema = zod_1.z.object({
     tabs: zod_1.z.array(zod_1.z.object({
         id: zod_1.z.string().min(1),
@@ -197,7 +212,7 @@ exports.tabButtonPropsSchema = zod_1.z.object({
     })).min(1).max(5),
     activeColor: optionalHexColorSchema,
     inactiveColor: optionalHexColorSchema,
-});
+}).passthrough();
 exports.carouselPropsSchema = zod_1.z.object({
     variant: zod_1.z.enum(["image", "card"]).optional(),
     items: zod_1.z.array(zod_1.z.object({
@@ -209,7 +224,7 @@ exports.carouselPropsSchema = zod_1.z.object({
     height: zod_1.z.number().min(1).max(2000).optional(),
     borderRadius: zod_1.z.number().min(0).max(999).optional(),
     showDots: zod_1.z.boolean().optional(),
-});
+}).passthrough();
 exports.socialProofPropsSchema = zod_1.z.object({
     rating: zod_1.z.number().min(0).max(5).optional(),
     totalReviews: zod_1.z.number().min(0).optional(),
@@ -222,7 +237,7 @@ exports.socialProofPropsSchema = zod_1.z.object({
     })).max(20).optional(),
     showStars: zod_1.z.boolean().optional(),
     compact: zod_1.z.boolean().optional(),
-});
+}).passthrough();
 exports.featureListPropsSchema = zod_1.z.object({
     title: zod_1.z.string().max(100).optional(),
     features: zod_1.z.array(zod_1.z.object({
@@ -232,7 +247,7 @@ exports.featureListPropsSchema = zod_1.z.object({
     })).min(1).max(20),
     iconColor: optionalHexColorSchema,
     textColor: optionalHexColorSchema,
-});
+}).passthrough();
 exports.awardPropsSchema = zod_1.z.object({
     variant: zod_1.z.enum(["badge", "laurel", "minimal"]).optional(),
     title: zod_1.z.string().min(1).max(100),
@@ -242,11 +257,11 @@ exports.awardPropsSchema = zod_1.z.object({
     showLaurels: zod_1.z.boolean().optional(),
     backgroundColor: optionalHexColorSchema,
     textColor: optionalHexColorSchema,
-});
+}).passthrough();
 exports.customComponentPropsSchema = zod_1.z.object({
     registryKey: zod_1.z.string().min(1).max(100),
     payload: zod_1.z.record(zod_1.z.string(), zod_1.z.unknown()).optional(),
-});
+}).passthrough();
 exports.componentConstraintsSchema = zod_1.z.object({
     horizontal: exports.constraintAnchorSchema.optional(),
     vertical: exports.constraintAnchorSchema.optional(),
@@ -263,7 +278,7 @@ exports.componentLayoutSchema = zod_1.z.object({
     visible: zod_1.z.boolean().optional(),
     locked: zod_1.z.boolean().optional(),
     constraints: exports.componentConstraintsSchema.optional(),
-});
+}).passthrough();
 const componentBaseSchema = zod_1.z.object({
     id: zod_1.z.string().min(1),
     order: zod_1.z.number().int().min(0),
@@ -314,7 +329,7 @@ exports.screenStyleSchema = zod_1.z.object({
     paddingHorizontal: zod_1.z.number().min(0).max(100).optional(),
     justifyContent: zod_1.z.enum(["flex-start", "center", "flex-end", "space-between", "space-around"]).optional(),
     alignItems: zod_1.z.enum(["flex-start", "center", "flex-end", "stretch"]).optional(),
-});
+}).passthrough();
 exports.screenSchema = zod_1.z.object({
     id: zod_1.z.string().min(1),
     name: zod_1.z.string().min(1).max(50),
@@ -326,7 +341,7 @@ exports.screenSchema = zod_1.z.object({
     components: zod_1.z.array(exports.flowComponentSchema).max(20),
     branchRules: zod_1.z.array(exports.branchRuleSchema).max(20).optional(),
     skipWhen: zod_1.z.array(exports.skipConditionSchema).max(20).optional(),
-});
+}).passthrough();
 exports.flowSettingsSchema = zod_1.z.object({
     dismissible: zod_1.z.boolean().optional(),
     showProgressBar: zod_1.z.boolean().optional(),
@@ -335,11 +350,11 @@ exports.flowSettingsSchema = zod_1.z.object({
     showBackButton: zod_1.z.boolean().optional(),
     showSkipButton: zod_1.z.boolean().optional(),
     skipButtonLabel: zod_1.z.string().max(30).optional(),
-});
+}).passthrough();
 exports.flowConfigSchema = zod_1.z.object({
     screens: zod_1.z.array(exports.screenSchema).min(1).max(20),
     settings: exports.flowSettingsSchema.optional(),
-});
+}).passthrough();
 exports.sdkFlowResponseSchema = zod_1.z.object({
     flow: zod_1.z.object({
         slug: zod_1.z.string().min(1),

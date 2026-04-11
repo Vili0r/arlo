@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { FlowConfig } from "../lib/types";
+import { flowConfigSchema } from "../lib/validations";
 
 import { createImportedCodeScreen } from "../app/(main)/flow/[flowId]/_lib/imported-code-screen";
 import { createImportedFigmaScreen } from "../app/(main)/flow/[flowId]/_lib/imported-figma-screen";
-import { buildFigmaImport, type FigmaNodesResponse } from "../app/(main)/flow/[flowId]/_lib/figma-import";
+import {
+  buildFigmaImport,
+  collectFigmaSnapshotNodeIds,
+  type FigmaNodesResponse,
+} from "../app/(main)/flow/[flowId]/_lib/figma-import";
 import {
   compileEditorDocument,
   createStoredEditorDocument,
@@ -130,6 +135,36 @@ test("stored editor documents decode back into runtime FlowConfig", () => {
 
   assert.equal(resolved.source, "editor-document");
   assert.deepEqual(normalize(resolved.runtimeConfig), normalize(flow));
+});
+
+test("icon-only buttons validate without a text label", () => {
+  const flow: FlowConfig = {
+    screens: [
+      {
+        id: "screen_icon_only",
+        name: "Icon only",
+        order: 0,
+        components: [
+          {
+            id: "comp_icon_button",
+            type: "BUTTON",
+            order: 0,
+            props: {
+              label: "",
+              action: "NEXT_SCREEN",
+              showIcon: true,
+              iconName: "ArrowLeft",
+              iconPosition: "only",
+            },
+          },
+        ],
+      },
+    ],
+  };
+
+  const parsed = flowConfigSchema.safeParse(flow);
+
+  assert.equal(parsed.success, true);
 });
 
 test("imported code screens normalize into editable editor layers", () => {
@@ -327,5 +362,294 @@ test("Figma imports normalize positioned layers into editable nodes and publish 
         component.props.content === "Edited in builder" &&
         component.layout?.position === "absolute",
     ),
+  );
+});
+
+test("Figma text imports keep pixel line height and percentage opacity", () => {
+  const response: FigmaNodesResponse = {
+    name: "Typography",
+    nodes: {
+      "1:1": {
+        document: {
+          id: "1:1",
+          name: "Text Frame",
+          type: "FRAME",
+          absoluteBoundingBox: {
+            x: 0,
+            y: 0,
+            width: 390,
+            height: 844,
+          },
+          children: [
+            {
+              id: "1:2",
+              name: "Title",
+              type: "TEXT",
+              characters: "Imported text",
+              opacity: 1,
+              style: {
+                fontSize: 24,
+                fontWeight: 700,
+                lineHeightPx: 32,
+                letterSpacing: 0.5,
+                fontFamily: "Inter",
+              },
+              fills: [
+                {
+                  type: "SOLID",
+                  color: {
+                    r: 0.07,
+                    g: 0.07,
+                    b: 0.07,
+                  },
+                },
+              ],
+              absoluteBoundingBox: {
+                x: 24,
+                y: 80,
+                width: 240,
+                height: 40,
+              },
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  const analysis = buildFigmaImport({
+    fileKey: "test-file",
+    nodeId: "1:1",
+    sourceUrl: "https://www.figma.com/file/test-file/demo?node-id=1-1",
+    response,
+  });
+
+  const textComponent = analysis.screen.components.find(
+    (component) => component.type === "TEXT",
+  );
+
+  assert.ok(textComponent);
+  if (textComponent?.type === "TEXT") {
+    const props = textComponent.props as {
+      opacity?: number;
+      lineHeight?: number;
+      letterSpacing?: number;
+      fontFamily?: string;
+    };
+    assert.equal(textComponent.props.opacity, 100);
+    assert.equal(props.lineHeight, 32);
+    assert.equal(props.letterSpacing, 0.5);
+    assert.equal(props.fontFamily, "Inter");
+  }
+});
+
+test("Figma visual groups import as image snapshots instead of fallback labels when exports are available", () => {
+  const response: FigmaNodesResponse = {
+    name: "Illustration",
+    nodes: {
+      "1:1": {
+        document: {
+          id: "1:1",
+          name: "Illustration Frame",
+          type: "FRAME",
+          absoluteBoundingBox: {
+            x: 0,
+            y: 0,
+            width: 390,
+            height: 844,
+          },
+          children: [
+            {
+              id: "1:2",
+              name: "Hero Illustration",
+              type: "GROUP",
+              absoluteBoundingBox: {
+                x: 40,
+                y: 120,
+                width: 200,
+                height: 180,
+              },
+              children: [
+                {
+                  id: "1:3",
+                  name: "Vector Path",
+                  type: "VECTOR",
+                  absoluteBoundingBox: {
+                    x: 40,
+                    y: 120,
+                    width: 200,
+                    height: 180,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  const analysis = buildFigmaImport({
+    fileKey: "test-file",
+    nodeId: "1:1",
+    sourceUrl: "https://www.figma.com/file/test-file/demo?node-id=1-1",
+    response,
+    imageUrls: {
+      "1:2": "https://example.com/hero.png",
+    },
+  });
+
+  assert.equal(analysis.screen.components.length, 1);
+  assert.equal(analysis.screen.components[0]?.type, "IMAGE");
+  assert.ok(
+    analysis.screen.components.every(
+      (component) =>
+        component.type !== "TEXT" ||
+        !String(component.props.content ?? "").includes("[Figma fallback]"),
+    ),
+  );
+});
+
+test("Figma snapshot collection stops at the first visual container instead of exporting every descendant", () => {
+  const root = {
+    id: "1:1",
+    name: "Illustration Frame",
+    type: "FRAME",
+    absoluteBoundingBox: {
+      x: 0,
+      y: 0,
+      width: 390,
+      height: 844,
+    },
+    children: [
+      {
+        id: "1:2",
+        name: "Hero Illustration",
+        type: "GROUP",
+        absoluteBoundingBox: {
+          x: 40,
+          y: 120,
+          width: 200,
+          height: 180,
+        },
+        children: [
+          {
+            id: "1:3",
+            name: "Vector A",
+            type: "VECTOR",
+            absoluteBoundingBox: {
+              x: 40,
+              y: 120,
+              width: 80,
+              height: 80,
+            },
+          },
+          {
+            id: "1:4",
+            name: "Vector B",
+            type: "VECTOR",
+            absoluteBoundingBox: {
+              x: 120,
+              y: 160,
+              width: 80,
+              height: 80,
+            },
+          },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(collectFigmaSnapshotNodeIds(root), ["1:2"]);
+});
+
+test("Figma visual-only groups are skipped cleanly when image snapshots are unavailable", () => {
+  const response: FigmaNodesResponse = {
+    name: "Illustration",
+    nodes: {
+      "1:1": {
+        document: {
+          id: "1:1",
+          name: "Illustration Frame",
+          type: "FRAME",
+          absoluteBoundingBox: {
+            x: 0,
+            y: 0,
+            width: 390,
+            height: 844,
+          },
+          children: [
+            {
+              id: "1:2",
+              name: "Hero Illustration",
+              type: "GROUP",
+              absoluteBoundingBox: {
+                x: 40,
+                y: 120,
+                width: 200,
+                height: 180,
+              },
+              children: [
+                {
+                  id: "1:3",
+                  name: "Vector A",
+                  type: "VECTOR",
+                  absoluteBoundingBox: {
+                    x: 40,
+                    y: 120,
+                    width: 80,
+                    height: 80,
+                  },
+                },
+              ],
+            },
+            {
+              id: "1:4",
+              name: "Title",
+              type: "TEXT",
+              characters: "Hello",
+              style: {
+                fontSize: 24,
+              },
+              fills: [
+                {
+                  type: "SOLID",
+                  color: {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                  },
+                },
+              ],
+              absoluteBoundingBox: {
+                x: 24,
+                y: 40,
+                width: 120,
+                height: 40,
+              },
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  const analysis = buildFigmaImport({
+    fileKey: "test-file",
+    nodeId: "1:1",
+    sourceUrl: "https://www.figma.com/file/test-file/demo?node-id=1-1",
+    response,
+    warnings: [
+      "Figma rate limited image exports, so Arlo continued with text and layout but skipped some visual-only artwork. Retry in a minute for a higher-fidelity import.",
+    ],
+  });
+
+  assert.equal(analysis.screen.components.length, 1);
+  assert.equal(analysis.screen.components[0]?.type, "TEXT");
+  assert.ok(
+    analysis.warnings.some((warning) => warning.includes("rate limited image exports")),
+  );
+  assert.ok(
+    analysis.warnings.some((warning) => warning.includes("Hero Illustration")),
   );
 });

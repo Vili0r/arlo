@@ -36,6 +36,127 @@ export function ButtonEditor({
   const p = component.props as Record<string, any>;
     return (
       <div>
+        <PropRow label="Label" fullWidth>
+          <PropInput
+            value={p.label || ""}
+            onChange={(v) => onUpdateProp("label", v)}
+            placeholder="Continue"
+          />
+        </PropRow>
+
+        {/* ── Typography ── */}
+        <PropRow label="Text color" fullWidth>
+          <PropColorInput
+            value={p.style?.textColor || p.textColor || "#FFFFFF"}
+            onChange={(v) => {
+              onUpdateProp("textColor", v);
+              onUpdateProp("style", { ...p.style, textColor: v });
+            }}
+            showOpacity
+          />
+        </PropRow>
+
+        <PropRow label="Font family">
+          <PropSelect
+            value={p.fontFamily || "system"}
+            onChange={(v) => onUpdateProp("fontFamily", v)}
+            options={[
+              { value: "system", label: "System Font" },
+              { value: "serif", label: "Serif" },
+              { value: "mono", label: "Monospace" },
+              { value: "rounded", label: "Rounded" },
+            ]}
+          />
+        </PropRow>
+
+        <PropRow label="Font weight">
+          <PropSelect
+            value={p.fontWeight || "600"}
+            onChange={(v) => onUpdateProp("fontWeight", v)}
+            options={[
+              { value: "normal", label: "Regular" },
+              { value: "500", label: "Medium" },
+              { value: "600", label: "Semibold" },
+              { value: "bold", label: "Bold" },
+              { value: "800", label: "Extra Bold" },
+            ]}
+          />
+        </PropRow>
+
+        <PropRow label="Font size">
+          <PropNumberUnit
+            value={p.fontSize || 16}
+            onChange={(v) => onUpdateProp("fontSize", v)}
+            unit=""
+            className="w-[80px]"
+          />
+        </PropRow>
+
+        <PropRow label="Alignment">
+          <PropAlignmentToggle
+            value={p.textAlign || "center"}
+            onChange={(v) => onUpdateProp("textAlign", v)}
+          />
+        </PropRow>
+
+        <Divider />
+
+        {/* ── Icon ── */}
+        <Section title="Icon">
+          <PropToggle
+            value={p.showIcon ?? false}
+            onChange={(v) => onUpdateProp("showIcon", v)}
+            label="Show icon"
+          />
+          {p.showIcon && (
+            <>
+              <PropRow label="Icon" fullWidth>
+                <PropIconCombobox
+                  value={p.iconName || ""}
+                  onChange={(v) => onUpdateProp("iconName", v)}
+                  icons={icons}
+                />
+              </PropRow>
+              <PropRow label="Position">
+                <PropSelect
+                  value={p.iconPosition || "left"}
+                  onChange={(v) => onUpdateProp("iconPosition", v)}
+                  options={[
+                    { value: "left", label: "Left of label" },
+                    { value: "right", label: "Right of label" },
+                    { value: "only", label: "Icon only" },
+                  ]}
+                />
+              </PropRow>
+              <PropRow label="Size">
+                <PropNumberUnit
+                  value={p.iconSize || 18}
+                  onChange={(v) => onUpdateProp("iconSize", v)}
+                  unit="px"
+                  className="w-[95px]"
+                />
+              </PropRow>
+              <PropRow label="Color" fullWidth>
+                <PropColorInput
+                  value={p.iconColor || p.style?.textColor || p.textColor || "#FFFFFF"}
+                  onChange={(v) => onUpdateProp("iconColor", v)}
+                  showOpacity
+                />
+              </PropRow>
+              <PropRow label="Spacing">
+                <PropNumberUnit
+                  value={p.iconSpacing ?? 8}
+                  onChange={(v) => onUpdateProp("iconSpacing", v)}
+                  unit="px"
+                  className="w-[95px]"
+                />
+              </PropRow>
+            </>
+          )}
+        </Section>
+
+        <Divider />
+
         {/* ── Action ── */}
         <PropRow label="Action">
           <PropSelect
@@ -67,6 +188,7 @@ export function ButtonEditor({
               }}
               options={[
                 { value: "", label: "Next Screen" },
+                { value: "previous", label: "Previous Screen" },
                 { value: "first", label: "First Screen" },
                 { value: "last", label: "Last Screen" },
                 { value: "specific", label: "Specific Screen…" },
@@ -258,6 +380,13 @@ export function ButtonEditor({
               value={p.borderRadius ?? 12}
               onChange={(v) => onUpdateProp("borderRadius", v)}
               unit="px"
+            />
+          </PropRow>
+          <PropRow label="Text color" fullWidth>
+            <PropColorInput
+              value={p.style?.textColor || "#FFFFFF"}
+              onChange={(v) => onUpdateProp("style", { ...p.style, textColor: v })}
+              showOpacity
             />
           </PropRow>
         </CollapsibleSection>

@@ -59,7 +59,7 @@ export declare const textPropsSchema: z.ZodObject<{
     }>>;
     lineHeight: z.ZodOptional<z.ZodNumber>;
     opacity: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const imagePropsSchema: z.ZodObject<{
     src: z.ZodString;
     width: z.ZodOptional<z.ZodNumber>;
@@ -72,14 +72,14 @@ export declare const imagePropsSchema: z.ZodObject<{
         contain: "contain";
     }>>;
     alt: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const lottiePropsSchema: z.ZodObject<{
     src: z.ZodString;
     width: z.ZodOptional<z.ZodNumber>;
     height: z.ZodOptional<z.ZodNumber>;
     autoPlay: z.ZodOptional<z.ZodBoolean>;
     loop: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const videoPropsSchema: z.ZodObject<{
     src: z.ZodString;
     width: z.ZodOptional<z.ZodNumber>;
@@ -88,12 +88,12 @@ export declare const videoPropsSchema: z.ZodObject<{
     loop: z.ZodOptional<z.ZodBoolean>;
     muted: z.ZodOptional<z.ZodBoolean>;
     posterUrl: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const iconPropsSchema: z.ZodObject<{
     name: z.ZodString;
     size: z.ZodOptional<z.ZodNumber>;
     color: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const iconLibraryPropsSchema: z.ZodObject<{
     iconName: z.ZodString;
     size: z.ZodOptional<z.ZodNumber>;
@@ -106,14 +106,14 @@ export declare const iconLibraryPropsSchema: z.ZodObject<{
     marginVertical: z.ZodOptional<z.ZodNumber>;
     marginHorizontal: z.ZodOptional<z.ZodNumber>;
     backgroundColor: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const buttonStyleSchema: z.ZodObject<{
     backgroundColor: z.ZodOptional<z.ZodString>;
     textColor: z.ZodOptional<z.ZodString>;
     borderRadius: z.ZodOptional<z.ZodNumber>;
     borderColor: z.ZodOptional<z.ZodString>;
     borderWidth: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const buttonPropsSchema: z.ZodObject<{
     label: z.ZodString;
     action: z.ZodEnum<{
@@ -131,22 +131,33 @@ export declare const buttonPropsSchema: z.ZodObject<{
     }>;
     actionTarget: z.ZodOptional<z.ZodEnum<{
         "": "";
+        previous: "previous";
         first: "first";
         last: "last";
         specific: "specific";
     }>>;
-    actionTargetScreenId: z.ZodOptional<z.ZodString>;
+    actionTargetScreenId: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
     url: z.ZodOptional<z.ZodString>;
     deepLinkUrl: z.ZodOptional<z.ZodString>;
     eventName: z.ZodOptional<z.ZodString>;
+    showIcon: z.ZodOptional<z.ZodBoolean>;
+    iconName: z.ZodOptional<z.ZodString>;
+    iconPosition: z.ZodOptional<z.ZodEnum<{
+        left: "left";
+        right: "right";
+        only: "only";
+    }>>;
+    iconSize: z.ZodOptional<z.ZodNumber>;
+    iconColor: z.ZodOptional<z.ZodString>;
+    iconSpacing: z.ZodOptional<z.ZodNumber>;
     style: z.ZodOptional<z.ZodObject<{
         backgroundColor: z.ZodOptional<z.ZodString>;
         textColor: z.ZodOptional<z.ZodString>;
         borderRadius: z.ZodOptional<z.ZodNumber>;
         borderColor: z.ZodOptional<z.ZodString>;
         borderWidth: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
+    }, z.core.$loose>>;
+}, z.core.$loose>;
 export declare const textInputPropsSchema: z.ZodObject<{
     placeholder: z.ZodOptional<z.ZodString>;
     label: z.ZodOptional<z.ZodString>;
@@ -159,7 +170,7 @@ export declare const textInputPropsSchema: z.ZodObject<{
         phone: "phone";
     }>>;
     maxLength: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const selectOptionSchema: z.ZodObject<{
     id: z.ZodString;
     label: z.ZodString;
@@ -176,7 +187,7 @@ export declare const multiSelectPropsSchema: z.ZodObject<{
     minSelections: z.ZodOptional<z.ZodNumber>;
     maxSelections: z.ZodOptional<z.ZodNumber>;
     required: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const singleSelectPropsSchema: z.ZodObject<{
     label: z.ZodOptional<z.ZodString>;
     fieldKey: z.ZodString;
@@ -186,7 +197,7 @@ export declare const singleSelectPropsSchema: z.ZodObject<{
         iconName: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>>;
     required: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const sliderPropsSchema: z.ZodObject<{
     label: z.ZodOptional<z.ZodString>;
     fieldKey: z.ZodString;
@@ -196,17 +207,17 @@ export declare const sliderPropsSchema: z.ZodObject<{
     defaultValue: z.ZodOptional<z.ZodNumber>;
     minLabel: z.ZodOptional<z.ZodString>;
     maxLabel: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const progressBarPropsSchema: z.ZodObject<{
     color: z.ZodOptional<z.ZodString>;
     backgroundColor: z.ZodOptional<z.ZodString>;
     height: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const pageIndicatorPropsSchema: z.ZodObject<{
     activeColor: z.ZodOptional<z.ZodString>;
     inactiveColor: z.ZodOptional<z.ZodString>;
     size: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const stackPropsSchema: z.ZodObject<{
     direction: z.ZodOptional<z.ZodEnum<{
         vertical: "vertical";
@@ -216,14 +227,14 @@ export declare const stackPropsSchema: z.ZodObject<{
     padding: z.ZodOptional<z.ZodNumber>;
     backgroundColor: z.ZodOptional<z.ZodString>;
     borderRadius: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const footerPropsSchema: z.ZodObject<{
     text: z.ZodString;
     textColor: z.ZodOptional<z.ZodString>;
     fontSize: z.ZodOptional<z.ZodNumber>;
     backgroundColor: z.ZodOptional<z.ZodString>;
     showDivider: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const tabButtonPropsSchema: z.ZodObject<{
     tabs: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
@@ -232,7 +243,7 @@ export declare const tabButtonPropsSchema: z.ZodObject<{
     }, z.core.$strip>>;
     activeColor: z.ZodOptional<z.ZodString>;
     inactiveColor: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const carouselPropsSchema: z.ZodObject<{
     variant: z.ZodOptional<z.ZodEnum<{
         image: "image";
@@ -247,7 +258,7 @@ export declare const carouselPropsSchema: z.ZodObject<{
     height: z.ZodOptional<z.ZodNumber>;
     borderRadius: z.ZodOptional<z.ZodNumber>;
     showDots: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const socialProofPropsSchema: z.ZodObject<{
     rating: z.ZodOptional<z.ZodNumber>;
     totalReviews: z.ZodOptional<z.ZodNumber>;
@@ -260,7 +271,7 @@ export declare const socialProofPropsSchema: z.ZodObject<{
     }, z.core.$strip>>>;
     showStars: z.ZodOptional<z.ZodBoolean>;
     compact: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const featureListPropsSchema: z.ZodObject<{
     title: z.ZodOptional<z.ZodString>;
     features: z.ZodArray<z.ZodObject<{
@@ -270,7 +281,7 @@ export declare const featureListPropsSchema: z.ZodObject<{
     }, z.core.$strip>>;
     iconColor: z.ZodOptional<z.ZodString>;
     textColor: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const awardPropsSchema: z.ZodObject<{
     variant: z.ZodOptional<z.ZodEnum<{
         badge: "badge";
@@ -284,11 +295,11 @@ export declare const awardPropsSchema: z.ZodObject<{
     showLaurels: z.ZodOptional<z.ZodBoolean>;
     backgroundColor: z.ZodOptional<z.ZodString>;
     textColor: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const customComponentPropsSchema: z.ZodObject<{
     registryKey: z.ZodString;
     payload: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const componentConstraintsSchema: z.ZodObject<{
     horizontal: z.ZodOptional<z.ZodEnum<{
         center: "center";
@@ -332,7 +343,7 @@ export declare const componentLayoutSchema: z.ZodObject<{
         }>>;
         keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -364,7 +375,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"TEXT">;
     props: z.ZodObject<{
         content: z.ZodString;
@@ -383,7 +394,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }>>;
         lineHeight: z.ZodOptional<z.ZodNumber>;
         opacity: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -415,7 +426,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"IMAGE">;
     props: z.ZodObject<{
         src: z.ZodString;
@@ -429,7 +440,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             contain: "contain";
         }>>;
         alt: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -461,7 +472,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"LOTTIE">;
     props: z.ZodObject<{
         src: z.ZodString;
@@ -469,7 +480,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         height: z.ZodOptional<z.ZodNumber>;
         autoPlay: z.ZodOptional<z.ZodBoolean>;
         loop: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -501,7 +512,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"VIDEO">;
     props: z.ZodObject<{
         src: z.ZodString;
@@ -511,7 +522,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         loop: z.ZodOptional<z.ZodBoolean>;
         muted: z.ZodOptional<z.ZodBoolean>;
         posterUrl: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -543,13 +554,13 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"ICON">;
     props: z.ZodObject<{
         name: z.ZodString;
         size: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -581,7 +592,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"ICON_LIBRARY">;
     props: z.ZodObject<{
         iconName: z.ZodString;
@@ -595,7 +606,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         marginVertical: z.ZodOptional<z.ZodNumber>;
         marginHorizontal: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -627,7 +638,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"BUTTON">;
     props: z.ZodObject<{
         label: z.ZodString;
@@ -646,22 +657,33 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }>;
         actionTarget: z.ZodOptional<z.ZodEnum<{
             "": "";
+            previous: "previous";
             first: "first";
             last: "last";
             specific: "specific";
         }>>;
-        actionTargetScreenId: z.ZodOptional<z.ZodString>;
+        actionTargetScreenId: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
         url: z.ZodOptional<z.ZodString>;
         deepLinkUrl: z.ZodOptional<z.ZodString>;
         eventName: z.ZodOptional<z.ZodString>;
+        showIcon: z.ZodOptional<z.ZodBoolean>;
+        iconName: z.ZodOptional<z.ZodString>;
+        iconPosition: z.ZodOptional<z.ZodEnum<{
+            left: "left";
+            right: "right";
+            only: "only";
+        }>>;
+        iconSize: z.ZodOptional<z.ZodNumber>;
+        iconColor: z.ZodOptional<z.ZodString>;
+        iconSpacing: z.ZodOptional<z.ZodNumber>;
         style: z.ZodOptional<z.ZodObject<{
             backgroundColor: z.ZodOptional<z.ZodString>;
             textColor: z.ZodOptional<z.ZodString>;
             borderRadius: z.ZodOptional<z.ZodNumber>;
             borderColor: z.ZodOptional<z.ZodString>;
             borderWidth: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strip>>;
-    }, z.core.$strip>;
+        }, z.core.$loose>>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -693,7 +715,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"TEXT_INPUT">;
     props: z.ZodObject<{
         placeholder: z.ZodOptional<z.ZodString>;
@@ -707,7 +729,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             phone: "phone";
         }>>;
         maxLength: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -739,7 +761,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"MULTI_SELECT">;
     props: z.ZodObject<{
         label: z.ZodOptional<z.ZodString>;
@@ -752,7 +774,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         minSelections: z.ZodOptional<z.ZodNumber>;
         maxSelections: z.ZodOptional<z.ZodNumber>;
         required: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -784,7 +806,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"SINGLE_SELECT">;
     props: z.ZodObject<{
         label: z.ZodOptional<z.ZodString>;
@@ -795,7 +817,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             iconName: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>>;
         required: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -827,7 +849,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"SLIDER">;
     props: z.ZodObject<{
         label: z.ZodOptional<z.ZodString>;
@@ -838,7 +860,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         defaultValue: z.ZodOptional<z.ZodNumber>;
         minLabel: z.ZodOptional<z.ZodString>;
         maxLabel: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -870,13 +892,13 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"PROGRESS_BAR">;
     props: z.ZodObject<{
         color: z.ZodOptional<z.ZodString>;
         backgroundColor: z.ZodOptional<z.ZodString>;
         height: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -908,13 +930,13 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"PAGE_INDICATOR">;
     props: z.ZodObject<{
         activeColor: z.ZodOptional<z.ZodString>;
         inactiveColor: z.ZodOptional<z.ZodString>;
         size: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -946,7 +968,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"STACK">;
     props: z.ZodObject<{
         direction: z.ZodOptional<z.ZodEnum<{
@@ -957,7 +979,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         padding: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodString>;
         borderRadius: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -989,7 +1011,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"FOOTER">;
     props: z.ZodObject<{
         text: z.ZodString;
@@ -997,7 +1019,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         fontSize: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodString>;
         showDivider: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -1029,7 +1051,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"TAB_BUTTON">;
     props: z.ZodObject<{
         tabs: z.ZodArray<z.ZodObject<{
@@ -1039,7 +1061,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }, z.core.$strip>>;
         activeColor: z.ZodOptional<z.ZodString>;
         inactiveColor: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -1071,7 +1093,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"CAROUSEL">;
     props: z.ZodObject<{
         variant: z.ZodOptional<z.ZodEnum<{
@@ -1087,7 +1109,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         height: z.ZodOptional<z.ZodNumber>;
         borderRadius: z.ZodOptional<z.ZodNumber>;
         showDots: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -1119,7 +1141,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"SOCIAL_PROOF">;
     props: z.ZodObject<{
         rating: z.ZodOptional<z.ZodNumber>;
@@ -1133,7 +1155,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }, z.core.$strip>>>;
         showStars: z.ZodOptional<z.ZodBoolean>;
         compact: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -1165,7 +1187,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"FEATURE_LIST">;
     props: z.ZodObject<{
         title: z.ZodOptional<z.ZodString>;
@@ -1176,7 +1198,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }, z.core.$strip>>;
         iconColor: z.ZodOptional<z.ZodString>;
         textColor: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -1208,7 +1230,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"AWARD">;
     props: z.ZodObject<{
         variant: z.ZodOptional<z.ZodEnum<{
@@ -1223,7 +1245,7 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         showLaurels: z.ZodOptional<z.ZodBoolean>;
         backgroundColor: z.ZodOptional<z.ZodString>;
         textColor: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>, z.ZodObject<{
     id: z.ZodString;
     order: z.ZodNumber;
@@ -1255,12 +1277,12 @@ export declare const flowComponentSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
             }>>;
             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     type: z.ZodLiteral<"CUSTOM_COMPONENT">;
     props: z.ZodObject<{
         registryKey: z.ZodString;
         payload: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-    }, z.core.$strip>;
+    }, z.core.$loose>;
 }, z.core.$strip>], "type">;
 export declare const branchRuleSchema: z.ZodObject<{
     id: z.ZodString;
@@ -1309,7 +1331,7 @@ export declare const screenStyleSchema: z.ZodObject<{
         "flex-start": "flex-start";
         "flex-end": "flex-end";
     }>>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const screenSchema: z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
@@ -1338,7 +1360,7 @@ export declare const screenSchema: z.ZodObject<{
             "flex-start": "flex-start";
             "flex-end": "flex-end";
         }>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     customScreenKey: z.ZodOptional<z.ZodString>;
     customPayload: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     components: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -1372,7 +1394,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"TEXT">;
         props: z.ZodObject<{
             content: z.ZodString;
@@ -1391,7 +1413,7 @@ export declare const screenSchema: z.ZodObject<{
             }>>;
             lineHeight: z.ZodOptional<z.ZodNumber>;
             opacity: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1423,7 +1445,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"IMAGE">;
         props: z.ZodObject<{
             src: z.ZodString;
@@ -1437,7 +1459,7 @@ export declare const screenSchema: z.ZodObject<{
                 contain: "contain";
             }>>;
             alt: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1469,7 +1491,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"LOTTIE">;
         props: z.ZodObject<{
             src: z.ZodString;
@@ -1477,7 +1499,7 @@ export declare const screenSchema: z.ZodObject<{
             height: z.ZodOptional<z.ZodNumber>;
             autoPlay: z.ZodOptional<z.ZodBoolean>;
             loop: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1509,7 +1531,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"VIDEO">;
         props: z.ZodObject<{
             src: z.ZodString;
@@ -1519,7 +1541,7 @@ export declare const screenSchema: z.ZodObject<{
             loop: z.ZodOptional<z.ZodBoolean>;
             muted: z.ZodOptional<z.ZodBoolean>;
             posterUrl: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1551,13 +1573,13 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"ICON">;
         props: z.ZodObject<{
             name: z.ZodString;
             size: z.ZodOptional<z.ZodNumber>;
             color: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1589,7 +1611,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"ICON_LIBRARY">;
         props: z.ZodObject<{
             iconName: z.ZodString;
@@ -1603,7 +1625,7 @@ export declare const screenSchema: z.ZodObject<{
             marginVertical: z.ZodOptional<z.ZodNumber>;
             marginHorizontal: z.ZodOptional<z.ZodNumber>;
             backgroundColor: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1635,7 +1657,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"BUTTON">;
         props: z.ZodObject<{
             label: z.ZodString;
@@ -1654,22 +1676,33 @@ export declare const screenSchema: z.ZodObject<{
             }>;
             actionTarget: z.ZodOptional<z.ZodEnum<{
                 "": "";
+                previous: "previous";
                 first: "first";
                 last: "last";
                 specific: "specific";
             }>>;
-            actionTargetScreenId: z.ZodOptional<z.ZodString>;
+            actionTargetScreenId: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
             url: z.ZodOptional<z.ZodString>;
             deepLinkUrl: z.ZodOptional<z.ZodString>;
             eventName: z.ZodOptional<z.ZodString>;
+            showIcon: z.ZodOptional<z.ZodBoolean>;
+            iconName: z.ZodOptional<z.ZodString>;
+            iconPosition: z.ZodOptional<z.ZodEnum<{
+                left: "left";
+                right: "right";
+                only: "only";
+            }>>;
+            iconSize: z.ZodOptional<z.ZodNumber>;
+            iconColor: z.ZodOptional<z.ZodString>;
+            iconSpacing: z.ZodOptional<z.ZodNumber>;
             style: z.ZodOptional<z.ZodObject<{
                 backgroundColor: z.ZodOptional<z.ZodString>;
                 textColor: z.ZodOptional<z.ZodString>;
                 borderRadius: z.ZodOptional<z.ZodNumber>;
                 borderColor: z.ZodOptional<z.ZodString>;
                 borderWidth: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strip>>;
-        }, z.core.$strip>;
+            }, z.core.$loose>>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1701,7 +1734,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"TEXT_INPUT">;
         props: z.ZodObject<{
             placeholder: z.ZodOptional<z.ZodString>;
@@ -1715,7 +1748,7 @@ export declare const screenSchema: z.ZodObject<{
                 phone: "phone";
             }>>;
             maxLength: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1747,7 +1780,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"MULTI_SELECT">;
         props: z.ZodObject<{
             label: z.ZodOptional<z.ZodString>;
@@ -1760,7 +1793,7 @@ export declare const screenSchema: z.ZodObject<{
             minSelections: z.ZodOptional<z.ZodNumber>;
             maxSelections: z.ZodOptional<z.ZodNumber>;
             required: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1792,7 +1825,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"SINGLE_SELECT">;
         props: z.ZodObject<{
             label: z.ZodOptional<z.ZodString>;
@@ -1803,7 +1836,7 @@ export declare const screenSchema: z.ZodObject<{
                 iconName: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>>;
             required: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1835,7 +1868,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"SLIDER">;
         props: z.ZodObject<{
             label: z.ZodOptional<z.ZodString>;
@@ -1846,7 +1879,7 @@ export declare const screenSchema: z.ZodObject<{
             defaultValue: z.ZodOptional<z.ZodNumber>;
             minLabel: z.ZodOptional<z.ZodString>;
             maxLabel: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1878,13 +1911,13 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"PROGRESS_BAR">;
         props: z.ZodObject<{
             color: z.ZodOptional<z.ZodString>;
             backgroundColor: z.ZodOptional<z.ZodString>;
             height: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1916,13 +1949,13 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"PAGE_INDICATOR">;
         props: z.ZodObject<{
             activeColor: z.ZodOptional<z.ZodString>;
             inactiveColor: z.ZodOptional<z.ZodString>;
             size: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1954,7 +1987,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"STACK">;
         props: z.ZodObject<{
             direction: z.ZodOptional<z.ZodEnum<{
@@ -1965,7 +1998,7 @@ export declare const screenSchema: z.ZodObject<{
             padding: z.ZodOptional<z.ZodNumber>;
             backgroundColor: z.ZodOptional<z.ZodString>;
             borderRadius: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -1997,7 +2030,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"FOOTER">;
         props: z.ZodObject<{
             text: z.ZodString;
@@ -2005,7 +2038,7 @@ export declare const screenSchema: z.ZodObject<{
             fontSize: z.ZodOptional<z.ZodNumber>;
             backgroundColor: z.ZodOptional<z.ZodString>;
             showDivider: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -2037,7 +2070,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"TAB_BUTTON">;
         props: z.ZodObject<{
             tabs: z.ZodArray<z.ZodObject<{
@@ -2047,7 +2080,7 @@ export declare const screenSchema: z.ZodObject<{
             }, z.core.$strip>>;
             activeColor: z.ZodOptional<z.ZodString>;
             inactiveColor: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -2079,7 +2112,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"CAROUSEL">;
         props: z.ZodObject<{
             variant: z.ZodOptional<z.ZodEnum<{
@@ -2095,7 +2128,7 @@ export declare const screenSchema: z.ZodObject<{
             height: z.ZodOptional<z.ZodNumber>;
             borderRadius: z.ZodOptional<z.ZodNumber>;
             showDots: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -2127,7 +2160,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"SOCIAL_PROOF">;
         props: z.ZodObject<{
             rating: z.ZodOptional<z.ZodNumber>;
@@ -2141,7 +2174,7 @@ export declare const screenSchema: z.ZodObject<{
             }, z.core.$strip>>>;
             showStars: z.ZodOptional<z.ZodBoolean>;
             compact: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -2173,7 +2206,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"FEATURE_LIST">;
         props: z.ZodObject<{
             title: z.ZodOptional<z.ZodString>;
@@ -2184,7 +2217,7 @@ export declare const screenSchema: z.ZodObject<{
             }, z.core.$strip>>;
             iconColor: z.ZodOptional<z.ZodString>;
             textColor: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -2216,7 +2249,7 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"AWARD">;
         props: z.ZodObject<{
             variant: z.ZodOptional<z.ZodEnum<{
@@ -2231,7 +2264,7 @@ export declare const screenSchema: z.ZodObject<{
             showLaurels: z.ZodOptional<z.ZodBoolean>;
             backgroundColor: z.ZodOptional<z.ZodString>;
             textColor: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>, z.ZodObject<{
         id: z.ZodString;
         order: z.ZodNumber;
@@ -2263,12 +2296,12 @@ export declare const screenSchema: z.ZodObject<{
                 }>>;
                 keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         type: z.ZodLiteral<"CUSTOM_COMPONENT">;
         props: z.ZodObject<{
             registryKey: z.ZodString;
             payload: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-        }, z.core.$strip>;
+        }, z.core.$loose>;
     }, z.core.$strip>], "type">>;
     branchRules: z.ZodOptional<z.ZodArray<z.ZodObject<{
         id: z.ZodString;
@@ -2297,7 +2330,7 @@ export declare const screenSchema: z.ZodObject<{
         }>;
         value: z.ZodOptional<z.ZodUnion<readonly [z.ZodString, z.ZodArray<z.ZodString>]>>;
     }, z.core.$strip>>>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const flowSettingsSchema: z.ZodObject<{
     dismissible: z.ZodOptional<z.ZodBoolean>;
     showProgressBar: z.ZodOptional<z.ZodBoolean>;
@@ -2310,7 +2343,7 @@ export declare const flowSettingsSchema: z.ZodObject<{
     showBackButton: z.ZodOptional<z.ZodBoolean>;
     showSkipButton: z.ZodOptional<z.ZodBoolean>;
     skipButtonLabel: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
+}, z.core.$loose>;
 export declare const flowConfigSchema: z.ZodObject<{
     screens: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
@@ -2340,7 +2373,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 "flex-start": "flex-start";
                 "flex-end": "flex-end";
             }>>;
-        }, z.core.$strip>>;
+        }, z.core.$loose>>;
         customScreenKey: z.ZodOptional<z.ZodString>;
         customPayload: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         components: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -2374,7 +2407,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"TEXT">;
             props: z.ZodObject<{
                 content: z.ZodString;
@@ -2393,7 +2426,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 }>>;
                 lineHeight: z.ZodOptional<z.ZodNumber>;
                 opacity: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2425,7 +2458,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"IMAGE">;
             props: z.ZodObject<{
                 src: z.ZodString;
@@ -2439,7 +2472,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     contain: "contain";
                 }>>;
                 alt: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2471,7 +2504,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"LOTTIE">;
             props: z.ZodObject<{
                 src: z.ZodString;
@@ -2479,7 +2512,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 height: z.ZodOptional<z.ZodNumber>;
                 autoPlay: z.ZodOptional<z.ZodBoolean>;
                 loop: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2511,7 +2544,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"VIDEO">;
             props: z.ZodObject<{
                 src: z.ZodString;
@@ -2521,7 +2554,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 loop: z.ZodOptional<z.ZodBoolean>;
                 muted: z.ZodOptional<z.ZodBoolean>;
                 posterUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2553,13 +2586,13 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"ICON">;
             props: z.ZodObject<{
                 name: z.ZodString;
                 size: z.ZodOptional<z.ZodNumber>;
                 color: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2591,7 +2624,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"ICON_LIBRARY">;
             props: z.ZodObject<{
                 iconName: z.ZodString;
@@ -2605,7 +2638,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 marginVertical: z.ZodOptional<z.ZodNumber>;
                 marginHorizontal: z.ZodOptional<z.ZodNumber>;
                 backgroundColor: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2637,7 +2670,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"BUTTON">;
             props: z.ZodObject<{
                 label: z.ZodString;
@@ -2656,22 +2689,33 @@ export declare const flowConfigSchema: z.ZodObject<{
                 }>;
                 actionTarget: z.ZodOptional<z.ZodEnum<{
                     "": "";
+                    previous: "previous";
                     first: "first";
                     last: "last";
                     specific: "specific";
                 }>>;
-                actionTargetScreenId: z.ZodOptional<z.ZodString>;
+                actionTargetScreenId: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
                 url: z.ZodOptional<z.ZodString>;
                 deepLinkUrl: z.ZodOptional<z.ZodString>;
                 eventName: z.ZodOptional<z.ZodString>;
+                showIcon: z.ZodOptional<z.ZodBoolean>;
+                iconName: z.ZodOptional<z.ZodString>;
+                iconPosition: z.ZodOptional<z.ZodEnum<{
+                    left: "left";
+                    right: "right";
+                    only: "only";
+                }>>;
+                iconSize: z.ZodOptional<z.ZodNumber>;
+                iconColor: z.ZodOptional<z.ZodString>;
+                iconSpacing: z.ZodOptional<z.ZodNumber>;
                 style: z.ZodOptional<z.ZodObject<{
                     backgroundColor: z.ZodOptional<z.ZodString>;
                     textColor: z.ZodOptional<z.ZodString>;
                     borderRadius: z.ZodOptional<z.ZodNumber>;
                     borderColor: z.ZodOptional<z.ZodString>;
                     borderWidth: z.ZodOptional<z.ZodNumber>;
-                }, z.core.$strip>>;
-            }, z.core.$strip>;
+                }, z.core.$loose>>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2703,7 +2747,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"TEXT_INPUT">;
             props: z.ZodObject<{
                 placeholder: z.ZodOptional<z.ZodString>;
@@ -2717,7 +2761,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     phone: "phone";
                 }>>;
                 maxLength: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2749,7 +2793,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"MULTI_SELECT">;
             props: z.ZodObject<{
                 label: z.ZodOptional<z.ZodString>;
@@ -2762,7 +2806,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 minSelections: z.ZodOptional<z.ZodNumber>;
                 maxSelections: z.ZodOptional<z.ZodNumber>;
                 required: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2794,7 +2838,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"SINGLE_SELECT">;
             props: z.ZodObject<{
                 label: z.ZodOptional<z.ZodString>;
@@ -2805,7 +2849,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     iconName: z.ZodOptional<z.ZodString>;
                 }, z.core.$strip>>;
                 required: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2837,7 +2881,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"SLIDER">;
             props: z.ZodObject<{
                 label: z.ZodOptional<z.ZodString>;
@@ -2848,7 +2892,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 defaultValue: z.ZodOptional<z.ZodNumber>;
                 minLabel: z.ZodOptional<z.ZodString>;
                 maxLabel: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2880,13 +2924,13 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"PROGRESS_BAR">;
             props: z.ZodObject<{
                 color: z.ZodOptional<z.ZodString>;
                 backgroundColor: z.ZodOptional<z.ZodString>;
                 height: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2918,13 +2962,13 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"PAGE_INDICATOR">;
             props: z.ZodObject<{
                 activeColor: z.ZodOptional<z.ZodString>;
                 inactiveColor: z.ZodOptional<z.ZodString>;
                 size: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2956,7 +3000,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"STACK">;
             props: z.ZodObject<{
                 direction: z.ZodOptional<z.ZodEnum<{
@@ -2967,7 +3011,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 padding: z.ZodOptional<z.ZodNumber>;
                 backgroundColor: z.ZodOptional<z.ZodString>;
                 borderRadius: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -2999,7 +3043,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"FOOTER">;
             props: z.ZodObject<{
                 text: z.ZodString;
@@ -3007,7 +3051,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 fontSize: z.ZodOptional<z.ZodNumber>;
                 backgroundColor: z.ZodOptional<z.ZodString>;
                 showDivider: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -3039,7 +3083,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"TAB_BUTTON">;
             props: z.ZodObject<{
                 tabs: z.ZodArray<z.ZodObject<{
@@ -3049,7 +3093,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 }, z.core.$strip>>;
                 activeColor: z.ZodOptional<z.ZodString>;
                 inactiveColor: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -3081,7 +3125,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"CAROUSEL">;
             props: z.ZodObject<{
                 variant: z.ZodOptional<z.ZodEnum<{
@@ -3097,7 +3141,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 height: z.ZodOptional<z.ZodNumber>;
                 borderRadius: z.ZodOptional<z.ZodNumber>;
                 showDots: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -3129,7 +3173,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"SOCIAL_PROOF">;
             props: z.ZodObject<{
                 rating: z.ZodOptional<z.ZodNumber>;
@@ -3143,7 +3187,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 }, z.core.$strip>>>;
                 showStars: z.ZodOptional<z.ZodBoolean>;
                 compact: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -3175,7 +3219,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"FEATURE_LIST">;
             props: z.ZodObject<{
                 title: z.ZodOptional<z.ZodString>;
@@ -3186,7 +3230,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 }, z.core.$strip>>;
                 iconColor: z.ZodOptional<z.ZodString>;
                 textColor: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -3218,7 +3262,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"AWARD">;
             props: z.ZodObject<{
                 variant: z.ZodOptional<z.ZodEnum<{
@@ -3233,7 +3277,7 @@ export declare const flowConfigSchema: z.ZodObject<{
                 showLaurels: z.ZodOptional<z.ZodBoolean>;
                 backgroundColor: z.ZodOptional<z.ZodString>;
                 textColor: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>, z.ZodObject<{
             id: z.ZodString;
             order: z.ZodNumber;
@@ -3265,12 +3309,12 @@ export declare const flowConfigSchema: z.ZodObject<{
                     }>>;
                     keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             type: z.ZodLiteral<"CUSTOM_COMPONENT">;
             props: z.ZodObject<{
                 registryKey: z.ZodString;
                 payload: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-            }, z.core.$strip>;
+            }, z.core.$loose>;
         }, z.core.$strip>], "type">>;
         branchRules: z.ZodOptional<z.ZodArray<z.ZodObject<{
             id: z.ZodString;
@@ -3299,7 +3343,7 @@ export declare const flowConfigSchema: z.ZodObject<{
             }>;
             value: z.ZodOptional<z.ZodUnion<readonly [z.ZodString, z.ZodArray<z.ZodString>]>>;
         }, z.core.$strip>>>;
-    }, z.core.$strip>>;
+    }, z.core.$loose>>;
     settings: z.ZodOptional<z.ZodObject<{
         dismissible: z.ZodOptional<z.ZodBoolean>;
         showProgressBar: z.ZodOptional<z.ZodBoolean>;
@@ -3312,8 +3356,8 @@ export declare const flowConfigSchema: z.ZodObject<{
         showBackButton: z.ZodOptional<z.ZodBoolean>;
         showSkipButton: z.ZodOptional<z.ZodBoolean>;
         skipButtonLabel: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
+    }, z.core.$loose>>;
+}, z.core.$loose>;
 export declare const sdkFlowResponseSchema: z.ZodObject<{
     flow: z.ZodObject<{
         slug: z.ZodString;
@@ -3347,7 +3391,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         "flex-start": "flex-start";
                         "flex-end": "flex-end";
                     }>>;
-                }, z.core.$strip>>;
+                }, z.core.$loose>>;
                 customScreenKey: z.ZodOptional<z.ZodString>;
                 customPayload: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
                 components: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -3381,7 +3425,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"TEXT">;
                     props: z.ZodObject<{
                         content: z.ZodString;
@@ -3400,7 +3444,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         }>>;
                         lineHeight: z.ZodOptional<z.ZodNumber>;
                         opacity: z.ZodOptional<z.ZodNumber>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3432,7 +3476,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"IMAGE">;
                     props: z.ZodObject<{
                         src: z.ZodString;
@@ -3446,7 +3490,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             contain: "contain";
                         }>>;
                         alt: z.ZodOptional<z.ZodString>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3478,7 +3522,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"LOTTIE">;
                     props: z.ZodObject<{
                         src: z.ZodString;
@@ -3486,7 +3530,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         height: z.ZodOptional<z.ZodNumber>;
                         autoPlay: z.ZodOptional<z.ZodBoolean>;
                         loop: z.ZodOptional<z.ZodBoolean>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3518,7 +3562,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"VIDEO">;
                     props: z.ZodObject<{
                         src: z.ZodString;
@@ -3528,7 +3572,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         loop: z.ZodOptional<z.ZodBoolean>;
                         muted: z.ZodOptional<z.ZodBoolean>;
                         posterUrl: z.ZodOptional<z.ZodString>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3560,13 +3604,13 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"ICON">;
                     props: z.ZodObject<{
                         name: z.ZodString;
                         size: z.ZodOptional<z.ZodNumber>;
                         color: z.ZodOptional<z.ZodString>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3598,7 +3642,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"ICON_LIBRARY">;
                     props: z.ZodObject<{
                         iconName: z.ZodString;
@@ -3612,7 +3656,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         marginVertical: z.ZodOptional<z.ZodNumber>;
                         marginHorizontal: z.ZodOptional<z.ZodNumber>;
                         backgroundColor: z.ZodOptional<z.ZodString>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3644,7 +3688,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"BUTTON">;
                     props: z.ZodObject<{
                         label: z.ZodString;
@@ -3663,22 +3707,33 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         }>;
                         actionTarget: z.ZodOptional<z.ZodEnum<{
                             "": "";
+                            previous: "previous";
                             first: "first";
                             last: "last";
                             specific: "specific";
                         }>>;
-                        actionTargetScreenId: z.ZodOptional<z.ZodString>;
+                        actionTargetScreenId: z.ZodUnion<[z.ZodOptional<z.ZodString>, z.ZodLiteral<"">]>;
                         url: z.ZodOptional<z.ZodString>;
                         deepLinkUrl: z.ZodOptional<z.ZodString>;
                         eventName: z.ZodOptional<z.ZodString>;
+                        showIcon: z.ZodOptional<z.ZodBoolean>;
+                        iconName: z.ZodOptional<z.ZodString>;
+                        iconPosition: z.ZodOptional<z.ZodEnum<{
+                            left: "left";
+                            right: "right";
+                            only: "only";
+                        }>>;
+                        iconSize: z.ZodOptional<z.ZodNumber>;
+                        iconColor: z.ZodOptional<z.ZodString>;
+                        iconSpacing: z.ZodOptional<z.ZodNumber>;
                         style: z.ZodOptional<z.ZodObject<{
                             backgroundColor: z.ZodOptional<z.ZodString>;
                             textColor: z.ZodOptional<z.ZodString>;
                             borderRadius: z.ZodOptional<z.ZodNumber>;
                             borderColor: z.ZodOptional<z.ZodString>;
                             borderWidth: z.ZodOptional<z.ZodNumber>;
-                        }, z.core.$strip>>;
-                    }, z.core.$strip>;
+                        }, z.core.$loose>>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3710,7 +3765,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"TEXT_INPUT">;
                     props: z.ZodObject<{
                         placeholder: z.ZodOptional<z.ZodString>;
@@ -3724,7 +3779,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             phone: "phone";
                         }>>;
                         maxLength: z.ZodOptional<z.ZodNumber>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3756,7 +3811,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"MULTI_SELECT">;
                     props: z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
@@ -3769,7 +3824,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         minSelections: z.ZodOptional<z.ZodNumber>;
                         maxSelections: z.ZodOptional<z.ZodNumber>;
                         required: z.ZodOptional<z.ZodBoolean>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3801,7 +3856,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"SINGLE_SELECT">;
                     props: z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
@@ -3812,7 +3867,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             iconName: z.ZodOptional<z.ZodString>;
                         }, z.core.$strip>>;
                         required: z.ZodOptional<z.ZodBoolean>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3844,7 +3899,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"SLIDER">;
                     props: z.ZodObject<{
                         label: z.ZodOptional<z.ZodString>;
@@ -3855,7 +3910,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         defaultValue: z.ZodOptional<z.ZodNumber>;
                         minLabel: z.ZodOptional<z.ZodString>;
                         maxLabel: z.ZodOptional<z.ZodString>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3887,13 +3942,13 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"PROGRESS_BAR">;
                     props: z.ZodObject<{
                         color: z.ZodOptional<z.ZodString>;
                         backgroundColor: z.ZodOptional<z.ZodString>;
                         height: z.ZodOptional<z.ZodNumber>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3925,13 +3980,13 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"PAGE_INDICATOR">;
                     props: z.ZodObject<{
                         activeColor: z.ZodOptional<z.ZodString>;
                         inactiveColor: z.ZodOptional<z.ZodString>;
                         size: z.ZodOptional<z.ZodNumber>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -3963,7 +4018,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"STACK">;
                     props: z.ZodObject<{
                         direction: z.ZodOptional<z.ZodEnum<{
@@ -3974,7 +4029,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         padding: z.ZodOptional<z.ZodNumber>;
                         backgroundColor: z.ZodOptional<z.ZodString>;
                         borderRadius: z.ZodOptional<z.ZodNumber>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -4006,7 +4061,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"FOOTER">;
                     props: z.ZodObject<{
                         text: z.ZodString;
@@ -4014,7 +4069,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         fontSize: z.ZodOptional<z.ZodNumber>;
                         backgroundColor: z.ZodOptional<z.ZodString>;
                         showDivider: z.ZodOptional<z.ZodBoolean>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -4046,7 +4101,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"TAB_BUTTON">;
                     props: z.ZodObject<{
                         tabs: z.ZodArray<z.ZodObject<{
@@ -4056,7 +4111,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         }, z.core.$strip>>;
                         activeColor: z.ZodOptional<z.ZodString>;
                         inactiveColor: z.ZodOptional<z.ZodString>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -4088,7 +4143,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"CAROUSEL">;
                     props: z.ZodObject<{
                         variant: z.ZodOptional<z.ZodEnum<{
@@ -4104,7 +4159,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         height: z.ZodOptional<z.ZodNumber>;
                         borderRadius: z.ZodOptional<z.ZodNumber>;
                         showDots: z.ZodOptional<z.ZodBoolean>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -4136,7 +4191,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"SOCIAL_PROOF">;
                     props: z.ZodObject<{
                         rating: z.ZodOptional<z.ZodNumber>;
@@ -4150,7 +4205,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         }, z.core.$strip>>>;
                         showStars: z.ZodOptional<z.ZodBoolean>;
                         compact: z.ZodOptional<z.ZodBoolean>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -4182,7 +4237,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"FEATURE_LIST">;
                     props: z.ZodObject<{
                         title: z.ZodOptional<z.ZodString>;
@@ -4193,7 +4248,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         }, z.core.$strip>>;
                         iconColor: z.ZodOptional<z.ZodString>;
                         textColor: z.ZodOptional<z.ZodString>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -4225,7 +4280,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"AWARD">;
                     props: z.ZodObject<{
                         variant: z.ZodOptional<z.ZodEnum<{
@@ -4240,7 +4295,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                         showLaurels: z.ZodOptional<z.ZodBoolean>;
                         backgroundColor: z.ZodOptional<z.ZodString>;
                         textColor: z.ZodOptional<z.ZodString>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>, z.ZodObject<{
                     id: z.ZodString;
                     order: z.ZodNumber;
@@ -4272,12 +4327,12 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                             }>>;
                             keepAspectRatio: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>;
-                    }, z.core.$strip>>;
+                    }, z.core.$loose>>;
                     type: z.ZodLiteral<"CUSTOM_COMPONENT">;
                     props: z.ZodObject<{
                         registryKey: z.ZodString;
                         payload: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-                    }, z.core.$strip>;
+                    }, z.core.$loose>;
                 }, z.core.$strip>], "type">>;
                 branchRules: z.ZodOptional<z.ZodArray<z.ZodObject<{
                     id: z.ZodString;
@@ -4306,7 +4361,7 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                     }>;
                     value: z.ZodOptional<z.ZodUnion<readonly [z.ZodString, z.ZodArray<z.ZodString>]>>;
                 }, z.core.$strip>>>;
-            }, z.core.$strip>>;
+            }, z.core.$loose>>;
             settings: z.ZodOptional<z.ZodObject<{
                 dismissible: z.ZodOptional<z.ZodBoolean>;
                 showProgressBar: z.ZodOptional<z.ZodBoolean>;
@@ -4319,8 +4374,8 @@ export declare const sdkFlowResponseSchema: z.ZodObject<{
                 showBackButton: z.ZodOptional<z.ZodBoolean>;
                 showSkipButton: z.ZodOptional<z.ZodBoolean>;
                 skipButtonLabel: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>>;
-        }, z.core.$strip>;
+            }, z.core.$loose>>;
+        }, z.core.$loose>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 export declare const sdkErrorCodeSchema: z.ZodEnum<{

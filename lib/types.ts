@@ -243,11 +243,17 @@ export interface ButtonStyle {
 export interface ButtonProps {
   label: string;
   action: ButtonAction;
-  actionTarget?: "" | "first" | "last" | "specific";
+  actionTarget?: "" | "previous" | "first" | "last" | "specific";
   actionTargetScreenId?: string;
   url?: string;
   deepLinkUrl?: string;
   eventName?: string;
+  showIcon?: boolean;
+  iconName?: string;
+  iconPosition?: "left" | "right" | "only";
+  iconSize?: number;
+  iconColor?: string;
+  iconSpacing?: number;
   style?: ButtonStyle;
 }
 
