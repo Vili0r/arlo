@@ -34,6 +34,7 @@ export interface ArloPresentationState {
 
 export interface ArloPresenter {
   getState(): ArloPresentationState;
+  getHandlers(): FlowBridgeHandlers | undefined;
   presentFlow(slug: string, options?: PresentFlowOptions): Promise<ArloPresentationState>;
   presentEntryPoint(
     entryPointKey: string,
@@ -84,6 +85,17 @@ export function createArloPresenter(
   let state = createInitialState();
   const listeners = new Set<(state: ArloPresentationState) => void>();
 
+  const resolvedHandlers: FlowBridgeHandlers = {
+    ...options.handlers,
+    onAnalyticsEvent: (payload) => {
+      void options.client.trackAnalyticsEvent(payload.event).catch(() => {
+        // Silently swallow analytics errors to avoid interrupting the user flow
+      });
+
+      return options.handlers?.onAnalyticsEvent?.(payload);
+    },
+  };
+
   function notify(): void {
     for (const listener of listeners) {
       listener(state);
@@ -117,10 +129,11 @@ export function createArloPresenter(
       const session = createFlowSession(response, {
         identity: options.client.getIdentity(),
         initialValues: presentOptions.initialValues,
+        projectId: options.client.getProjectId(),
       });
 
       const effect = session.start();
-      await applyFlowSessionEffect(session, effect, options.handlers);
+      await applyFlowSessionEffect(session, effect, resolvedHandlers);
 
       const snapshot = session.getSnapshot();
       const nextStatus =
@@ -157,6 +170,9 @@ export function createArloPresenter(
     getState(): ArloPresentationState {
       return state;
     },
+    getHandlers(): FlowBridgeHandlers | undefined {
+      return resolvedHandlers;
+    },
     async presentFlow(
       slug: string,
       presentOptions: PresentFlowOptions = {}
@@ -189,7 +205,7 @@ export function createArloPresenter(
       }
 
       const effect = state.session.dismiss();
-      await applyFlowSessionEffect(state.session, effect, options.handlers);
+      await applyFlowSessionEffect(state.session, effect, resolvedHandlers);
 
       return setState((previous) => ({
         ...previous,

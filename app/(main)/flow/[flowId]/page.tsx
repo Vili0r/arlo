@@ -17,7 +17,7 @@ export default async function FlowBuilderPage(props: {
     notFound();
   }
 
-  const { document, projectId, registryKeys, developmentVersion, productionVersion } =
+  const { document, slug, projectId, registryKeys, developmentVersion, productionVersion } =
     await getFlow(flowId);
   const resolvedDocument = document ?? flowConfigToEditorDocument(DEFAULT_FLOW_CONFIG);
   const parsedScreenIndex = Number.parseInt(searchParams?.screenIndex ?? "", 10);
@@ -29,6 +29,7 @@ export default async function FlowBuilderPage(props: {
   return (
     <FlowBuilderClient
       flowId={flowId}
+      initialFlowSlug={slug}
       initialDocument={document}
       initialProjectId={projectId}
       initialDevelopmentVersion={developmentVersion}

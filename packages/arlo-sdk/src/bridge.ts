@@ -1,4 +1,6 @@
+import { createAnalyticsEventsForEffect } from "./analytics";
 import type { FlowSession, FlowSessionEffect } from "./runtime";
+import type { ArloAnalyticsEvent } from "./types";
 
 export interface FlowBridgeBasePayload {
   session: FlowSession;
@@ -10,6 +12,11 @@ export interface FlowBridgeLifecyclePayload extends FlowBridgeBasePayload {
 
 export interface FlowBridgeActionPayload extends FlowBridgeLifecyclePayload {
   effect: FlowSessionEffect;
+}
+
+export interface FlowBridgeAnalyticsPayload extends FlowBridgeLifecyclePayload {
+  event: ArloAnalyticsEvent;
+  effect?: FlowSessionEffect;
 }
 
 export interface FlowBridgeValidationPayload extends FlowBridgeLifecyclePayload {
@@ -26,6 +33,7 @@ export interface FlowBridgeHandlers {
   onCompleted?: (payload: FlowBridgeLifecyclePayload) => void | Promise<void>;
   onDismissed?: (payload: FlowBridgeLifecyclePayload) => void | Promise<void>;
   onScreenChanged?: (payload: FlowBridgeLifecyclePayload) => void | Promise<void>;
+  onAnalyticsEvent?: (payload: FlowBridgeAnalyticsPayload) => void | Promise<void>;
   onValidationFailed?: (payload: FlowBridgeValidationPayload) => void | Promise<void>;
 }
 
@@ -47,59 +55,69 @@ export async function applyFlowSessionEffect(
         effect,
         url: effect.url,
       });
-      return;
+      break;
     case "deep_link":
       await handlers.onDeepLink?.({
         ...lifecyclePayload,
         effect,
         url: effect.url,
       });
-      return;
+      break;
     case "custom_event":
       await handlers.onCustomEvent?.({
         ...lifecyclePayload,
         effect,
         eventName: effect.eventName,
       });
-      return;
+      break;
     case "request_notifications":
       await handlers.onRequestNotifications?.({
         ...lifecyclePayload,
         effect,
       });
-      return;
+      break;
     case "request_tracking":
       await handlers.onRequestTracking?.({
         ...lifecyclePayload,
         effect,
       });
-      return;
+      break;
     case "restore_purchases":
       await handlers.onRestorePurchases?.({
         ...lifecyclePayload,
         effect,
       });
-      return;
+      break;
     case "completed":
       await handlers.onCompleted?.(lifecyclePayload);
-      return;
+      break;
     case "dismissed":
       await handlers.onDismissed?.(lifecyclePayload);
-      return;
+      break;
     case "screen_changed":
       await handlers.onScreenChanged?.(lifecyclePayload);
-      return;
+      break;
     case "validation_failed":
       await handlers.onValidationFailed?.({
         ...lifecyclePayload,
         effect,
       });
-      return;
+      break;
     case "noop":
-      return;
+      break;
     default: {
       const exhaustiveCheck: never = effect;
       return exhaustiveCheck;
     }
+  }
+
+  const analyticsEvents = createAnalyticsEventsForEffect(snapshot, effect);
+
+  for (const event of analyticsEvents) {
+    await handlers.onAnalyticsEvent?.({
+      ...lifecyclePayload,
+      effect,
+      event,
+    });
   }
 }

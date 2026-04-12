@@ -16,6 +16,8 @@ type FlowValue = string | string[] | number | boolean | null | undefined;
 export interface FlowSessionOptions {
   initialValues?: Record<string, FlowValue>;
   identity?: ArloIdentifyInput | null;
+  projectId?: string | null;
+  sessionId?: string;
 }
 
 export type FlowSessionStatus = "idle" | "active" | "completed" | "dismissed";
@@ -27,7 +29,12 @@ export interface FlowFieldError {
 }
 
 export type FlowSessionEffect =
-  | { type: "screen_changed"; screenId: string; screenIndex: number }
+  | {
+      type: "screen_changed";
+      screenId: string;
+      screenIndex: number;
+      source: "start" | "navigation" | "programmatic";
+    }
   | { type: "completed"; screenId: string; screenIndex: number }
   | { type: "dismissed"; screenId: string; screenIndex: number }
   | { type: "validation_failed"; errors: FlowFieldError[] }
@@ -40,8 +47,13 @@ export type FlowSessionEffect =
   | { type: "noop" };
 
 export interface FlowSessionSnapshot {
+  projectId: string | null;
   flowSlug: string;
   flowVersion: number;
+  sessionId: string;
+  userId: string | null;
+  startedAt: string;
+  durationMs: number;
   status: FlowSessionStatus;
   currentScreenId: string | null;
   currentScreenIndex: number;
@@ -243,7 +255,11 @@ function createSnapshot(
   currentScreenIndex: number,
   status: FlowSessionStatus,
   values: Record<string, FlowValue>,
+  projectId: string | null,
+  sessionId: string,
   identity: ArloIdentifyInput | null,
+  startedAt: string,
+  startedAtMs: number,
   validationErrors: FlowFieldError[]
 ): FlowSessionSnapshot {
   const currentScreen = visibleScreens[currentScreenIndex] ?? null;
@@ -252,8 +268,13 @@ function createSnapshot(
   );
 
   return {
+    projectId,
     flowSlug: response.flow.slug,
     flowVersion: response.flow.version,
+    sessionId,
+    userId: identity?.userId ?? null,
+    startedAt,
+    durationMs: Math.max(0, Date.now() - startedAtMs),
     status,
     currentScreenId: currentScreen?.id ?? null,
     currentScreenIndex,
@@ -268,6 +289,14 @@ function createSnapshot(
   };
 }
 
+function generateSessionId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `arlo_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function createFlowSession(
   response: SDKFlowResponse,
   options: FlowSessionOptions = {}
@@ -278,7 +307,11 @@ export function createFlowSession(
   }
 
   let values: Record<string, FlowValue> = { ...(options.initialValues ?? {}) };
-  let identity = options.identity ?? null;
+  const identity = options.identity ?? null;
+  const projectId = options.projectId?.trim() || null;
+  const sessionId = options.sessionId?.trim() || generateSessionId();
+  const startedAt = new Date().toISOString();
+  const startedAtMs = Date.now();
   let status: FlowSessionStatus = "idle";
   let visibleScreens = getVisibleScreens(orderedScreens, values);
   let currentScreenIndex = visibleScreens.length > 0 ? 0 : -1;
@@ -402,7 +435,10 @@ export function createFlowSession(
     return visibleScreens[currentScreenIndex] ?? null;
   }
 
-  function goToIndex(nextIndex: number): FlowSessionEffect {
+  function goToIndex(
+    nextIndex: number,
+    source: "start" | "navigation" | "programmatic" = "navigation"
+  ): FlowSessionEffect {
     if (nextIndex < 0 || nextIndex >= visibleScreens.length) {
       status = "completed";
       const current = readCurrentScreen();
@@ -419,6 +455,7 @@ export function createFlowSession(
       type: "screen_changed",
       screenId: visibleScreens[nextIndex].id,
       screenIndex: nextIndex,
+      source,
     };
   }
 
@@ -562,6 +599,7 @@ export function createFlowSession(
         type: "screen_changed",
         screenId: visibleScreens[currentScreenIndex].id,
         screenIndex: currentScreenIndex,
+        source: "start",
       };
     },
     getSnapshot(): FlowSessionSnapshot {
@@ -572,7 +610,11 @@ export function createFlowSession(
         currentScreenIndex,
         status,
         values,
+        projectId,
+        sessionId,
         identity,
+        startedAt,
+        startedAtMs,
         validationErrors
       );
     },
@@ -610,7 +652,11 @@ export function createFlowSession(
         currentScreenIndex,
         status,
         values,
+        projectId,
+        sessionId,
         identity,
+        startedAt,
+        startedAtMs,
         validationErrors
       );
     },
@@ -621,7 +667,7 @@ export function createFlowSession(
         throw new ArloSDKError(`Screen "${screenId}" was not found in the active flow`);
       }
 
-      return goToIndex(targetIndex);
+      return goToIndex(targetIndex, "programmatic");
     },
     next,
     previous,

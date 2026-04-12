@@ -3,6 +3,8 @@ type FlowValue = string | string[] | number | boolean | null | undefined;
 export interface FlowSessionOptions {
     initialValues?: Record<string, FlowValue>;
     identity?: ArloIdentifyInput | null;
+    projectId?: string | null;
+    sessionId?: string;
 }
 export type FlowSessionStatus = "idle" | "active" | "completed" | "dismissed";
 export interface FlowFieldError {
@@ -14,6 +16,7 @@ export type FlowSessionEffect = {
     type: "screen_changed";
     screenId: string;
     screenIndex: number;
+    source: "start" | "navigation" | "programmatic";
 } | {
     type: "completed";
     screenId: string;
@@ -44,8 +47,13 @@ export type FlowSessionEffect = {
     type: "noop";
 };
 export interface FlowSessionSnapshot {
+    projectId: string | null;
     flowSlug: string;
     flowVersion: number;
+    sessionId: string;
+    userId: string | null;
+    startedAt: string;
+    durationMs: number;
     status: FlowSessionStatus;
     currentScreenId: string | null;
     currentScreenIndex: number;

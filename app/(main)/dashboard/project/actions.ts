@@ -12,6 +12,7 @@ type ProjectEntryPoint = {
   key: string;
   name: string | null;
   environment: "DEVELOPMENT" | "PRODUCTION";
+  variantPercentage: number | null;
   createdAt: Date;
   flow: {
     id: string;
@@ -19,6 +20,12 @@ type ProjectEntryPoint = {
     slug: string;
     status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   };
+  variantFlow: {
+    id: string;
+    name: string;
+    slug: string;
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  } | null;
 };
 
 type ProjectRegistryKey = {
@@ -79,6 +86,14 @@ export async function getProject(projectId: string) {
           where: { projectId },
           include: {
             flow: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                status: true,
+              },
+            },
+            variantFlow: {
               select: {
                 id: true,
                 name: true,
@@ -177,7 +192,11 @@ export async function updateProject(projectId: string, formData: FormData) {
   const removeIcon = formData.get("removeIcon") === "true";
 
   // Build update payload from non-null fields
-  const updateData: Record<string, any> = {};
+  const updateData: {
+    name?: string;
+    platform?: "REACT_NATIVE" | "EXPO";
+    iconUrl?: string | null;
+  } = {};
   if (name) updateData.name = name;
   if (platform) updateData.platform = platform;
 

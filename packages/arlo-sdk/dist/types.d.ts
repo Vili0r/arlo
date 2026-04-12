@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { branchRuleSchema, flowComponentSchema, flowConfigSchema, flowSettingsSchema, screenSchema, sdkErrorCodeSchema, sdkErrorResponseSchema, sdkFlowResponseSchema, skipConditionSchema } from "./schema";
+import { buttonActionSchema, branchRuleSchema, flowComponentSchema, flowConfigSchema, flowSettingsSchema, screenSchema, sdkErrorCodeSchema, sdkErrorResponseSchema, sdkFlowResponseSchema, skipConditionSchema } from "./schema";
 export type FlowComponent = z.infer<typeof flowComponentSchema>;
 export type BranchRule = z.infer<typeof branchRuleSchema>;
 export type SkipCondition = z.infer<typeof skipConditionSchema>;
@@ -9,6 +9,7 @@ export type FlowConfig = z.infer<typeof flowConfigSchema>;
 export type SDKFlowResponse = z.infer<typeof sdkFlowResponseSchema>;
 export type SDKErrorCode = z.infer<typeof sdkErrorCodeSchema>;
 export type SDKErrorResponse = z.infer<typeof sdkErrorResponseSchema>;
+export type ButtonAction = z.infer<typeof buttonActionSchema>;
 export type ArloUserTraits = Record<string, string | number | boolean | string[] | null | undefined>;
 export interface ArloIdentifyInput {
     userId: string;
@@ -58,6 +59,7 @@ export interface ArloEventMap {
 export interface ArloClient {
     identify(input: ArloIdentifyInput): void;
     getIdentity(): ArloIdentifyInput | null;
+    getProjectId(): string;
     getFlow(slug: string, options?: GetFlowOptions): Promise<SDKFlowResponse>;
     getEntryPoint(entryPointKey: string, options?: GetFlowOptions): Promise<SDKFlowResponse>;
     preloadFlow(slug: string): Promise<SDKFlowResponse>;
@@ -65,8 +67,59 @@ export interface ArloClient {
     clearCachedFlow(slug: string): Promise<void>;
     /** Clear all cached flows. Automatically called when identity changes (for A/B consistency). */
     clearAllCachedFlows(): Promise<void>;
+    trackAnalyticsEvent(event: ArloAnalyticsEvent): Promise<void>;
     on<K extends keyof ArloEventMap>(event: K, handler: (payload: ArloEventMap[K]) => void): () => void;
 }
+export type ArloAnalyticsValue = string | string[] | number | boolean | null;
+export interface ArloAnalyticsBaseEvent {
+    timestamp: string;
+    projectId: string | null;
+    userId: string | null;
+    flowSlug: string;
+    flowVersion: number;
+    sessionId: string;
+}
+export interface ArloAnalyticsScreenContext {
+    screenId: string | null;
+    screenIndex: number;
+    screenName: string | null;
+    totalScreens: number;
+}
+export interface ArloFlowStartedAnalyticsEvent extends ArloAnalyticsBaseEvent, ArloAnalyticsScreenContext {
+    event: "flow_started";
+}
+export interface ArloScreenViewedAnalyticsEvent extends ArloAnalyticsBaseEvent, ArloAnalyticsScreenContext {
+    event: "screen_viewed";
+    source: "start" | "navigation" | "programmatic";
+}
+export interface ArloButtonPressedAnalyticsEvent extends ArloAnalyticsBaseEvent, ArloAnalyticsScreenContext {
+    event: "button_pressed";
+    componentId: string;
+    componentType: "BUTTON";
+    action: ButtonAction;
+    label: string | null;
+}
+export interface ArloComponentInteractionAnalyticsEvent extends ArloAnalyticsBaseEvent, ArloAnalyticsScreenContext {
+    event: "component_interaction";
+    componentId: string;
+    componentType: "TEXT_INPUT" | "SINGLE_SELECT" | "MULTI_SELECT" | "SLIDER";
+    fieldKey: string;
+    label: string | null;
+    value: ArloAnalyticsValue;
+    valueRedacted: boolean;
+}
+export interface ArloFlowCompletedAnalyticsEvent extends ArloAnalyticsBaseEvent, ArloAnalyticsScreenContext {
+    event: "flow_completed";
+    durationMs: number;
+}
+export interface ArloFlowDismissedAnalyticsEvent extends ArloAnalyticsBaseEvent, ArloAnalyticsScreenContext {
+    event: "flow_dismissed";
+}
+export interface ArloCustomAnalyticsEvent extends ArloAnalyticsBaseEvent, ArloAnalyticsScreenContext {
+    event: "custom_event";
+    eventName: string;
+}
+export type ArloAnalyticsEvent = ArloFlowStartedAnalyticsEvent | ArloScreenViewedAnalyticsEvent | ArloButtonPressedAnalyticsEvent | ArloComponentInteractionAnalyticsEvent | ArloFlowCompletedAnalyticsEvent | ArloFlowDismissedAnalyticsEvent | ArloCustomAnalyticsEvent;
 export declare class ArloSDKError extends Error {
     readonly status: number;
     readonly code?: SDKErrorCode | "INVALID_RESPONSE" | "NETWORK_ERROR";
@@ -77,7 +130,7 @@ export declare class ArloSDKError extends Error {
 }
 export type { FlowFieldError, FlowSession, FlowSessionEffect, FlowSessionOptions, FlowSessionSnapshot, FlowSessionStatus, } from "./runtime";
 export type { FlowBridgeHandlers } from "./bridge";
-export type { FlowBridgeActionPayload, FlowBridgeBasePayload, FlowBridgeLifecyclePayload, FlowBridgeValidationPayload, } from "./bridge";
+export type { FlowBridgeActionPayload, FlowBridgeAnalyticsPayload, FlowBridgeBasePayload, FlowBridgeLifecyclePayload, FlowBridgeValidationPayload, } from "./bridge";
 export type { ArloPresentationState, ArloPresenter, CreateArloPresenterOptions, PresentationStatus, PresentFlowOptions, } from "./presenter";
 export type { ArloCacheStorage, CreatePersistentFlowCacheOptions, } from "./cache";
 //# sourceMappingURL=types.d.ts.map

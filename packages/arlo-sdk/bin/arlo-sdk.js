@@ -161,6 +161,9 @@ export function ArloOnboardingScreen() {
     createArloPresenter({
       client: arloClient,
       handlers: {
+        onAnalyticsEvent({ event }) {
+          void arloClient.trackAnalyticsEvent(event);
+        },
         onCompleted({ snapshot }) {
           console.log("Arlo flow completed", snapshot.values);
         },

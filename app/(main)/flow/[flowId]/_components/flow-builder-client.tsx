@@ -313,6 +313,7 @@ function isDarkColor(hex: string): boolean {
 
 export function FlowBuilderClient({
   flowId,
+  initialFlowSlug,
   initialDocument,
   initialProjectId,
   initialDevelopmentVersion,
@@ -321,6 +322,7 @@ export function FlowBuilderClient({
   initialSelectedScreenIndex = 0,
 }: {
   flowId: string;
+  initialFlowSlug: string;
   initialDocument: EditorDocument | null;
   initialProjectId: string | null;
   initialDevelopmentVersion: { id: string; version: number } | null;
@@ -2511,6 +2513,8 @@ export function FlowBuilderClient({
             open={previewOpen}
             onClose={() => setPreviewOpen(false)}
             flowId={flowId}
+            flowSlug={initialFlowSlug}
+            projectId={projectId}
             config={config}
             startScreenId={currentScreen?.id}
             device={selectedDevice}

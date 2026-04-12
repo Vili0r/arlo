@@ -1,4 +1,5 @@
 import type { FlowSession, FlowSessionEffect } from "./runtime";
+import type { ArloAnalyticsEvent } from "./types";
 export interface FlowBridgeBasePayload {
     session: FlowSession;
 }
@@ -7,6 +8,10 @@ export interface FlowBridgeLifecyclePayload extends FlowBridgeBasePayload {
 }
 export interface FlowBridgeActionPayload extends FlowBridgeLifecyclePayload {
     effect: FlowSessionEffect;
+}
+export interface FlowBridgeAnalyticsPayload extends FlowBridgeLifecyclePayload {
+    event: ArloAnalyticsEvent;
+    effect?: FlowSessionEffect;
 }
 export interface FlowBridgeValidationPayload extends FlowBridgeLifecyclePayload {
     effect: Extract<FlowSessionEffect, {
@@ -29,6 +34,7 @@ export interface FlowBridgeHandlers {
     onCompleted?: (payload: FlowBridgeLifecyclePayload) => void | Promise<void>;
     onDismissed?: (payload: FlowBridgeLifecyclePayload) => void | Promise<void>;
     onScreenChanged?: (payload: FlowBridgeLifecyclePayload) => void | Promise<void>;
+    onAnalyticsEvent?: (payload: FlowBridgeAnalyticsPayload) => void | Promise<void>;
     onValidationFailed?: (payload: FlowBridgeValidationPayload) => void | Promise<void>;
 }
 export declare function applyFlowSessionEffect(session: FlowSession, effect: FlowSessionEffect, handlers?: FlowBridgeHandlers): Promise<void>;

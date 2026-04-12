@@ -1,6 +1,7 @@
 import { sdkErrorResponseSchema, sdkFlowResponseSchema } from "./schema";
 import type {
   ArloClient,
+  ArloAnalyticsEvent,
   ArloClientOptions,
   ArloEventMap,
   ArloFlowCacheEntry,
@@ -68,6 +69,10 @@ function normalizeBaseUrl(baseUrl: string): string {
 
 function createCacheKey(projectId: string, slug: string): string {
   return `${projectId}:${slug}`;
+}
+
+function getAnalyticsPath(projectId: string): string {
+  return `/api/sdk/projects/${encodeURIComponent(projectId)}/analytics/events`;
 }
 
 async function parseFlowResponse(
@@ -351,6 +356,37 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
     knownCacheKeys.clear();
   }
 
+  async function trackAnalyticsEvent(event: ArloAnalyticsEvent): Promise<void> {
+    let response: Response;
+
+    try {
+      response = await fetchImpl(`${baseUrl}${getAnalyticsPath(options.projectId)}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": options.apiKey,
+          ...(identity?.userId ? { "x-arlo-user-id": identity.userId } : {}),
+          ...options.headers,
+        },
+        body: JSON.stringify(event),
+      });
+    } catch (cause) {
+      const error = new ArloSDKError("Analytics request failed", {
+        code: "NETWORK_ERROR",
+      });
+
+      if (cause instanceof Error && cause.stack) {
+        error.stack = cause.stack;
+      }
+
+      throw error;
+    }
+
+    if (!response.ok) {
+      throw await parseErrorResponse(response);
+    }
+  }
+
   return {
     identify(input: ArloIdentifyInput): void {
       const previousUserId = identity?.userId;
@@ -370,6 +406,9 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
     getIdentity(): ArloIdentifyInput | null {
       return identity;
     },
+    getProjectId(): string {
+      return options.projectId;
+    },
     getFlow(slug: string, flowOptions?: GetFlowOptions): Promise<SDKFlowResponse> {
       return getFlow(slug, flowOptions);
     },
@@ -388,6 +427,7 @@ export function createArloClient(options: ArloClientOptions): ArloClient {
       knownCacheKeys.delete(cacheKey);
     },
     clearAllCachedFlows,
+    trackAnalyticsEvent,
     on<K extends keyof ArloEventMap>(
       event: K,
       handler: (payload: ArloEventMap[K]) => void

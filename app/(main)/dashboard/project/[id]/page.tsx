@@ -53,6 +53,77 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
       },
     ])
   );
+  const flowOptions = project.flows.map((flow) => ({
+    id: flow.id,
+    name: flow.name,
+    slug: flow.slug,
+    status: flow.status,
+    developmentVersion: flow.developmentVersion
+      ? {
+          id: flow.developmentVersion.id,
+          version: flow.developmentVersion.version,
+        }
+      : null,
+    productionVersion: flow.productionVersion
+      ? {
+          id: flow.productionVersion.id,
+          version: flow.productionVersion.version,
+        }
+      : null,
+  }));
+  const entryPointCards = entryPoints.map((entryPoint) => {
+    const flowVersions = flowVersionMap.get(entryPoint.flow.id);
+    const variantVersions = entryPoint.variantFlow
+      ? flowVersionMap.get(entryPoint.variantFlow.id)
+      : null;
+
+    return {
+      id: entryPoint.id,
+      key: entryPoint.key,
+      name: entryPoint.name,
+      environment: entryPoint.environment,
+      variantPercentage: entryPoint.variantPercentage,
+      flow: {
+        id: entryPoint.flow.id,
+        name: entryPoint.flow.name,
+        slug: entryPoint.flow.slug,
+        status: entryPoint.flow.status,
+        developmentVersion: flowVersions?.developmentVersion
+          ? {
+              id: flowVersions.developmentVersion.id,
+              version: flowVersions.developmentVersion.version,
+            }
+          : null,
+        productionVersion: flowVersions?.productionVersion
+          ? {
+              id: flowVersions.productionVersion.id,
+              version: flowVersions.productionVersion.version,
+            }
+          : null,
+      },
+      variantFlow: entryPoint.variantFlow
+        ? {
+            id: entryPoint.variantFlow.id,
+            name: entryPoint.variantFlow.name,
+            slug: entryPoint.variantFlow.slug,
+            status: entryPoint.variantFlow.status,
+            developmentVersion: variantVersions?.developmentVersion
+              ? {
+                  id: variantVersions.developmentVersion.id,
+                  version: variantVersions.developmentVersion.version,
+                }
+              : null,
+            productionVersion: variantVersions?.productionVersion
+              ? {
+                  id: variantVersions.productionVersion.id,
+                  version: variantVersions.productionVersion.version,
+                }
+              : null,
+          }
+        : null,
+      createdAt: entryPoint.createdAt.toISOString(),
+    };
+  });
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -290,53 +361,8 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
 
             <EntryPointsCard
               projectId={project.id}
-              entryPoints={entryPoints.map((entryPoint) => ({
-                id: entryPoint.id,
-                key: entryPoint.key,
-                name: entryPoint.name,
-                environment: entryPoint.environment,
-                flow: {
-                  id: entryPoint.flow.id,
-                  name: entryPoint.flow.name,
-                  slug: entryPoint.flow.slug,
-                  status: entryPoint.flow.status,
-                  developmentVersion:
-                    flowVersionMap.get(entryPoint.flow.id)?.developmentVersion
-                      ? {
-                          id: flowVersionMap.get(entryPoint.flow.id)!.developmentVersion!.id,
-                          version:
-                            flowVersionMap.get(entryPoint.flow.id)!.developmentVersion!.version,
-                        }
-                      : null,
-                  productionVersion:
-                    flowVersionMap.get(entryPoint.flow.id)?.productionVersion
-                      ? {
-                          id: flowVersionMap.get(entryPoint.flow.id)!.productionVersion!.id,
-                          version:
-                            flowVersionMap.get(entryPoint.flow.id)!.productionVersion!.version,
-                        }
-                      : null,
-                },
-                createdAt: entryPoint.createdAt.toISOString(),
-              }))}
-              flows={project.flows.map((flow) => ({
-                id: flow.id,
-                name: flow.name,
-                slug: flow.slug,
-                status: flow.status,
-                developmentVersion: flow.developmentVersion
-                  ? {
-                      id: flow.developmentVersion.id,
-                      version: flow.developmentVersion.version,
-                    }
-                  : null,
-                productionVersion: flow.productionVersion
-                  ? {
-                      id: flow.productionVersion.id,
-                      version: flow.productionVersion.version,
-                    }
-                  : null,
-              }))}
+              entryPoints={entryPointCards}
+              flows={flowOptions}
             />
 
             <RegistryKeysCard
@@ -350,27 +376,30 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
               }))}
             />
 
-            {/* Insights Card */}
-            <section className="bg-white/[0.03] border border-white/[0.08] rounded-xl p-4 hover:border-white/[0.15] transition-all duration-200 group hover:bg-white/[0.04] cursor-pointer">
-              <span className="absolute top-3 right-3 text-[9px] font-semibold bg-[#1a1a1a] text-[#555] border border-[#1f1f1f] px-1.5 py-0.5 rounded-md uppercase tracking-widest">
-                Future
-              </span>
+            {/* Analytics Card */}
+            <Link
+              href={`/dashboard/project/${project.id}/analytics`}
+              className="block rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 transition-all duration-200 hover:border-white/[0.15] hover:bg-white/[0.04]"
+            >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-white">Insights</h3>
+                <h3 className="text-sm font-semibold text-white">Analytics</h3>
+                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300">
+                  Live
+                </span>
               </div>
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-9 h-9 rounded-lg bg-[#1a1a1a] border border-[#1f1f1f] flex items-center justify-center">
-                  <BarChart3 size={16} className="text-purple-400/80" />
+                  <BarChart3 size={16} className="text-emerald-300" />
                 </div>
               </div>
               <p className="text-xs text-[#555] leading-relaxed mb-4">
-                Flow performance analytics, completion rates, and drop-off
-                tracking is coming soon.
+                Open project analytics to see Tinybird-powered usage, top pages,
+                sessions, and geo breakdowns for this project.
               </p>
-              <div className="w-full h-10 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg flex items-center justify-center text-[10px] text-[#333] italic">
-                Connecting telemetry stream...
+              <div className="w-full rounded-lg border border-[#1a1a1a] bg-[#0a0a0a] px-3 py-2.5 text-[11px] text-[#666]">
+                Click to open analytics for {project.name}.
               </div>
-            </section>
+            </Link>
           </div>
         </div>
 

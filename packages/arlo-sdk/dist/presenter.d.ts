@@ -14,6 +14,7 @@ export interface ArloPresentationState {
 }
 export interface ArloPresenter {
     getState(): ArloPresentationState;
+    getHandlers(): FlowBridgeHandlers | undefined;
     presentFlow(slug: string, options?: PresentFlowOptions): Promise<ArloPresentationState>;
     presentEntryPoint(entryPointKey: string, options?: PresentFlowOptions): Promise<ArloPresentationState>;
     preloadFlow(slug: string): Promise<SDKFlowResponse>;

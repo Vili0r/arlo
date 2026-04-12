@@ -1,8 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ArloSDKError = exports.sdkFlowResponseSchema = exports.sdkErrorResponseSchema = exports.screenSchema = exports.flowSettingsSchema = exports.flowConfigSchema = exports.flowComponentSchema = exports.branchRuleSchema = exports.createFlowSession = exports.createArloPresenter = exports.applyFlowSessionEffect = exports.createPersistentFlowCache = exports.createArloClient = void 0;
+exports.ArloSDKError = exports.sdkFlowResponseSchema = exports.sdkErrorResponseSchema = exports.screenSchema = exports.flowSettingsSchema = exports.flowConfigSchema = exports.flowComponentSchema = exports.branchRuleSchema = exports.createFlowSession = exports.createArloPresenter = exports.applyFlowSessionEffect = exports.createPersistentFlowCache = exports.createComponentInteractionAnalyticsEvent = exports.createButtonPressedAnalyticsEvent = exports.createAnalyticsEventsForEffect = exports.createArloClient = void 0;
 var client_1 = require("./client");
 Object.defineProperty(exports, "createArloClient", { enumerable: true, get: function () { return client_1.createArloClient; } });
+var analytics_1 = require("./analytics");
+Object.defineProperty(exports, "createAnalyticsEventsForEffect", { enumerable: true, get: function () { return analytics_1.createAnalyticsEventsForEffect; } });
+Object.defineProperty(exports, "createButtonPressedAnalyticsEvent", { enumerable: true, get: function () { return analytics_1.createButtonPressedAnalyticsEvent; } });
+Object.defineProperty(exports, "createComponentInteractionAnalyticsEvent", { enumerable: true, get: function () { return analytics_1.createComponentInteractionAnalyticsEvent; } });
 var cache_1 = require("./cache");
 Object.defineProperty(exports, "createPersistentFlowCache", { enumerable: true, get: function () { return cache_1.createPersistentFlowCache; } });
 var bridge_1 = require("./bridge");

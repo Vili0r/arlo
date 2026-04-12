@@ -1,6 +1,6 @@
 {
   "name": "arlo-sdk",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Core TypeScript client and CLI for connecting apps to Arlo flows.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -28,6 +28,15 @@ function mapSnapshotStatus(snapshot) {
 function createArloPresenter(options) {
     let state = createInitialState();
     const listeners = new Set();
+    const resolvedHandlers = {
+        ...options.handlers,
+        onAnalyticsEvent: (payload) => {
+            void options.client.trackAnalyticsEvent(payload.event).catch(() => {
+                // Silently swallow analytics errors to avoid interrupting the user flow
+            });
+            return options.handlers?.onAnalyticsEvent?.(payload);
+        },
+    };
     function notify() {
         for (const listener of listeners) {
             listener(state);
@@ -50,9 +59,10 @@ function createArloPresenter(options) {
             const session = (0, runtime_1.createFlowSession)(response, {
                 identity: options.client.getIdentity(),
                 initialValues: presentOptions.initialValues,
+                projectId: options.client.getProjectId(),
             });
             const effect = session.start();
-            await (0, bridge_1.applyFlowSessionEffect)(session, effect, options.handlers);
+            await (0, bridge_1.applyFlowSessionEffect)(session, effect, resolvedHandlers);
             const snapshot = session.getSnapshot();
             const nextStatus = snapshot.status === "dismissed"
                 ? "dismissed"
@@ -84,6 +94,9 @@ function createArloPresenter(options) {
         getState() {
             return state;
         },
+        getHandlers() {
+            return resolvedHandlers;
+        },
         async presentFlow(slug, presentOptions = {}) {
             return presentResolvedFlow(slug, () => options.client.getFlow(slug, presentOptions), presentOptions);
         },
@@ -101,7 +114,7 @@ function createArloPresenter(options) {
                 return state;
             }
             const effect = state.session.dismiss();
-            await (0, bridge_1.applyFlowSessionEffect)(state.session, effect, options.handlers);
+            await (0, bridge_1.applyFlowSessionEffect)(state.session, effect, resolvedHandlers);
             return setState((previous) => ({
                 ...previous,
                 status: "dismissed",

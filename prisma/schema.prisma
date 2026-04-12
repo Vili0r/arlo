@@ -70,7 +70,8 @@ model Flow {
   productionVersionId  String?       @unique
   productionVersion    FlowVersion?  @relation("ProductionPublishedVersion", fields: [productionVersionId], references: [id])
   versions             FlowVersion[] @relation("FlowVersions")
-  entryPoints          EntryPoint[]
+  entryPoints          EntryPoint[]  @relation("EntryPointPrimaryFlow")
+  entryPointsAsVariant EntryPoint[]  @relation("EntryPointVariantFlow")
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -108,7 +109,10 @@ model EntryPoint {
   projectId   String
   project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   flowId      String
-  flow        Flow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  flow        Flow        @relation("EntryPointPrimaryFlow", fields: [flowId], references: [id], onDelete: Cascade)
+  variantFlowId String?
+  variantFlow  Flow?      @relation("EntryPointVariantFlow", fields: [variantFlowId], references: [id], onDelete: SetNull)
+  variantPercentage Int?
   key         String
   name        String?
   environment Environment @default(DEVELOPMENT)
@@ -118,6 +122,7 @@ model EntryPoint {
   @@unique([projectId, key, environment])
   @@index([projectId])
   @@index([flowId])
+  @@index([variantFlowId])
   @@map("entry_points")
 }
 

@@ -114,12 +114,17 @@ function getBranchTargetIndex(currentScreen, visibleScreens, orderedScreens, val
     }
     return fallbackIndex;
 }
-function createSnapshot(response, visibleScreens, currentScreenIndex, status, values, identity, validationErrors) {
+function createSnapshot(response, visibleScreens, currentScreenIndex, status, values, projectId, sessionId, identity, startedAt, startedAtMs, validationErrors) {
     const currentScreen = visibleScreens[currentScreenIndex] ?? null;
     const validationErrorsByField = Object.fromEntries(validationErrors.map((error) => [error.fieldKey, error.message]));
     return {
+        projectId,
         flowSlug: response.flow.slug,
         flowVersion: response.flow.version,
+        sessionId,
+        userId: identity?.userId ?? null,
+        startedAt,
+        durationMs: Math.max(0, Date.now() - startedAtMs),
         status,
         currentScreenId: currentScreen?.id ?? null,
         currentScreenIndex,
@@ -133,13 +138,23 @@ function createSnapshot(response, visibleScreens, currentScreenIndex, status, va
         isCurrentScreenValid: validationErrors.length === 0,
     };
 }
+function generateSessionId() {
+    if (typeof globalThis.crypto?.randomUUID === "function") {
+        return globalThis.crypto.randomUUID();
+    }
+    return `arlo_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
 function createFlowSession(response, options = {}) {
     const orderedScreens = sortScreens(response.flow.config);
     if (orderedScreens.length === 0) {
         throw new types_1.ArloSDKError("Flow config must contain at least one screen");
     }
     let values = { ...(options.initialValues ?? {}) };
-    let identity = options.identity ?? null;
+    const identity = options.identity ?? null;
+    const projectId = options.projectId?.trim() || null;
+    const sessionId = options.sessionId?.trim() || generateSessionId();
+    const startedAt = new Date().toISOString();
+    const startedAtMs = Date.now();
     let status = "idle";
     let visibleScreens = getVisibleScreens(orderedScreens, values);
     let currentScreenIndex = visibleScreens.length > 0 ? 0 : -1;
@@ -238,7 +253,7 @@ function createFlowSession(response, options = {}) {
     function readCurrentScreen() {
         return visibleScreens[currentScreenIndex] ?? null;
     }
-    function goToIndex(nextIndex) {
+    function goToIndex(nextIndex, source = "navigation") {
         if (nextIndex < 0 || nextIndex >= visibleScreens.length) {
             status = "completed";
             const current = readCurrentScreen();
@@ -254,6 +269,7 @@ function createFlowSession(response, options = {}) {
             type: "screen_changed",
             screenId: visibleScreens[nextIndex].id,
             screenIndex: nextIndex,
+            source,
         };
     }
     function next() {
@@ -364,11 +380,12 @@ function createFlowSession(response, options = {}) {
                 type: "screen_changed",
                 screenId: visibleScreens[currentScreenIndex].id,
                 screenIndex: currentScreenIndex,
+                source: "start",
             };
         },
         getSnapshot() {
             refreshVisibleScreens();
-            return createSnapshot(response, visibleScreens, currentScreenIndex, status, values, identity, validationErrors);
+            return createSnapshot(response, visibleScreens, currentScreenIndex, status, values, projectId, sessionId, identity, startedAt, startedAtMs, validationErrors);
         },
         validateCurrentScreen() {
             refreshVisibleScreens();
@@ -397,7 +414,7 @@ function createFlowSession(response, options = {}) {
                 [fieldKey]: value,
             };
             refreshVisibleScreens();
-            return createSnapshot(response, visibleScreens, currentScreenIndex, status, values, identity, validationErrors);
+            return createSnapshot(response, visibleScreens, currentScreenIndex, status, values, projectId, sessionId, identity, startedAt, startedAtMs, validationErrors);
         },
         goToScreenId(screenId) {
             refreshVisibleScreens();
@@ -405,7 +422,7 @@ function createFlowSession(response, options = {}) {
             if (targetIndex < 0) {
                 throw new types_1.ArloSDKError(`Screen "${screenId}" was not found in the active flow`);
             }
-            return goToIndex(targetIndex);
+            return goToIndex(targetIndex, "programmatic");
         },
         next,
         previous,

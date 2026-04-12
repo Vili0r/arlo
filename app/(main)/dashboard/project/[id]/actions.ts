@@ -1,9 +1,22 @@
 "use server";
 
 import prisma from "@/lib/prisma"; // adjust to your setup
+import { createEntryPointSchema } from "@/lib/validations";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { generateApiKey } from "@/lib/api-keys";
+
+function hasPublishedVersionForEnvironment(
+  flow: {
+    developmentVersion: { id: string; version: number } | null;
+    productionVersion: { id: string; version: number } | null;
+  },
+  environment: "DEVELOPMENT" | "PRODUCTION"
+) {
+  return environment === "PRODUCTION"
+    ? Boolean(flow.productionVersion)
+    : Boolean(flow.developmentVersion);
+}
 
 export async function createFlow(projectId: string, data: { name: string; slug: string }) {
   const { userId } = await auth();
@@ -63,6 +76,14 @@ export async function deleteFlow(projectId: string, flowId: string) {
 
     await tx.entryPoint.deleteMany({
       where: { flowId },
+    });
+
+    await tx.entryPoint.updateMany({
+      where: { variantFlowId: flowId },
+      data: {
+        variantFlowId: null,
+        variantPercentage: null,
+      },
     });
 
     await tx.flowVersion.deleteMany({
@@ -131,6 +152,8 @@ export async function createEntryPoint(
     name?: string;
     flowId: string;
     environment: "DEVELOPMENT" | "PRODUCTION";
+    variantFlowId?: string;
+    variantPercentage?: number;
   }
 ) {
   const { userId } = await auth();
@@ -141,18 +164,80 @@ export async function createEntryPoint(
   });
   if (!project) throw new Error("Project not found");
 
-  const flow = await prisma.flow.findFirst({
-    where: { id: data.flowId, projectId },
+  const parsed = createEntryPointSchema.parse({
+    key: data.key.trim(),
+    name: data.name?.trim() || undefined,
+    flowId: data.flowId,
+    environment: data.environment,
+    variantFlowId: data.variantFlowId?.trim() || undefined,
+    variantPercentage: data.variantPercentage,
   });
-  if (!flow) throw new Error("Flow not found");
+
+  const requestedFlowIds = [
+    parsed.flowId,
+    ...(parsed.variantFlowId ? [parsed.variantFlowId] : []),
+  ];
+
+  const flows = await prisma.flow.findMany({
+    where: {
+      projectId,
+      id: {
+        in: requestedFlowIds,
+      },
+    },
+    include: {
+      developmentVersion: {
+        select: {
+          id: true,
+          version: true,
+        },
+      },
+      productionVersion: {
+        select: {
+          id: true,
+          version: true,
+        },
+      },
+    },
+  });
+
+  const flowById = new Map(flows.map((flow) => [flow.id, flow]));
+  const controlFlow = flowById.get(parsed.flowId);
+
+  if (!controlFlow) {
+    throw new Error("Flow not found");
+  }
+
+  if (
+    controlFlow.status !== "PUBLISHED" ||
+    !hasPublishedVersionForEnvironment(controlFlow, parsed.environment)
+  ) {
+    throw new Error("Control flow must be published in the selected environment");
+  }
+
+  const variantFlow = parsed.variantFlowId ? flowById.get(parsed.variantFlowId) : null;
+
+  if (parsed.variantFlowId && !variantFlow) {
+    throw new Error("Variant flow not found");
+  }
+
+  if (
+    variantFlow &&
+    (variantFlow.status !== "PUBLISHED" ||
+      !hasPublishedVersionForEnvironment(variantFlow, parsed.environment))
+  ) {
+    throw new Error("Variant flow must be published in the selected environment");
+  }
 
   const entryPoint = await prisma.entryPoint.create({
     data: {
       projectId,
-      flowId: data.flowId,
-      key: data.key.trim(),
-      name: data.name?.trim() || null,
-      environment: data.environment,
+      flowId: parsed.flowId,
+      variantFlowId: parsed.variantFlowId ?? null,
+      variantPercentage: parsed.variantPercentage ?? null,
+      key: parsed.key,
+      name: parsed.name?.trim() || null,
+      environment: parsed.environment,
     },
   });
 

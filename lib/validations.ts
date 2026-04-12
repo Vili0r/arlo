@@ -606,6 +606,43 @@ export const updateFlowSchema = z.object({
 export type CreateFlowInput = z.infer<typeof createFlowSchema>;
 export type UpdateFlowInput = z.infer<typeof updateFlowSchema>;
 
+// ========== Entry Point Schemas ==========
+
+export const entryPointKeySchema = z.string()
+  .min(1, "Entry point key is required")
+  .max(80, "Entry point key must be under 80 characters")
+  .regex(/^[a-z0-9_]+$/, "Entry point keys must use lowercase letters, numbers, and underscores");
+
+export const createEntryPointSchema = z.object({
+  key: entryPointKeySchema,
+  name: z.string().max(80, "Entry point name must be under 80 characters").optional(),
+  flowId: z.string().min(1, "A control flow is required"),
+  environment: environmentEnum,
+  variantFlowId: z.string().min(1).optional(),
+  variantPercentage: z.number().int().min(1).max(99).optional(),
+}).superRefine((data, ctx) => {
+  const hasVariantFlow = Boolean(data.variantFlowId);
+  const hasVariantPercentage = typeof data.variantPercentage === "number";
+
+  if (hasVariantFlow !== hasVariantPercentage) {
+    ctx.addIssue({
+      code: "custom",
+      path: hasVariantFlow ? ["variantPercentage"] : ["variantFlowId"],
+      message: "A/B tests need both a variant flow and a variant percentage",
+    });
+  }
+
+  if (data.variantFlowId && data.variantFlowId === data.flowId) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["variantFlowId"],
+      message: "Control and variant flows must be different",
+    });
+  }
+});
+
+export type CreateEntryPointInput = z.infer<typeof createEntryPointSchema>;
+
 // ========== Flow Version Schemas ==========
 
 export const createFlowVersionSchema = z.object({

@@ -2,6 +2,7 @@
 
 import {
   startTransition,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -27,6 +28,10 @@ import {
 
 import type { FlowComponent, FlowConfig, Screen } from "@/lib/types";
 import {
+  createButtonPressedAnalyticsEvent,
+  createComponentInteractionAnalyticsEvent,
+} from "@/packages/arlo-sdk/src/analytics";
+import {
   applyFlowSessionEffect,
   type FlowBridgeHandlers,
 } from "@/packages/arlo-sdk/src/bridge";
@@ -35,8 +40,9 @@ import {
   type FlowSessionEffect,
   type FlowSessionSnapshot,
 } from "@/packages/arlo-sdk/src/runtime";
-import type { SDKFlowResponse } from "@/packages/arlo-sdk/src/types";
+import type { ArloAnalyticsEvent, SDKFlowResponse } from "@/packages/arlo-sdk/src/types";
 
+import { recordPreviewAnalyticsEvent } from "../actions";
 import type { ScreenTransitionConfig } from "../_lib/animation-presets";
 import { getFrameDimensions, type DevicePreset, type Orientation } from "../_lib/device-presets";
 import { AnimatedWrapper, ScreenTransitionWrapper } from "./animated-wrapper";
@@ -49,6 +55,51 @@ type PreviewNotice = {
   tone: "info" | "error" | "success";
   message: string;
 } | null;
+
+type InteractivePreviewComponent = Extract<
+  FlowComponent,
+  { type: "TEXT_INPUT" | "SINGLE_SELECT" | "MULTI_SELECT" | "SLIDER" }
+>;
+
+function findInteractiveComponent(
+  screen: Screen | null,
+  fieldKey: string,
+): InteractivePreviewComponent | null {
+  if (!screen) {
+    return null;
+  }
+
+  return (
+    screen.components.find((component): component is InteractivePreviewComponent => {
+      if (
+        component.type !== "TEXT_INPUT" &&
+        component.type !== "SINGLE_SELECT" &&
+        component.type !== "MULTI_SELECT" &&
+        component.type !== "SLIDER"
+      ) {
+        return false;
+      }
+
+      return component.props.fieldKey === fieldKey;
+    }) ?? null
+  );
+}
+
+function findButtonComponent(
+  screen: Screen | null,
+  componentId: string,
+): Extract<FlowComponent, { type: "BUTTON" }> | null {
+  if (!screen) {
+    return null;
+  }
+
+  return (
+    screen.components.find(
+      (component): component is Extract<FlowComponent, { type: "BUTTON" }> =>
+        component.type === "BUTTON" && component.id === componentId,
+    ) ?? null
+  );
+}
 
 function getSpacing(
   props: Record<string, unknown>,
@@ -705,8 +756,12 @@ function PreviewNoticeBadge({ notice }: { notice: PreviewNotice }) {
 
 function createPreviewEffectHandlers(
   setNotice: Dispatch<SetStateAction<PreviewNotice>>,
+  onAnalyticsEvent?: (event: ArloAnalyticsEvent) => void,
 ): FlowBridgeHandlers {
   return {
+    onAnalyticsEvent: ({ event }) => {
+      onAnalyticsEvent?.(event);
+    },
     onOpenUrl: ({ url }) => {
       window.open(url, "_blank", "noopener,noreferrer");
       setNotice({
@@ -769,6 +824,8 @@ export function FlowPreviewOverlay({
   open,
   onClose,
   flowId,
+  flowSlug,
+  projectId,
   config,
   startScreenId,
   device,
@@ -777,6 +834,8 @@ export function FlowPreviewOverlay({
   open: boolean;
   onClose: () => void;
   flowId: string;
+  flowSlug: string;
+  projectId: string | null;
   config: FlowConfig;
   startScreenId?: string;
   device: DevicePreset;
@@ -808,19 +867,30 @@ export function FlowPreviewOverlay({
   const response = useMemo<SDKFlowResponse>(
     () => ({
       flow: {
-        slug: `preview-${flowId}`,
+        slug: flowSlug,
         version: 0,
-        config,
+        config: config as SDKFlowResponse["flow"]["config"],
       },
     }),
-    [config, flowId],
+    [config, flowSlug],
   );
   const initialValues = useMemo(() => collectPreviewInitialValues(config), [config]);
+  const trackPreviewAnalyticsEvent = useCallback(
+    (event: ArloAnalyticsEvent) => {
+      void recordPreviewAnalyticsEvent({ flowId, event }).catch((error) => {
+        console.error("Failed to record preview analytics event", error);
+      });
+    },
+    [flowId],
+  );
   const session = useMemo(() => {
     void sessionSeed;
-    return createFlowSession(response, { initialValues });
-  }, [initialValues, response, sessionSeed]);
-  const effectHandlers = useMemo(() => createPreviewEffectHandlers(setNotice), []);
+    return createFlowSession(response, { initialValues, projectId });
+  }, [initialValues, projectId, response, sessionSeed]);
+  const effectHandlers = useMemo(
+    () => createPreviewEffectHandlers(setNotice, trackPreviewAnalyticsEvent),
+    [trackPreviewAnalyticsEvent],
+  );
 
   useEffect(() => {
     if (!open) return undefined;
@@ -923,13 +993,45 @@ export function FlowPreviewOverlay({
         component={component}
         snapshot={snapshot}
         onValueChange={(fieldKey, value) => {
-          session.setValue(fieldKey, value);
+          const nextSnapshot = session.setValue(fieldKey, value);
           session.validateCurrentScreen();
+          const interactiveComponent = findInteractiveComponent(
+            nextSnapshot.currentScreen,
+            fieldKey,
+          );
+
+          if (interactiveComponent) {
+            trackPreviewAnalyticsEvent(
+              createComponentInteractionAnalyticsEvent(
+                nextSnapshot,
+                interactiveComponent as Parameters<
+                  typeof createComponentInteractionAnalyticsEvent
+                >[1],
+                value,
+              ),
+            );
+          }
+
           startTransition(() => {
             setSnapshot(session.getSnapshot());
           });
         }}
         onPressButton={(componentId) => {
+          const currentSnapshot = session.getSnapshot();
+          const buttonComponent = findButtonComponent(
+            currentSnapshot.currentScreen,
+            componentId,
+          );
+
+          if (buttonComponent) {
+            trackPreviewAnalyticsEvent(
+              createButtonPressedAnalyticsEvent(
+                currentSnapshot,
+                buttonComponent as Parameters<typeof createButtonPressedAnalyticsEvent>[1],
+              ),
+            );
+          }
+
           const effect = session.pressButton(componentId);
           void applyFlowSessionEffect(session, effect, effectHandlers).finally(() => {
             startTransition(() => {

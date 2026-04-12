@@ -3,6 +3,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/app/generated/prisma/client";
+import {
+  ingestSDKAnalyticsEvent,
+  sdkAnalyticsEventSchema,
+} from "@/lib/sdk-analytics";
 import prisma from "@/lib/prisma";
 import type { FlowConfig } from "@/lib/types";
 import {
@@ -394,6 +398,7 @@ export async function promoteDevelopmentToProduction(input: {
 
 export async function getFlow(flowId: string): Promise<{
   flowId: string;
+  slug: string;
   projectId: string;
   document: EditorDocument | null;
   config: FlowConfig | null;
@@ -451,6 +456,7 @@ export async function getFlow(flowId: string): Promise<{
 
   return {
     flowId: flow.id,
+    slug: flow.slug,
     projectId: flow.projectId,
     document: latestFlow?.document ?? null,
     config: latestFlow?.runtimeConfig ?? null,
@@ -460,6 +466,30 @@ export async function getFlow(flowId: string): Promise<{
     productionVersion: flow.productionVersion,
     registryKeys,
   };
+}
+
+export async function recordPreviewAnalyticsEvent(input: {
+  flowId: string;
+  event: unknown;
+}): Promise<{ success: true }> {
+  const userId = await requireUser();
+  const flow = await requireFlowAccess(input.flowId, userId);
+  const parsed = sdkAnalyticsEventSchema.safeParse(input.event);
+
+  if (!parsed.success) {
+    throw new Error("Invalid analytics event payload");
+  }
+
+  if (parsed.data.projectId && parsed.data.projectId !== flow.projectId) {
+    throw new Error("Project id mismatch");
+  }
+
+  await ingestSDKAnalyticsEvent({
+    projectId: flow.projectId,
+    event: parsed.data,
+  });
+
+  return { success: true };
 }
 
 /* ── Load latest version for a flow ──────────────────── */

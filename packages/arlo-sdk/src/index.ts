@@ -1,4 +1,9 @@
 export { createArloClient } from "./client";
+export {
+  createAnalyticsEventsForEffect,
+  createButtonPressedAnalyticsEvent,
+  createComponentInteractionAnalyticsEvent,
+} from "./analytics";
 export { createPersistentFlowCache } from "./cache";
 export { applyFlowSessionEffect } from "./bridge";
 export { createArloPresenter } from "./presenter";
@@ -13,6 +18,11 @@ export {
   sdkFlowResponseSchema,
 } from "./schema";
 export type {
+  ArloAnalyticsBaseEvent,
+  ArloAnalyticsEvent,
+  ArloAnalyticsScreenContext,
+  ArloAnalyticsValue,
+  ButtonAction,
   ArloClient,
   ArloClientOptions,
   ArloCacheStorage,
@@ -37,6 +47,7 @@ export type {
   FlowSettings,
   FlowBridgeHandlers,
   FlowBridgeActionPayload,
+  FlowBridgeAnalyticsPayload,
   FlowBridgeBasePayload,
   FlowBridgeLifecyclePayload,
   FlowBridgeValidationPayload,

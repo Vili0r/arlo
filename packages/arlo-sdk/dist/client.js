@@ -52,6 +52,9 @@ function normalizeBaseUrl(baseUrl) {
 function createCacheKey(projectId, slug) {
     return `${projectId}:${slug}`;
 }
+function getAnalyticsPath(projectId) {
+    return `/api/sdk/projects/${encodeURIComponent(projectId)}/analytics/events`;
+}
 async function parseFlowResponse(response, emitter) {
     if (!response.ok) {
         const error = await parseErrorResponse(response);
@@ -264,6 +267,33 @@ function createArloClient(options) {
         }
         knownCacheKeys.clear();
     }
+    async function trackAnalyticsEvent(event) {
+        let response;
+        try {
+            response = await fetchImpl(`${baseUrl}${getAnalyticsPath(options.projectId)}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": options.apiKey,
+                    ...(identity?.userId ? { "x-arlo-user-id": identity.userId } : {}),
+                    ...options.headers,
+                },
+                body: JSON.stringify(event),
+            });
+        }
+        catch (cause) {
+            const error = new types_1.ArloSDKError("Analytics request failed", {
+                code: "NETWORK_ERROR",
+            });
+            if (cause instanceof Error && cause.stack) {
+                error.stack = cause.stack;
+            }
+            throw error;
+        }
+        if (!response.ok) {
+            throw await parseErrorResponse(response);
+        }
+    }
     return {
         identify(input) {
             const previousUserId = identity?.userId;
@@ -281,6 +311,9 @@ function createArloClient(options) {
         },
         getIdentity() {
             return identity;
+        },
+        getProjectId() {
+            return options.projectId;
         },
         getFlow(slug, flowOptions) {
             return getFlow(slug, flowOptions);
@@ -300,6 +333,7 @@ function createArloClient(options) {
             knownCacheKeys.delete(cacheKey);
         },
         clearAllCachedFlows,
+        trackAnalyticsEvent,
         on(event, handler) {
             return emitter.on(event, handler);
         },
