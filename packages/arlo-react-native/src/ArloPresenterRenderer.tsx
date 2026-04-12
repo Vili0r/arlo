@@ -22,9 +22,11 @@ export function ArloPresenterRenderer({
     </View>
   ),
   errorState,
+  handlers,
   ...rendererProps
 }: ArloPresenterRendererProps) {
   const state = useArloPresenter(presenter);
+  const resolvedHandlers = handlers ?? presenter.getHandlers();
 
   if (state.status === "loading") {
     return <>{loadingState}</>;
@@ -50,6 +52,7 @@ export function ArloPresenterRenderer({
     <ArloFlowRenderer
       session={state.session}
       {...rendererProps}
+      handlers={resolvedHandlers}
       onSnapshotChange={(snapshot) => {
         rendererProps.onSnapshotChange?.(snapshot);
         presenter.syncSession();

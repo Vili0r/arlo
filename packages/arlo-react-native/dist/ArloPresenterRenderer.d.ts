@@ -6,5 +6,5 @@ export interface ArloPresenterRendererProps extends Omit<ArloFlowRendererProps, 
     loadingState?: ReactNode;
     errorState?: (message: string) => ReactNode;
 }
-export declare function ArloPresenterRenderer({ presenter, loadingState, errorState, ...rendererProps }: ArloPresenterRendererProps): import("react/jsx-runtime").JSX.Element;
+export declare function ArloPresenterRenderer({ presenter, loadingState, errorState, handlers, ...rendererProps }: ArloPresenterRendererProps): import("react/jsx-runtime").JSX.Element;
 //# sourceMappingURL=ArloPresenterRenderer.d.ts.map

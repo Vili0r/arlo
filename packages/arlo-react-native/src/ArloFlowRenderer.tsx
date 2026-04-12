@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useState, useRef } from "react";
 import {
   Image,
   Pressable,
@@ -8,10 +8,17 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+const SafeView: any = SafeAreaView;
 
-import { applyFlowSessionEffect } from "arlo-sdk";
+import {
+  applyFlowSessionEffect,
+  createButtonPressedAnalyticsEvent,
+  createComponentInteractionAnalyticsEvent,
+} from "arlo-sdk";
 import type {
   FlowComponent,
+  FlowBridgeHandlers,
   FlowSessionSnapshot,
   Screen,
 } from "arlo-sdk";
@@ -100,6 +107,68 @@ const DARK_THEME: ScreenTheme = {
   errorBorder: "#f36b8d",
 };
 
+type InteractiveComponent = Extract<
+  FlowComponent,
+  { type: "TEXT_INPUT" | "SINGLE_SELECT" | "MULTI_SELECT" | "SLIDER" }
+>;
+
+function findInteractiveComponent(
+  screen: Screen | null,
+  fieldKey: string
+): InteractiveComponent | null {
+  if (!screen) {
+    return null;
+  }
+
+  return (
+    screen.components.find((component): component is InteractiveComponent => {
+      if (
+        component.type !== "TEXT_INPUT" &&
+        component.type !== "SINGLE_SELECT" &&
+        component.type !== "MULTI_SELECT" &&
+        component.type !== "SLIDER"
+      ) {
+        return false;
+      }
+
+      return component.props.fieldKey === fieldKey;
+    }) ?? null
+  );
+}
+
+function findButtonComponent(
+  screen: Screen | null,
+  componentId: string
+): Extract<FlowComponent, { type: "BUTTON" }> | null {
+  if (!screen) {
+    return null;
+  }
+
+  return (
+    screen.components.find(
+      (component): component is Extract<FlowComponent, { type: "BUTTON" }> =>
+        component.type === "BUTTON" && component.id === componentId
+    ) ?? null
+  );
+}
+
+function emitAnalyticsEvent(
+  handlers: FlowBridgeHandlers | undefined,
+  session: ArloComponentRenderContext["session"],
+  snapshot: FlowSessionSnapshot,
+  event: ReturnType<typeof createButtonPressedAnalyticsEvent> | ReturnType<typeof createComponentInteractionAnalyticsEvent>
+): void {
+  if (!handlers?.onAnalyticsEvent) {
+    return;
+  }
+
+  void handlers.onAnalyticsEvent({
+    session,
+    snapshot,
+    event,
+  });
+}
+
 /**
  * Compute relative luminance of a color.
  * Returns a value between 0 (black) and 1 (white).
@@ -107,7 +176,7 @@ const DARK_THEME: ScreenTheme = {
 function getRelativeLuminance(color: string): number {
   if (!color || color === "transparent") return 1;
 
-  let hex = color;
+  const hex = color;
 
   // Handle rgba/rgb
   if (color.startsWith("rgb")) {
@@ -116,6 +185,7 @@ function getRelativeLuminance(color: string): number {
     const r = parseInt(matches[0], 10) / 255;
     const g = parseInt(matches[1], 10) / 255;
     const b = parseInt(matches[2], 10) / 255;
+    if (matches.length >= 4 && parseFloat(matches[3]) === 0) return 1;
     const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
     return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
   }
@@ -183,19 +253,23 @@ function getScreenContainerStyle(screen: Screen) {
     backgroundColor: screen.style?.backgroundColor ?? "#FFFFFF",
     paddingTop: padding.top,
     paddingBottom: padding.bottom,
-    paddingHorizontal: padding.left,
+    paddingRight: padding.right,
+    paddingLeft: padding.left,
     justifyContent: screen.style?.justifyContent ?? "flex-start",
     alignItems: screen.style?.alignItems ?? "stretch",
   } as const;
 }
 
 function getScreenPadding(screen: Screen) {
-  const defaultTop = screen.layoutMode === "absolute" ? 0 : 64;
+  const p = screen.style?.padding;
+  const pV = screen.style?.paddingVertical ?? p ?? (screen.layoutMode === "absolute" ? 0 : 24);
+  const pH = screen.style?.paddingHorizontal ?? p ?? (screen.layoutMode === "absolute" ? 0 : 24);
+
   return {
-    top: screen.style?.paddingTop ?? screen.style?.padding ?? defaultTop,
-    right: screen.style?.paddingHorizontal ?? screen.style?.padding ?? 20,
-    bottom: screen.style?.paddingBottom ?? screen.style?.padding ?? 24,
-    left: screen.style?.paddingHorizontal ?? screen.style?.padding ?? 20,
+    top: screen.style?.paddingTop ?? pV,
+    right: screen.style?.paddingRight ?? pH,
+    bottom: screen.style?.paddingBottom ?? pV,
+    left: screen.style?.paddingLeft ?? pH,
   };
 }
 
@@ -295,7 +369,6 @@ function getAutoLayoutWrapperStyle(
 
   if (widthMode === "fill") {
     return {
-      width: "100%" as const,
       alignSelf: "stretch" as const,
     };
   }
@@ -355,8 +428,8 @@ function getComponentWrapperStyle(
   return {
     ...baseStyle,
     position: "absolute" as const,
-    left: layout.x ?? 0,
-    top: layout.y ?? 0,
+    left: layout.x ?? marginStyle.marginLeft ?? 0,
+    top: layout.y ?? marginStyle.marginTop ?? 0,
     width: layout.width,
     height: layout.height,
     transform: layout.rotation ? [{ rotate: `${layout.rotation}deg` }] : undefined,
@@ -394,7 +467,8 @@ function renderFallbackIcon(name: string, size: number, color: string) {
         fontSize: size,
         color,
         textAlign: "center",
-        lineHeight: Math.round(size * 1.1),
+        includeFontPadding: false,
+        lineHeight: size,
       }}
     >
       {glyph}
@@ -447,6 +521,7 @@ function DefaultImageComponent({ component }: { component: Extract<FlowComponent
   return (
     <Image
       source={{ uri: component.props.src }}
+      alt={component.props.alt ?? ""}
       accessibilityLabel={component.props.alt}
       resizeMode={component.props.resizeMode ?? "cover"}
       style={{
@@ -1137,27 +1212,31 @@ export function ArloFlowRenderer({
   unsupportedScreen,
   onSnapshotChange,
 }: ArloFlowRendererProps) {
-  const handlersRef = useRef(handlers);
-  const onSnapshotChangeRef = useRef(onSnapshotChange);
-
-  useEffect(() => {
-    handlersRef.current = handlers;
-    onSnapshotChangeRef.current = onSnapshotChange;
-  });
-
   const [snapshot, setSnapshot] = useState(() => session.getSnapshot());
+
+  const savedOnSnapshotChange = useRef(onSnapshotChange);
+  const savedHandlers = useRef(handlers);
+  
+  useEffect(() => {
+    savedOnSnapshotChange.current = onSnapshotChange;
+    savedHandlers.current = handlers;
+  }, [onSnapshotChange, handlers]);
 
   useEffect(() => {
     const nextSnapshot = session.getSnapshot();
-    setSnapshot(nextSnapshot);
-    onSnapshotChangeRef.current?.(nextSnapshot);
+    startTransition(() => {
+      setSnapshot(nextSnapshot);
+    });
+    savedOnSnapshotChange.current?.(nextSnapshot);
 
     if (autoStart && session.getSnapshot().status === "idle") {
       const effect = session.start();
       const startedSnapshot = session.getSnapshot();
-      setSnapshot(startedSnapshot);
-      onSnapshotChangeRef.current?.(startedSnapshot);
-      void applyFlowSessionEffect(session, effect, handlersRef.current);
+      startTransition(() => {
+        setSnapshot(startedSnapshot);
+      });
+      savedOnSnapshotChange.current?.(startedSnapshot);
+      void applyFlowSessionEffect(session, effect, savedHandlers.current);
     }
   }, [autoStart, session]);
 
@@ -1181,13 +1260,37 @@ export function ArloFlowRenderer({
       const nextSnapshot = session.setValue(fieldKey, value);
       setSnapshot(nextSnapshot);
       onSnapshotChange?.(nextSnapshot);
+
+      const component = findInteractiveComponent(nextSnapshot.currentScreen, fieldKey);
+
+      if (component) {
+        emitAnalyticsEvent(
+          handlers,
+          session,
+          nextSnapshot,
+          createComponentInteractionAnalyticsEvent(nextSnapshot, component, value)
+        );
+      }
     },
     onPressButton: async (componentId) => {
+      const currentSnapshot = session.getSnapshot();
+      const currentHandlers = handlers;
+      const buttonComponent = findButtonComponent(currentSnapshot.currentScreen, componentId);
+
+      if (buttonComponent) {
+        emitAnalyticsEvent(
+          currentHandlers,
+          session,
+          currentSnapshot,
+          createButtonPressedAnalyticsEvent(currentSnapshot, buttonComponent)
+        );
+      }
+
       const effect = session.pressButton(componentId);
       const immediateSnapshot = session.getSnapshot();
       setSnapshot(immediateSnapshot);
       onSnapshotChange?.(immediateSnapshot);
-      await applyFlowSessionEffect(session, effect, handlers);
+      await applyFlowSessionEffect(session, effect, currentHandlers);
       const finalSnapshot = session.getSnapshot();
       setSnapshot(finalSnapshot);
       onSnapshotChange?.(finalSnapshot);
@@ -1253,18 +1356,23 @@ export function ArloFlowRenderer({
     const { main, bottom } = splitAutoLayoutComponents(components);
 
     return (
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        automaticallyAdjustKeyboardInsets
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[
-          styles.container,
-          {
-            backgroundColor,
-          },
-        ]}
-      >
-        <View style={styles.autoLayoutRoot}>
+      <SafeView style={{ flex: 1, backgroundColor }}>
+        <ScrollView
+          style={{ flex: 1, width: "100%" }}
+          contentInsetAdjustmentBehavior="automatic"
+          automaticallyAdjustKeyboardInsets
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[
+            styles.container,
+            {
+              backgroundColor,
+              paddingTop: padding.top,
+              paddingRight: padding.right,
+              paddingBottom: bottom.length > 0 ? 12 : padding.bottom,
+              paddingLeft: padding.left,
+            },
+          ]}
+        >
           <View
             style={[
               styles.autoLayoutMain,
@@ -1272,10 +1380,6 @@ export function ArloFlowRenderer({
                 backgroundColor,
                 justifyContent,
                 alignItems,
-                paddingTop: padding.top,
-                paddingRight: padding.right,
-                paddingBottom: bottom.length > 0 ? 12 : padding.bottom,
-                paddingLeft: padding.left,
               },
             ]}
           >
@@ -1283,27 +1387,27 @@ export function ArloFlowRenderer({
               renderComponentNode(component, renderContext, renderTheme, false, alignItems)
             )}
           </View>
+        </ScrollView>
 
-          {bottom.length > 0 ? (
-            <View
-              style={[
-                styles.autoLayoutBottom,
-                {
-                  backgroundColor,
-                  paddingTop: 12,
-                  paddingRight: padding.right,
-                  paddingBottom: padding.bottom,
-                  paddingLeft: padding.left,
-                },
-              ]}
-            >
-              {bottom.map((component) =>
-                renderComponentNode(component, renderContext, renderTheme, false, alignItems)
-              )}
-            </View>
-          ) : null}
-        </View>
-      </ScrollView>
+        {bottom.length > 0 ? (
+          <View
+            style={[
+              styles.autoLayoutBottom,
+              {
+                backgroundColor,
+                paddingTop: 12,
+                paddingRight: padding.right,
+                paddingBottom: padding.bottom,
+                paddingLeft: padding.left,
+              },
+            ]}
+          >
+            {bottom.map((component) =>
+              renderComponentNode(component, renderContext, renderTheme, false, alignItems)
+            )}
+          </View>
+        ) : null}
+      </SafeView>
     );
   };
 
@@ -1362,16 +1466,16 @@ export function ArloFlowRenderer({
   }
 
   if (snapshot.currentScreen.layoutMode === "absolute") {
+    const bgColor = snapshot.currentScreen.style?.backgroundColor ?? "#FFFFFF";
     return (
-      <View
-        style={[
-          styles.absoluteContainer,
-          getScreenContainerStyle(snapshot.currentScreen),
-        ]}
-      >
-        {sortedComponents.map((component) =>
-          renderComponentNode(component, context, theme, true)
-        )}
+      <View style={{ flex: 1, backgroundColor: bgColor }}>
+        <View style={[{ flex: 1 }, getScreenContainerStyle(snapshot.currentScreen)]}>
+          <View style={styles.absoluteContainer}>
+            {sortedComponents.map((component) =>
+              renderComponentNode(component, context, theme, true)
+            )}
+          </View>
+        </View>
       </View>
     );
   }
@@ -1384,18 +1488,18 @@ export function ArloFlowRenderer({
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
+    width: "100%",
   },
   componentBlock: {
     alignSelf: "stretch" as const,
   },
-  autoLayoutRoot: {
-    flexGrow: 1,
-  },
   autoLayoutMain: {
     flexGrow: 1,
+    width: "100%",
     gap: 16,
   },
   autoLayoutBottom: {
+    width: "100%",
     gap: 12,
   },
   absoluteContainer: {

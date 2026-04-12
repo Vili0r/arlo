@@ -5,8 +5,9 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_native_1 = require("react-native");
 const ArloFlowRenderer_1 = require("./ArloFlowRenderer");
 const useArloPresenter_1 = require("./useArloPresenter");
-function ArloPresenterRenderer({ presenter, loadingState = ((0, jsx_runtime_1.jsx)(react_native_1.View, { children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { children: "Loading..." }) })), errorState, ...rendererProps }) {
+function ArloPresenterRenderer({ presenter, loadingState = ((0, jsx_runtime_1.jsx)(react_native_1.View, { children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { children: "Loading..." }) })), errorState, handlers, ...rendererProps }) {
     const state = (0, useArloPresenter_1.useArloPresenter)(presenter);
+    const resolvedHandlers = handlers ?? presenter.getHandlers();
     if (state.status === "loading") {
         return (0, jsx_runtime_1.jsx)(jsx_runtime_1.Fragment, { children: loadingState });
     }
@@ -19,7 +20,7 @@ function ArloPresenterRenderer({ presenter, loadingState = ((0, jsx_runtime_1.js
     if (!state.session) {
         return (0, jsx_runtime_1.jsx)(jsx_runtime_1.Fragment, { children: rendererProps.emptyState ?? null });
     }
-    return ((0, jsx_runtime_1.jsx)(ArloFlowRenderer_1.ArloFlowRenderer, { session: state.session, ...rendererProps, onSnapshotChange: (snapshot) => {
+    return ((0, jsx_runtime_1.jsx)(ArloFlowRenderer_1.ArloFlowRenderer, { session: state.session, ...rendererProps, handlers: resolvedHandlers, onSnapshotChange: (snapshot) => {
             rendererProps.onSnapshotChange?.(snapshot);
             presenter.syncSession();
         } }));

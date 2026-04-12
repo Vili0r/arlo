@@ -4,6 +4,8 @@ exports.ArloFlowRenderer = ArloFlowRenderer;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const react_native_1 = require("react-native");
+const react_native_safe_area_context_1 = require("react-native-safe-area-context");
+const SafeView = react_native_safe_area_context_1.SafeAreaView;
 const arlo_sdk_1 = require("arlo-sdk");
 const LIGHT_THEME = {
     isLight: true,
@@ -53,29 +55,82 @@ const DARK_THEME = {
     errorText: "#f59cb3",
     errorBorder: "#f36b8d",
 };
+function findInteractiveComponent(screen, fieldKey) {
+    if (!screen) {
+        return null;
+    }
+    return (screen.components.find((component) => {
+        if (component.type !== "TEXT_INPUT" &&
+            component.type !== "SINGLE_SELECT" &&
+            component.type !== "MULTI_SELECT" &&
+            component.type !== "SLIDER") {
+            return false;
+        }
+        return component.props.fieldKey === fieldKey;
+    }) ?? null);
+}
+function findButtonComponent(screen, componentId) {
+    if (!screen) {
+        return null;
+    }
+    return (screen.components.find((component) => component.type === "BUTTON" && component.id === componentId) ?? null);
+}
+function emitAnalyticsEvent(handlers, session, snapshot, event) {
+    if (!handlers?.onAnalyticsEvent) {
+        return;
+    }
+    void handlers.onAnalyticsEvent({
+        session,
+        snapshot,
+        event,
+    });
+}
 /**
- * Parse a hex color and compute relative luminance.
+ * Compute relative luminance of a color.
  * Returns a value between 0 (black) and 1 (white).
  */
-function getRelativeLuminance(hex) {
+function getRelativeLuminance(color) {
+    if (!color || color === "transparent")
+        return 1;
+    const hex = color;
+    // Handle rgba/rgb
+    if (color.startsWith("rgb")) {
+        const matches = color.match(/\d+(\.\d+)?/g);
+        if (!matches || matches.length < 3)
+            return 1;
+        const r = parseInt(matches[0], 10) / 255;
+        const g = parseInt(matches[1], 10) / 255;
+        const b = parseInt(matches[2], 10) / 255;
+        if (matches.length >= 4 && parseFloat(matches[3]) === 0)
+            return 1;
+        const toLinear = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+        return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+    }
+    // Handle named colors (basic)
+    if (color === "white")
+        return 1;
+    if (color === "black")
+        return 0;
     let clean = hex.replace("#", "");
-    // Expand 3-char hex (#fff → ffffff)
     if (clean.length === 3) {
         clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
     }
     if (clean.length < 6)
-        return 1; // Assume light for unparseable values
+        return 1;
     const r = parseInt(clean.slice(0, 2), 16) / 255;
     const g = parseInt(clean.slice(2, 4), 16) / 255;
     const b = parseInt(clean.slice(4, 6), 16) / 255;
+    if (isNaN(r) || isNaN(g) || isNaN(b))
+        return 1;
     const toLinear = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
     return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 }
 function getThemeForScreen(screen) {
     const bg = screen.style?.backgroundColor;
-    if (!bg)
+    if (!bg || bg === "transparent")
         return LIGHT_THEME;
-    return getRelativeLuminance(bg) > 0.5 ? LIGHT_THEME : DARK_THEME;
+    const luminance = getRelativeLuminance(bg);
+    return luminance > 0.5 ? LIGHT_THEME : DARK_THEME;
 }
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const IMPORTED_SCREEN_KEYS = new Set([
@@ -102,17 +157,21 @@ function getScreenContainerStyle(screen) {
         backgroundColor: screen.style?.backgroundColor ?? "#FFFFFF",
         paddingTop: padding.top,
         paddingBottom: padding.bottom,
-        paddingHorizontal: padding.left,
+        paddingRight: padding.right,
+        paddingLeft: padding.left,
         justifyContent: screen.style?.justifyContent ?? "flex-start",
         alignItems: screen.style?.alignItems ?? "stretch",
     };
 }
 function getScreenPadding(screen) {
+    const p = screen.style?.padding;
+    const pV = screen.style?.paddingVertical ?? p ?? (screen.layoutMode === "absolute" ? 0 : 24);
+    const pH = screen.style?.paddingHorizontal ?? p ?? (screen.layoutMode === "absolute" ? 0 : 24);
     return {
-        top: screen.style?.paddingTop ?? screen.style?.padding ?? 24,
-        right: screen.style?.paddingHorizontal ?? screen.style?.padding ?? 20,
-        bottom: screen.style?.paddingBottom ?? screen.style?.padding ?? 24,
-        left: screen.style?.paddingHorizontal ?? screen.style?.padding ?? 20,
+        top: screen.style?.paddingTop ?? pV,
+        right: screen.style?.paddingRight ?? pH,
+        bottom: screen.style?.paddingBottom ?? pV,
+        left: screen.style?.paddingLeft ?? pH,
     };
 }
 function splitAutoLayoutComponents(components) {
@@ -190,7 +249,6 @@ function getAutoLayoutWrapperStyle(component, parentAlignItems = "stretch") {
     const widthMode = getComponentWidthMode(component);
     if (widthMode === "fill") {
         return {
-            width: "100%",
             alignSelf: "stretch",
         };
     }
@@ -237,8 +295,8 @@ function getComponentWrapperStyle(component, isAbsoluteScreen, parentAlignItems 
     return {
         ...baseStyle,
         position: "absolute",
-        left: layout.x ?? 0,
-        top: layout.y ?? 0,
+        left: layout.x ?? marginStyle.marginLeft ?? 0,
+        top: layout.y ?? marginStyle.marginTop ?? 0,
         width: layout.width,
         height: layout.height,
         transform: layout.rotation ? [{ rotate: `${layout.rotation}deg` }] : undefined,
@@ -254,13 +312,13 @@ function coerceNumberValue(value, fallback) {
     return typeof value === "number" ? value : fallback;
 }
 function renderFallbackIcon(name, size, color) {
-    const normalized = name.toLowerCase();
+    const normalized = name.toLowerCase().replace(/[-_]/g, "");
     let glyph = "\u2022";
-    if (normalized.includes("chevronleft"))
+    if (normalized.includes("chevronleft") || normalized === "back")
         glyph = "\u2039";
     else if (normalized.includes("arrowleft") || normalized.endsWith("left"))
         glyph = "\u2190";
-    else if (normalized.includes("chevronright"))
+    else if (normalized.includes("chevronright") || normalized === "next")
         glyph = "\u203A";
     else if (normalized.includes("arrowright") || normalized.endsWith("right"))
         glyph = "\u2192";
@@ -276,19 +334,25 @@ function renderFallbackIcon(name, size, color) {
             fontSize: size,
             color,
             textAlign: "center",
-            lineHeight: Math.round(size * 1.1),
+            includeFontPadding: false,
+            lineHeight: size,
         }, children: glyph }));
 }
 function getFieldError(snapshot, fieldKey) {
     return snapshot.validationErrorsByField[fieldKey] ?? null;
 }
 // ─── Default Components ─────────────────────────────────────────────────────
-function DefaultTextComponent({ component, theme, }) {
+function DefaultTextComponent({ component, theme, parentAlignItems = "stretch", }) {
+    const defaultTextAlign = parentAlignItems === "center"
+        ? "center"
+        : parentAlignItems === "flex-end"
+            ? "right"
+            : "left";
     return ((0, jsx_runtime_1.jsx)(react_native_1.Text, { style: {
             color: component.props.color ?? theme.textPrimary,
             fontSize: component.props.fontSize ?? 16,
             fontWeight: component.props.fontWeight ?? "normal",
-            textAlign: component.props.textAlign ?? "left",
+            textAlign: component.props.textAlign ?? defaultTextAlign,
             lineHeight: component.props.lineHeight && component.props.fontSize
                 ? component.props.lineHeight * component.props.fontSize
                 : undefined,
@@ -296,7 +360,7 @@ function DefaultTextComponent({ component, theme, }) {
         }, children: component.props.content }));
 }
 function DefaultImageComponent({ component }) {
-    return ((0, jsx_runtime_1.jsx)(react_native_1.Image, { source: { uri: component.props.src }, accessibilityLabel: component.props.alt, resizeMode: component.props.resizeMode ?? "cover", style: {
+    return ((0, jsx_runtime_1.jsx)(react_native_1.Image, { source: { uri: component.props.src }, alt: component.props.alt ?? "", accessibilityLabel: component.props.alt, resizeMode: component.props.resizeMode ?? "cover", style: {
             width: component.props.width ?? "100%",
             height: component.props.height ?? 220,
             borderRadius: component.props.borderRadius ?? 0,
@@ -400,10 +464,20 @@ function DefaultButtonComponent({ component, onPress, iconRenderer, }) {
                         },
                     ], children: component.props.label })) : null, iconElement && iconPosition === "right" ? iconElement : null] }) }));
 }
-function DefaultTextInputComponent({ component, context, theme, }) {
+function DefaultTextInputComponent({ component, context, theme, parentAlignItems = "stretch", }) {
     const value = coerceStringValue(context.snapshot.values[component.props.fieldKey]);
     const error = getFieldError(context.snapshot, component.props.fieldKey);
-    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.fieldGroup, children: [component.props.label ? ((0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [styles.fieldLabel, { color: theme.textSecondary }], children: component.props.label })) : null, (0, jsx_runtime_1.jsx)(react_native_1.TextInput, { value: value, onChangeText: (nextValue) => context.onValueChange(component.props.fieldKey, nextValue), placeholder: component.props.placeholder, placeholderTextColor: theme.placeholderText, keyboardType: component.props.keyboardType === "email"
+    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.fieldGroup, children: [component.props.label ? ((0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [
+                    styles.fieldLabel,
+                    {
+                        color: theme.textSecondary,
+                        textAlign: parentAlignItems === "center"
+                            ? "center"
+                            : parentAlignItems === "flex-end"
+                                ? "right"
+                                : "left",
+                    },
+                ], children: component.props.label })) : null, (0, jsx_runtime_1.jsx)(react_native_1.TextInput, { value: value, onChangeText: (nextValue) => context.onValueChange(component.props.fieldKey, nextValue), placeholder: component.props.placeholder, placeholderTextColor: theme.placeholderText, keyboardType: component.props.keyboardType === "email"
                     ? "email-address"
                     : component.props.keyboardType === "numeric"
                         ? "numeric"
@@ -431,10 +505,20 @@ function OptionPill({ label, selected, theme, onPress, }) {
                 { color: selected ? theme.pillSelectedText : theme.pillText },
             ], children: label }) }));
 }
-function DefaultSingleSelectComponent({ component, context, theme, }) {
+function DefaultSingleSelectComponent({ component, context, theme, parentAlignItems = "stretch", }) {
     const value = coerceStringValue(context.snapshot.values[component.props.fieldKey]);
     const error = getFieldError(context.snapshot, component.props.fieldKey);
-    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.fieldGroup, children: [component.props.label ? ((0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [styles.fieldLabel, { color: theme.textSecondary }], children: component.props.label })) : null, (0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.selectList, children: component.props.options.map((option) => ((0, jsx_runtime_1.jsx)(react_native_1.Pressable, { style: [
+    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.fieldGroup, children: [component.props.label ? ((0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [
+                    styles.fieldLabel,
+                    {
+                        color: theme.textSecondary,
+                        textAlign: parentAlignItems === "center"
+                            ? "center"
+                            : parentAlignItems === "flex-end"
+                                ? "right"
+                                : "left",
+                    },
+                ], children: component.props.label })) : null, (0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.selectList, children: component.props.options.map((option) => ((0, jsx_runtime_1.jsx)(react_native_1.Pressable, { style: [
                         styles.selectOption,
                         {
                             borderColor: value === option.id ? theme.textPrimary : theme.inputBorder,
@@ -445,10 +529,20 @@ function DefaultSingleSelectComponent({ component, context, theme, }) {
                             { color: value === option.id ? "#ffffff" : theme.textPrimary },
                         ], children: option.label }) }, option.id))) }), error ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [styles.fieldError, { color: theme.errorText }], children: error }) : null] }));
 }
-function DefaultMultiSelectComponent({ component, context, theme, }) {
+function DefaultMultiSelectComponent({ component, context, theme, parentAlignItems = "stretch", }) {
     const values = coerceStringArrayValue(context.snapshot.values[component.props.fieldKey]);
     const error = getFieldError(context.snapshot, component.props.fieldKey);
-    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.fieldGroup, children: [component.props.label ? ((0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [styles.fieldLabel, { color: theme.textSecondary }], children: component.props.label })) : null, (0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.optionGroup, children: component.props.options.map((option) => {
+    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.fieldGroup, children: [component.props.label ? ((0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [
+                    styles.fieldLabel,
+                    {
+                        color: theme.textSecondary,
+                        textAlign: parentAlignItems === "center"
+                            ? "center"
+                            : parentAlignItems === "flex-end"
+                                ? "right"
+                                : "left",
+                    },
+                ], children: component.props.label })) : null, (0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.optionGroup, children: component.props.options.map((option) => {
                     const selected = values.includes(option.id);
                     return ((0, jsx_runtime_1.jsx)(OptionPill, { label: option.label, selected: selected, theme: theme, onPress: () => {
                             const nextValues = selected
@@ -458,7 +552,7 @@ function DefaultMultiSelectComponent({ component, context, theme, }) {
                         } }, option.id));
                 }) }), error ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [styles.fieldError, { color: theme.errorText }], children: error }) : null] }));
 }
-function DefaultSliderComponent({ component, context, theme, }) {
+function DefaultSliderComponent({ component, context, theme, parentAlignItems = "stretch", }) {
     const [trackWidth, setTrackWidth] = (0, react_1.useState)(0);
     const currentValue = coerceNumberValue(context.snapshot.values[component.props.fieldKey], component.props.defaultValue ?? component.props.min);
     const step = component.props.step ?? 1;
@@ -484,7 +578,17 @@ function DefaultSliderComponent({ component, context, theme, }) {
     const handleTrackInteraction = (event) => {
         updateFromLocation(event.nativeEvent.locationX);
     };
-    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.fieldGroup, children: [component.props.label ? ((0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [styles.fieldLabel, { color: theme.textSecondary }], children: component.props.label })) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.sliderField, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { onLayout: handleTrackLayout, onStartShouldSetResponder: () => true, onResponderGrant: handleTrackInteraction, onResponderMove: handleTrackInteraction, style: styles.sliderTouchArea, children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: [
+    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.fieldGroup, children: [component.props.label ? ((0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [
+                    styles.fieldLabel,
+                    {
+                        color: theme.textSecondary,
+                        textAlign: parentAlignItems === "center"
+                            ? "center"
+                            : parentAlignItems === "flex-end"
+                                ? "right"
+                                : "left",
+                    },
+                ], children: component.props.label })) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.sliderField, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { onLayout: handleTrackLayout, onStartShouldSetResponder: () => true, onResponderGrant: handleTrackInteraction, onResponderMove: handleTrackInteraction, style: styles.sliderTouchArea, children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: [
                                     styles.sliderTrack,
                                     {
                                         backgroundColor: theme.progressTrackBackground,
@@ -533,10 +637,10 @@ function DefaultPageIndicatorComponent({ snapshot, component, theme, }) {
             } }, index))) }));
 }
 // ─── Render Dispatch ────────────────────────────────────────────────────────
-function renderDefaultComponent(component, context, theme, registry, iconRenderer) {
+function renderDefaultComponent(component, context, theme, registry, iconRenderer, parentAlignItems = "stretch") {
     switch (component.type) {
         case "TEXT":
-            return (0, jsx_runtime_1.jsx)(DefaultTextComponent, { component: component, theme: theme });
+            return ((0, jsx_runtime_1.jsx)(DefaultTextComponent, { component: component, theme: theme, parentAlignItems: parentAlignItems }));
         case "IMAGE":
             return (0, jsx_runtime_1.jsx)(DefaultImageComponent, { component: component });
         case "ICON_LIBRARY":
@@ -544,13 +648,13 @@ function renderDefaultComponent(component, context, theme, registry, iconRendere
         case "BUTTON":
             return ((0, jsx_runtime_1.jsx)(DefaultButtonComponent, { component: component, onPress: () => context.onPressButton(component.id), iconRenderer: iconRenderer }));
         case "TEXT_INPUT":
-            return (0, jsx_runtime_1.jsx)(DefaultTextInputComponent, { component: component, context: context, theme: theme });
+            return ((0, jsx_runtime_1.jsx)(DefaultTextInputComponent, { component: component, context: context, theme: theme, parentAlignItems: parentAlignItems }));
         case "SINGLE_SELECT":
-            return (0, jsx_runtime_1.jsx)(DefaultSingleSelectComponent, { component: component, context: context, theme: theme });
+            return ((0, jsx_runtime_1.jsx)(DefaultSingleSelectComponent, { component: component, context: context, theme: theme, parentAlignItems: parentAlignItems }));
         case "MULTI_SELECT":
-            return (0, jsx_runtime_1.jsx)(DefaultMultiSelectComponent, { component: component, context: context, theme: theme });
+            return ((0, jsx_runtime_1.jsx)(DefaultMultiSelectComponent, { component: component, context: context, theme: theme, parentAlignItems: parentAlignItems }));
         case "SLIDER":
-            return (0, jsx_runtime_1.jsx)(DefaultSliderComponent, { component: component, context: context, theme: theme });
+            return ((0, jsx_runtime_1.jsx)(DefaultSliderComponent, { component: component, context: context, theme: theme, parentAlignItems: parentAlignItems }));
         case "PROGRESS_BAR":
             return (0, jsx_runtime_1.jsx)(DefaultProgressBarComponent, { component: component, snapshot: context.snapshot, theme: theme });
         case "PAGE_INDICATOR":
@@ -572,23 +676,27 @@ function renderDefaultComponent(component, context, theme, registry, iconRendere
 }
 // ─── Main Renderer ──────────────────────────────────────────────────────────
 function ArloFlowRenderer({ session, handlers, componentRenderers, registry, iconRenderer, autoStart = true, emptyState = null, unsupportedComponent, unsupportedScreen, onSnapshotChange, }) {
-    const handlersRef = (0, react_1.useRef)(handlers);
-    const onSnapshotChangeRef = (0, react_1.useRef)(onSnapshotChange);
-    (0, react_1.useEffect)(() => {
-        handlersRef.current = handlers;
-        onSnapshotChangeRef.current = onSnapshotChange;
-    });
     const [snapshot, setSnapshot] = (0, react_1.useState)(() => session.getSnapshot());
+    const savedOnSnapshotChange = (0, react_1.useRef)(onSnapshotChange);
+    const savedHandlers = (0, react_1.useRef)(handlers);
+    (0, react_1.useEffect)(() => {
+        savedOnSnapshotChange.current = onSnapshotChange;
+        savedHandlers.current = handlers;
+    }, [onSnapshotChange, handlers]);
     (0, react_1.useEffect)(() => {
         const nextSnapshot = session.getSnapshot();
-        setSnapshot(nextSnapshot);
-        onSnapshotChangeRef.current?.(nextSnapshot);
+        (0, react_1.startTransition)(() => {
+            setSnapshot(nextSnapshot);
+        });
+        savedOnSnapshotChange.current?.(nextSnapshot);
         if (autoStart && session.getSnapshot().status === "idle") {
             const effect = session.start();
             const startedSnapshot = session.getSnapshot();
-            setSnapshot(startedSnapshot);
-            onSnapshotChangeRef.current?.(startedSnapshot);
-            void (0, arlo_sdk_1.applyFlowSessionEffect)(session, effect, handlersRef.current);
+            (0, react_1.startTransition)(() => {
+                setSnapshot(startedSnapshot);
+            });
+            savedOnSnapshotChange.current?.(startedSnapshot);
+            void (0, arlo_sdk_1.applyFlowSessionEffect)(session, effect, savedHandlers.current);
         }
     }, [autoStart, session]);
     const sortedComponents = (0, react_1.useMemo)(() => [...(snapshot.currentScreen?.components ?? [])].sort((a, b) => a.order - b.order), [snapshot.currentScreen]);
@@ -602,13 +710,23 @@ function ArloFlowRenderer({ session, handlers, componentRenderers, registry, ico
             const nextSnapshot = session.setValue(fieldKey, value);
             setSnapshot(nextSnapshot);
             onSnapshotChange?.(nextSnapshot);
+            const component = findInteractiveComponent(nextSnapshot.currentScreen, fieldKey);
+            if (component) {
+                emitAnalyticsEvent(handlers, session, nextSnapshot, (0, arlo_sdk_1.createComponentInteractionAnalyticsEvent)(nextSnapshot, component, value));
+            }
         },
         onPressButton: async (componentId) => {
+            const currentSnapshot = session.getSnapshot();
+            const currentHandlers = handlers;
+            const buttonComponent = findButtonComponent(currentSnapshot.currentScreen, componentId);
+            if (buttonComponent) {
+                emitAnalyticsEvent(currentHandlers, session, currentSnapshot, (0, arlo_sdk_1.createButtonPressedAnalyticsEvent)(currentSnapshot, buttonComponent));
+            }
             const effect = session.pressButton(componentId);
             const immediateSnapshot = session.getSnapshot();
             setSnapshot(immediateSnapshot);
             onSnapshotChange?.(immediateSnapshot);
-            await (0, arlo_sdk_1.applyFlowSessionEffect)(session, effect, handlers);
+            await (0, arlo_sdk_1.applyFlowSessionEffect)(session, effect, currentHandlers);
             const finalSnapshot = session.getSnapshot();
             setSnapshot(finalSnapshot);
             onSnapshotChange?.(finalSnapshot);
@@ -618,7 +736,7 @@ function ArloFlowRenderer({ session, handlers, componentRenderers, registry, ico
         const customRenderer = componentRenderers?.[component.type];
         const content = customRenderer
             ? customRenderer(component, renderContext)
-            : renderDefaultComponent(component, renderContext, renderTheme, registry, iconRenderer);
+            : renderDefaultComponent(component, renderContext, renderTheme, registry, iconRenderer, parentAlignItems);
         if (content === null) {
             return ((0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.unsupported, children: unsupportedComponent ? (unsupportedComponent(component)) : ((0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: styles.unsupportedText, children: ["Unsupported component: ", component.type] })) }, component.id));
         }
@@ -628,34 +746,34 @@ function ArloFlowRenderer({ session, handlers, componentRenderers, registry, ico
         const padding = getScreenPadding(screen);
         const backgroundColor = screen.style?.backgroundColor ?? "#FFFFFF";
         const justifyContent = screen.style?.justifyContent ?? "flex-start";
-        const alignItems = screen.style?.alignItems ?? "stretch";
+        const alignItems = screen.style?.alignItems ?? "center";
         const { main, bottom } = splitAutoLayoutComponents(components);
-        return ((0, jsx_runtime_1.jsx)(react_native_1.ScrollView, { contentInsetAdjustmentBehavior: "automatic", automaticallyAdjustKeyboardInsets: true, keyboardShouldPersistTaps: "handled", contentContainerStyle: [
-                styles.container,
-                {
-                    backgroundColor,
-                },
-            ], children: (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: styles.autoLayoutRoot, children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: [
+        return ((0, jsx_runtime_1.jsxs)(SafeView, { style: { flex: 1, backgroundColor }, children: [(0, jsx_runtime_1.jsx)(react_native_1.ScrollView, { style: { flex: 1, width: "100%" }, contentInsetAdjustmentBehavior: "automatic", automaticallyAdjustKeyboardInsets: true, keyboardShouldPersistTaps: "handled", contentContainerStyle: [
+                        styles.container,
+                        {
+                            backgroundColor,
+                            paddingTop: padding.top,
+                            paddingRight: padding.right,
+                            paddingBottom: bottom.length > 0 ? 12 : padding.bottom,
+                            paddingLeft: padding.left,
+                        },
+                    ], children: (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [
                             styles.autoLayoutMain,
                             {
                                 backgroundColor,
                                 justifyContent,
                                 alignItems,
-                                paddingTop: padding.top,
-                                paddingRight: padding.right,
-                                paddingBottom: bottom.length > 0 ? 12 : padding.bottom,
-                                paddingLeft: padding.left,
                             },
-                        ], children: main.map((component) => renderComponentNode(component, renderContext, renderTheme, false, alignItems)) }), bottom.length > 0 ? ((0, jsx_runtime_1.jsx)(react_native_1.View, { style: [
-                            styles.autoLayoutBottom,
-                            {
-                                backgroundColor,
-                                paddingTop: 12,
-                                paddingRight: padding.right,
-                                paddingBottom: padding.bottom,
-                                paddingLeft: padding.left,
-                            },
-                        ], children: bottom.map((component) => renderComponentNode(component, renderContext, renderTheme, false, alignItems)) })) : null] }) }));
+                        ], children: main.map((component) => renderComponentNode(component, renderContext, renderTheme, false, alignItems)) }) }), bottom.length > 0 ? ((0, jsx_runtime_1.jsx)(react_native_1.View, { style: [
+                        styles.autoLayoutBottom,
+                        {
+                            backgroundColor,
+                            paddingTop: 12,
+                            paddingRight: padding.right,
+                            paddingBottom: padding.bottom,
+                            paddingLeft: padding.left,
+                        },
+                    ], children: bottom.map((component) => renderComponentNode(component, renderContext, renderTheme, false, alignItems)) })) : null] }));
     };
     if (!snapshot.currentScreen) {
         return (0, jsx_runtime_1.jsx)(jsx_runtime_1.Fragment, { children: emptyState });
@@ -683,10 +801,8 @@ function ArloFlowRenderer({ session, handlers, componentRenderers, registry, ico
         return ((0, jsx_runtime_1.jsx)(jsx_runtime_1.Fragment, { children: unsupportedScreen ? (unsupportedScreen(snapshot.currentScreen)) : ((0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.unsupported, children: (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: styles.unsupportedText, children: ["Unsupported screen: ", snapshot.currentScreen.customScreenKey] }) })) }));
     }
     if (snapshot.currentScreen.layoutMode === "absolute") {
-        return ((0, jsx_runtime_1.jsx)(react_native_1.View, { style: [
-                styles.absoluteContainer,
-                getScreenContainerStyle(snapshot.currentScreen),
-            ], children: sortedComponents.map((component) => renderComponentNode(component, context, theme, true)) }));
+        const bgColor = snapshot.currentScreen.style?.backgroundColor ?? "#FFFFFF";
+        return ((0, jsx_runtime_1.jsx)(react_native_1.View, { style: { flex: 1, backgroundColor: bgColor }, children: (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [{ flex: 1 }, getScreenContainerStyle(snapshot.currentScreen)], children: (0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.absoluteContainer, children: sortedComponents.map((component) => renderComponentNode(component, context, theme, true)) }) }) }));
     }
     return renderAutoLayoutScreen(snapshot.currentScreen, sortedComponents, context, theme);
 }
@@ -694,18 +810,18 @@ function ArloFlowRenderer({ session, handlers, componentRenderers, registry, ico
 const styles = react_native_1.StyleSheet.create({
     container: {
         flexGrow: 1,
+        width: "100%",
     },
     componentBlock: {
         alignSelf: "stretch",
     },
-    autoLayoutRoot: {
-        flexGrow: 1,
-    },
     autoLayoutMain: {
         flexGrow: 1,
+        width: "100%",
         gap: 16,
     },
     autoLayoutBottom: {
+        width: "100%",
         gap: 12,
     },
     absoluteContainer: {
