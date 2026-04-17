@@ -46,10 +46,17 @@ export async function GET(
             productionVersion: true,
           },
         },
-        variantFlow: {
+        variants: {
           include: {
-            developmentVersion: true,
-            productionVersion: true,
+            flow: {
+              include: {
+                developmentVersion: true,
+                productionVersion: true,
+              },
+            },
+          },
+          orderBy: {
+            order: "asc",
           },
         },
       },
@@ -65,20 +72,35 @@ export async function GET(
       return jsonError(404, "Flow is not published", "FLOW_NOT_PUBLISHED");
     }
 
-    const variantVersion =
-      entryPoint.variantFlow && entryPoint.variantFlow.status === "PUBLISHED"
-        ? getPublishedVersionForRouting(entryPoint.variantFlow, apiKey.environment)
+    // Build N-way variants array from DB
+    const variantInputs =
+      entryPoint.variants.length >= 2
+        ? entryPoint.variants
+            .filter(
+              (v) =>
+                v.flow.status === "PUBLISHED" &&
+                getPublishedVersionForRouting(v.flow, apiKey.environment) !== null
+            )
+            .map((v) => ({
+              flow: v.flow,
+              percentage: v.percentage,
+            }))
         : null;
+
+    // Only use variants if we still have 2+ valid ones after filtering
+    const validVariants =
+      variantInputs && variantInputs.length >= 2 ? variantInputs : null;
+
     const subject = resolveEntryPointSubject(request.headers);
     const selection = resolveEntryPointSelection({
       entryPointKey: entryPoint.key,
       controlFlow: entryPoint.flow,
-      variantFlow: variantVersion ? entryPoint.variantFlow : null,
-      variantPercentage: entryPoint.variantPercentage,
+      variants: validVariants,
       subjectKey: subject.key,
     });
-    const publishedVersion =
-      selection.assignment === "variant" && variantVersion ? variantVersion : controlVersion;
+
+    const selectedVersion = getPublishedVersionForRouting(selection.flow, apiKey.environment);
+    const publishedVersion = selectedVersion ?? controlVersion;
 
     const etag = `"${selection.flow.slug}:v${publishedVersion.version}"`;
     if (request.headers.get("if-none-match") === etag) {
@@ -86,7 +108,7 @@ export async function GET(
     }
 
     const response = buildSDKFlowResponse({
-      slug: entryPoint.flow.slug,
+      slug: selection.flow.slug,
       version: publishedVersion.version,
       config: publishedVersion.config,
     });

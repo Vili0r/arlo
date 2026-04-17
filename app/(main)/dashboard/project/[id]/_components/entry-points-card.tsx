@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { MapPinned, ArrowRight, Plus, Copy, Trash2 } from "lucide-react";
-import { createEntryPoint, deleteEntryPoint } from "@/app/(main)/dashboard/project/[id]/actions";
+import { createEntryPoint, deleteEntryPoint, updateEntryPointAllocations } from "@/app/(main)/dashboard/project/[id]/actions";
 import {
   Dialog,
   DialogContent,
@@ -11,14 +11,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 
 interface FlowOption {
   id: string;
   name: string;
   slug: string;
-  status: string;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   developmentVersion: { id: string; version: number } | null;
   productionVersion: { id: string; version: number } | null;
+}
+
+interface EntryPointVariant {
+  id: string;
+  flowId: string;
+  percentage: number;
+  order: number;
+  flow: FlowOption;
 }
 
 interface EntryPointData {
@@ -26,9 +35,8 @@ interface EntryPointData {
   key: string;
   name: string | null;
   environment: "DEVELOPMENT" | "PRODUCTION";
-  variantPercentage: number | null;
   flow: FlowOption;
-  variantFlow: FlowOption | null;
+  variants: EntryPointVariant[];
   createdAt: string;
 }
 
@@ -56,22 +64,22 @@ export function EntryPointsCard({
   const [keyTouched, setKeyTouched] = useState(false);
   const [environment, setEnvironment] = useState<"DEVELOPMENT" | "PRODUCTION">("DEVELOPMENT");
   const [abTestEnabled, setAbTestEnabled] = useState(false);
-  const [variantFlowId, setVariantFlowId] = useState("");
-  const [variantPercentage, setVariantPercentage] = useState(50);
   const selectableFlows = flows.filter((flow) =>
     environment === "PRODUCTION" ? flow.productionVersion : flow.developmentVersion
   );
+  
   const [flowId, setFlowId] = useState(selectableFlows[0]?.id ?? "");
+  const [variants, setVariants] = useState<{ flowId: string; percentage: number }[]>([]);
+  
+  // State for Editing Allocations
+  const [editingEntryPoint, setEditingEntryPoint] = useState<EntryPointData | null>(null);
+  const [editVariants, setEditVariants] = useState<{ flowId: string; percentage: number }[]>([]);
+  
   const [isPending, startTransition] = useTransition();
   const resolvedFlowId = selectableFlows.some((flow) => flow.id === flowId)
     ? flowId
     : selectableFlows[0]?.id ?? "";
   const variantFlowOptions = selectableFlows.filter((flow) => flow.id !== resolvedFlowId);
-  const resolvedVariantFlowId = abTestEnabled
-    ? variantFlowOptions.some((flow) => flow.id === variantFlowId)
-      ? variantFlowId
-      : variantFlowOptions[0]?.id ?? ""
-    : "";
 
   const handleNameChange = (value: string) => {
     setName(value);
@@ -102,9 +110,10 @@ export function EntryPointsCard({
       : Boolean(flow.developmentVersion);
 
   const isEntryPointSplitReady = (entryPoint: EntryPointData) =>
-    !entryPoint.variantFlow ||
-    (entryPoint.variantPercentage !== null &&
-      isFlowPublishedForEnvironment(entryPoint.variantFlow, entryPoint.environment));
+    entryPoint.variants.length < 2 ||
+    entryPoint.variants.every((variant) =>
+      isFlowPublishedForEnvironment(variant.flow, entryPoint.environment)
+    );
 
   const isEntryPointLive = (entryPoint: EntryPointData) =>
     isFlowPublishedForEnvironment(entryPoint.flow, entryPoint.environment) &&
@@ -120,20 +129,17 @@ export function EntryPointsCard({
 
   const resetForm = () => {
     const nextPrimaryFlow = selectableFlows[0]?.id ?? "";
-    const nextVariantFlow = selectableFlows.find((flow) => flow.id !== nextPrimaryFlow)?.id ?? "";
 
     setName("");
     setKey("");
     setKeyTouched(false);
     setFlowId(nextPrimaryFlow);
     setAbTestEnabled(false);
-    setVariantFlowId(nextVariantFlow);
-    setVariantPercentage(50);
+    setVariants([]);
   };
 
   const handleCreate = () => {
     if (!key.trim() || !resolvedFlowId) return;
-    if (abTestEnabled && !resolvedVariantFlowId) return;
 
     startTransition(async () => {
       try {
@@ -142,8 +148,7 @@ export function EntryPointsCard({
           name,
           flowId: resolvedFlowId,
           environment,
-          variantFlowId: abTestEnabled ? resolvedVariantFlowId : undefined,
-          variantPercentage: abTestEnabled ? variantPercentage : undefined,
+          variants: abTestEnabled ? variants : undefined,
         });
         setDialogOpen(false);
         resetForm();
@@ -151,6 +156,67 @@ export function EntryPointsCard({
         console.error(error);
       }
     });
+  };
+
+  const handleUpdateAllocations = () => {
+    if (!editingEntryPoint) return;
+
+    startTransition(async () => {
+      try {
+        await updateEntryPointAllocations(projectId, editingEntryPoint.id, {
+          variants: editVariants,
+        });
+        setEditingEntryPoint(null);
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  };
+
+  const currentVariantsSum = variants.reduce((sum, v) => sum + v.percentage, 0);
+  const isVariantsSumValid = !abTestEnabled || currentVariantsSum === 100;
+
+  const toggleAbTest = (checked: boolean) => {
+    if (checked) {
+      // Enable A/B test: initialize with 2 variants
+      const primaryFlow = selectableFlows.find(f => f.id === resolvedFlowId) || selectableFlows[0];
+      const secondFlow = selectableFlows.find(f => f.id !== primaryFlow?.id);
+      
+      if (primaryFlow && secondFlow) {
+        setVariants([
+          { flowId: primaryFlow.id, percentage: 50 },
+          { flowId: secondFlow.id, percentage: 50 }
+        ]);
+        setAbTestEnabled(true);
+      }
+    } else {
+      setAbTestEnabled(false);
+      setVariants([]);
+    }
+  };
+
+  const addVariant = () => {
+    const usedFlowIds = variants.map(v => v.flowId);
+    const availableFlow = selectableFlows.find(f => !usedFlowIds.includes(f.id));
+    if (availableFlow) {
+      setVariants([...variants, { flowId: availableFlow.id, percentage: 0 }]);
+    }
+  };
+
+  const removeVariant = (index: number) => {
+    const newVariants = variants.filter((_, i) => i !== index);
+    if (newVariants.length < 2) {
+      setAbTestEnabled(false);
+      setVariants([]);
+    } else {
+      setVariants(newVariants);
+    }
+  };
+
+  const updateVariant = (index: number, updates: Partial<{ flowId: string, percentage: number }>) => {
+    const newVariants = [...variants];
+    newVariants[index] = { ...newVariants[index], ...updates };
+    setVariants(newVariants);
   };
 
   const handleDelete = (entryPointId: string) => {
@@ -171,16 +237,18 @@ export function EntryPointsCard({
       nextEnvironment === "PRODUCTION" ? flow.productionVersion : flow.developmentVersion
     );
     const nextPrimaryFlow = nextFlows[0]?.id ?? "";
-    const nextVariantFlow = nextFlows.find((flow) => flow.id !== nextPrimaryFlow)?.id ?? "";
     setFlowId(nextPrimaryFlow);
-    setVariantFlowId(nextVariantFlow);
+    setAbTestEnabled(false);
+    setVariants([]);
   };
 
   const handleFlowChange = (nextFlowId: string) => {
     setFlowId(nextFlowId);
-    if (nextFlowId === resolvedVariantFlowId) {
-      const nextVariantFlow = selectableFlows.find((flow) => flow.id !== nextFlowId)?.id ?? "";
-      setVariantFlowId(nextVariantFlow);
+    if (abTestEnabled && variants.length > 0) {
+      // If we change the primary flow, we might need to update the first variant
+      const newVariants = [...variants];
+      newVariants[0] = { ...newVariants[0], flowId: nextFlowId };
+      setVariants(newVariants);
     }
   };
 
@@ -279,12 +347,24 @@ export function EntryPointsCard({
                     <p className="text-[11px] text-[#444] mt-1">
                       Resolves to {entryPoint.flow.name} ({entryPoint.flow.slug})
                     </p>
-                    {entryPoint.variantFlow && entryPoint.variantPercentage !== null ? (
-                      <p className="text-[11px] text-[#666] mt-1">
-                        Split test: {100 - entryPoint.variantPercentage}%{" "}
-                        {entryPoint.flow.slug} / {entryPoint.variantPercentage}%{" "}
-                        {entryPoint.variantFlow.slug}
-                      </p>
+                    {entryPoint.variants && entryPoint.variants.length > 0 ? (
+                      <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1.5 pt-1.5 border-t border-[#1f1f1f]">
+                        {entryPoint.variants.map((v) => (
+                          <span key={v.id} className="text-[10px] text-[#666] flex items-center gap-1">
+                            <span className="font-medium text-[#888]">{v.percentage}%</span>
+                            <span className="truncate max-w-[80px]">{v.flow.slug}</span>
+                          </span>
+                        ))}
+                        <button
+                          onClick={() => {
+                            setEditingEntryPoint(entryPoint);
+                            setEditVariants(entryPoint.variants.map(v => ({ flowId: v.flowId, percentage: v.percentage })));
+                          }}
+                          className="text-[9px] text-cyan-400 hover:text-cyan-300 ml-auto font-medium transition-colors"
+                        >
+                          Edit Allocations
+                        </button>
+                      </div>
                     ) : null}
                   </div>
                   <button
@@ -328,7 +408,7 @@ export function EntryPointsCard({
       </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-[#141414] border border-[#1f1f1f] sm:max-w-md">
+        <DialogContent className="bg-[#141414] border border-[#1f1f1f] px-6 pt-5 pb-4 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create Entry Point</DialogTitle>
             <DialogDescription>
@@ -418,72 +498,81 @@ export function EntryPointsCard({
                   <p className="mt-1 text-xs text-[#555]">
                     Route a percentage of users to a second published onboarding flow.
                   </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => canCreateSplit && setAbTestEnabled((current) => !current)}
+                </div>                
+                <Switch
+                  checked={abTestEnabled}
+                  onCheckedChange={toggleAbTest}
                   disabled={!canCreateSplit}
-                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
-                    abTestEnabled
-                      ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
-                      : "border-[#1f1f1f] bg-[#0a0a0a] text-[#777]"
-                  } ${!canCreateSplit ? "cursor-not-allowed opacity-50" : ""}`}
-                >
-                  {abTestEnabled ? "Enabled" : "Disabled"}
-                </button>
+                />
               </div>
 
-              {!canCreateSplit ? (
-                <p className="text-xs text-[#444]">
-                  Publish at least two flows in this environment to create a split test.
-                </p>
-              ) : null}
-
               {abTestEnabled ? (
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-[#444] uppercase font-semibold tracking-widest">
-                      Variant Flow
-                    </label>
-                    <select
-                      value={resolvedVariantFlowId}
-                      onChange={(event) => setVariantFlowId(event.target.value)}
-                      className="w-full rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#333]"
-                    >
-                      {variantFlowOptions.map((flow) => (
-                        <option key={flow.id} value={flow.id}>
-                          {flowLabel(flow)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
+                <div className="space-y-3 pt-2">
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] text-[#444] uppercase font-semibold tracking-widest">
-                        Variant Traffic
-                      </label>
-                      <span className="text-xs text-cyan-200">
-                        {100 - variantPercentage}% control / {variantPercentage}% variant
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="99"
-                      value={variantPercentage}
-                      onChange={(event) =>
-                        setVariantPercentage(Number.parseInt(event.target.value, 10))
-                      }
-                      className="w-full accent-cyan-300"
-                    />
+                    {variants.map((v, i) => (
+                      <div key={i} className="flex gap-2 items-start">
+                        <div className="flex-1 min-w-0">
+                          <select
+                            value={v.flowId}
+                            onChange={(e) => updateVariant(i, { flowId: e.target.value })}
+                            className="w-full rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-2 text-[11px] text-white focus:outline-none focus:border-[#333]"
+                          >
+                            {selectableFlows.map((flow) => (
+                              <option key={flow.id} value={flow.id} disabled={variants.some((other, oi) => oi !== i && other.flowId === flow.id)}>
+                                {flow.name} ({flow.slug})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="w-20 relative">
+                          <input
+                            type="number"
+                            min="1"
+                            max="99"
+                            value={v.percentage}
+                            onChange={(e) => updateVariant(i, { percentage: parseInt(e.target.value) || 0 })}
+                            className="w-full rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-2 text-[11px] text-white pr-6 focus:outline-none focus:border-[#333]"
+                          />
+                          <span className="absolute right-2 top-2 text-[10px] text-[#444]">%</span>
+                        </div>
+                        <button
+                          onClick={() => removeVariant(i)}
+                          className="p-2 text-[#444] hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
+                  
+                  <div className="flex items-center justify-between mt-2">
+                    <button
+                      onClick={addVariant}
+                      disabled={variants.length >= selectableFlows.length}
+                      className="text-[10px] text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Plus size={10} /> Add Flow
+                    </button>
+                    <span className={`text-[10px] font-mono ${currentVariantsSum === 100 ? "text-emerald-400" : "text-amber-400"}`}>
+                      Sum: {currentVariantsSum}%
+                    </span>
+                  </div>
+                  
+                  {currentVariantsSum !== 100 && (
+                    <p className="text-[10px] text-amber-400/80">Total must sum exactly to 100%</p>
+                  )}
                 </div>
-              ) : null}
+              ) : (
+                !canCreateSplit ? (
+                  <p className="text-xs text-[#444] pt-2">
+                    Publish at least two flows in this environment to create a split test.
+                  </p>
+                ) : null
+              )}
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="-mx-6 -mb-4 px-6">
             <button
               onClick={() => setDialogOpen(false)}
               className="px-4 py-2 text-sm text-[#555] hover:text-white transition-colors"
@@ -496,11 +585,78 @@ export function EntryPointsCard({
                 isPending ||
                 !key.trim() ||
                 !resolvedFlowId ||
-                (abTestEnabled && !resolvedVariantFlowId)
+                !isVariantsSumValid ||
+                (abTestEnabled && (variants.length < 2 || variants.some(v => !v.flowId)))
               }
               className="px-5 py-2 rounded-lg bg-white text-black text-sm font-semibold hover:bg-[#e5e5e5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isPending ? "Creating..." : "Create Entry Point"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingEntryPoint} onOpenChange={(open) => !open && setEditingEntryPoint(null)}>
+        <DialogContent className="bg-[#141414] border border-[#1f1f1f] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Traffic Allocation</DialogTitle>
+            <DialogDescription>
+              Adjust how traffic is distributed across flows for <code>{editingEntryPoint?.key}</code>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {editVariants.map((v, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-white truncate font-medium">
+                    {selectableFlows.find(f => f.id === v.flowId)?.name || "Unknown Flow"}
+                  </p>
+                  <p className="text-[10px] text-[#555] font-mono">
+                    {selectableFlows.find(f => f.id === v.flowId)?.slug}
+                  </p>
+                </div>
+                <div className="w-24 relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={v.percentage}
+                    onChange={(e) => {
+                      const newVariants = [...editVariants];
+                      newVariants[i] = { ...newVariants[i], percentage: parseInt(e.target.value) || 0 };
+                      setEditVariants(newVariants);
+                    }}
+                    className="w-full rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-2 text-sm text-white pr-7 focus:outline-none focus:border-[#333]"
+                  />
+                  <span className="absolute right-3 top-2.5 text-xs text-[#444]">%</span>
+                </div>
+              </div>
+            ))}
+
+            <div className="pt-2 border-t border-[#1f1f1f] flex justify-between items-center">
+               <span className={`text-[11px] font-mono ${editVariants.reduce((s, v) => s + v.percentage, 0) === 100 ? "text-emerald-400" : "text-amber-400"}`}>
+                  Total Allocation: {editVariants.reduce((s, v) => s + v.percentage, 0)}%
+               </span>
+               {editVariants.reduce((s, v) => s + v.percentage, 0) !== 100 && (
+                 <span className="text-[10px] text-amber-400/80">Must sum to 100%</span>
+               )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <button
+              onClick={() => setEditingEntryPoint(null)}
+              className="px-4 py-2 text-sm text-[#555] hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleUpdateAllocations}
+              disabled={isPending || editVariants.reduce((s, v) => s + v.percentage, 0) !== 100}
+              className="px-5 py-2 rounded-lg bg-white text-black text-sm font-semibold hover:bg-[#e5e5e5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isPending ? "Saving..." : "Save Allocations"}
             </button>
           </DialogFooter>
         </DialogContent>

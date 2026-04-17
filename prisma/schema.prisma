@@ -71,7 +71,7 @@ model Flow {
   productionVersion    FlowVersion?  @relation("ProductionPublishedVersion", fields: [productionVersionId], references: [id])
   versions             FlowVersion[] @relation("FlowVersions")
   entryPoints          EntryPoint[]  @relation("EntryPointPrimaryFlow")
-  entryPointsAsVariant EntryPoint[]  @relation("EntryPointVariantFlow")
+  entryPointVariants   EntryPointVariant[] @relation("EntryPointVariantFlow")
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -110,9 +110,7 @@ model EntryPoint {
   project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   flowId      String
   flow        Flow        @relation("EntryPointPrimaryFlow", fields: [flowId], references: [id], onDelete: Cascade)
-  variantFlowId String?
-  variantFlow  Flow?      @relation("EntryPointVariantFlow", fields: [variantFlowId], references: [id], onDelete: SetNull)
-  variantPercentage Int?
+  variants    EntryPointVariant[]
   key         String
   name        String?
   environment Environment @default(DEVELOPMENT)
@@ -122,8 +120,23 @@ model EntryPoint {
   @@unique([projectId, key, environment])
   @@index([projectId])
   @@index([flowId])
-  @@index([variantFlowId])
   @@map("entry_points")
+}
+
+model EntryPointVariant {
+  id           String     @id @default(cuid())
+  entryPointId String
+  entryPoint   EntryPoint @relation(fields: [entryPointId], references: [id], onDelete: Cascade)
+  flowId       String
+  flow         Flow       @relation("EntryPointVariantFlow", fields: [flowId], references: [id], onDelete: Cascade)
+  percentage   Int        // 1-99, all variants on an entry point must sum to 100
+  order        Int        @default(0) // display order in the UI
+  createdAt    DateTime   @default(now())
+
+  @@unique([entryPointId, flowId])
+  @@index([entryPointId])
+  @@index([flowId])
+  @@map("entry_point_variants")
 }
 
 model CustomRegistryKey {

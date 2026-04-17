@@ -163,14 +163,6 @@ export function FigmaImportPageClient({
         <>
           <Button
             type="button"
-            variant="outline"
-            onClick={() => router.push(buildBuilderHref())}
-            className="border-white/10 bg-transparent text-white hover:bg-white/[0.06] hover:text-white"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
             onClick={handleImport}
             disabled={!canImport}
             className="bg-white text-black hover:bg-white/90"

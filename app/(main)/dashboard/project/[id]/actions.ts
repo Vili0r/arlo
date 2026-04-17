@@ -1,7 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma"; // adjust to your setup
-import { createEntryPointSchema } from "@/lib/validations";
+import { createEntryPointSchema, updateEntryPointAllocationsSchema } from "@/lib/validations";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { generateApiKey } from "@/lib/api-keys";
@@ -78,12 +78,9 @@ export async function deleteFlow(projectId: string, flowId: string) {
       where: { flowId },
     });
 
-    await tx.entryPoint.updateMany({
-      where: { variantFlowId: flowId },
-      data: {
-        variantFlowId: null,
-        variantPercentage: null,
-      },
+    // Remove any variant allocations that reference this flow
+    await tx.entryPointVariant.deleteMany({
+      where: { flowId },
     });
 
     await tx.flowVersion.deleteMany({
@@ -152,8 +149,7 @@ export async function createEntryPoint(
     name?: string;
     flowId: string;
     environment: "DEVELOPMENT" | "PRODUCTION";
-    variantFlowId?: string;
-    variantPercentage?: number;
+    variants?: { flowId: string; percentage: number }[];
   }
 ) {
   const { userId } = await auth();
@@ -169,76 +165,84 @@ export async function createEntryPoint(
     name: data.name?.trim() || undefined,
     flowId: data.flowId,
     environment: data.environment,
-    variantFlowId: data.variantFlowId?.trim() || undefined,
-    variantPercentage: data.variantPercentage,
+    variants: data.variants,
   });
 
-  const requestedFlowIds = [
-    parsed.flowId,
-    ...(parsed.variantFlowId ? [parsed.variantFlowId] : []),
-  ];
+  // Collect all flow IDs we need to validate
+  const variantFlowIds = (parsed.variants ?? []).map((v) => v.flowId);
+  const allFlowIds = [parsed.flowId, ...variantFlowIds];
 
   const flows = await prisma.flow.findMany({
     where: {
       projectId,
-      id: {
-        in: requestedFlowIds,
-      },
+      id: { in: allFlowIds },
     },
     include: {
       developmentVersion: {
-        select: {
-          id: true,
-          version: true,
-        },
+        select: { id: true, version: true },
       },
       productionVersion: {
-        select: {
-          id: true,
-          version: true,
-        },
+        select: { id: true, version: true },
       },
     },
   });
 
   const flowById = new Map(flows.map((flow) => [flow.id, flow]));
-  const controlFlow = flowById.get(parsed.flowId);
+  const primaryFlow = flowById.get(parsed.flowId);
 
-  if (!controlFlow) {
-    throw new Error("Flow not found");
+  if (!primaryFlow) {
+    throw new Error("Primary flow not found");
   }
 
   if (
-    controlFlow.status !== "PUBLISHED" ||
-    !hasPublishedVersionForEnvironment(controlFlow, parsed.environment)
+    primaryFlow.status !== "PUBLISHED" ||
+    !hasPublishedVersionForEnvironment(primaryFlow, parsed.environment)
   ) {
-    throw new Error("Control flow must be published in the selected environment");
+    throw new Error("Primary flow must be published in the selected environment");
   }
 
-  const variantFlow = parsed.variantFlowId ? flowById.get(parsed.variantFlowId) : null;
-
-  if (parsed.variantFlowId && !variantFlow) {
-    throw new Error("Variant flow not found");
+  // Validate all variant flows exist and are published
+  if (parsed.variants && parsed.variants.length > 0) {
+    for (const variant of parsed.variants) {
+      const variantFlow = flowById.get(variant.flowId);
+      if (!variantFlow) {
+        throw new Error(`Variant flow not found: ${variant.flowId}`);
+      }
+      if (
+        variantFlow.status !== "PUBLISHED" ||
+        !hasPublishedVersionForEnvironment(variantFlow, parsed.environment)
+      ) {
+        throw new Error(
+          `Flow "${variantFlow.name}" must be published in the selected environment`
+        );
+      }
+    }
   }
 
-  if (
-    variantFlow &&
-    (variantFlow.status !== "PUBLISHED" ||
-      !hasPublishedVersionForEnvironment(variantFlow, parsed.environment))
-  ) {
-    throw new Error("Variant flow must be published in the selected environment");
-  }
+  const entryPoint = await prisma.$transaction(async (tx) => {
+    const ep = await tx.entryPoint.create({
+      data: {
+        projectId,
+        flowId: parsed.flowId,
+        key: parsed.key,
+        name: parsed.name?.trim() || null,
+        environment: parsed.environment,
+      },
+    });
 
-  const entryPoint = await prisma.entryPoint.create({
-    data: {
-      projectId,
-      flowId: parsed.flowId,
-      variantFlowId: parsed.variantFlowId ?? null,
-      variantPercentage: parsed.variantPercentage ?? null,
-      key: parsed.key,
-      name: parsed.name?.trim() || null,
-      environment: parsed.environment,
-    },
+    // Create variant rows if A/B test is configured
+    if (parsed.variants && parsed.variants.length > 0) {
+      await tx.entryPointVariant.createMany({
+        data: parsed.variants.map((variant, index) => ({
+          entryPointId: ep.id,
+          flowId: variant.flowId,
+          percentage: variant.percentage,
+          order: index,
+        })),
+      });
+    }
+
+    return ep;
   });
 
   revalidatePath(`/dashboard/project/${projectId}`);
@@ -264,6 +268,88 @@ export async function deleteEntryPoint(projectId: string, entryPointId: string) 
 
   await prisma.entryPoint.delete({
     where: { id: entryPointId },
+  });
+
+  revalidatePath(`/dashboard/project/${projectId}`);
+}
+
+export async function updateEntryPointAllocations(
+  projectId: string,
+  entryPointId: string,
+  data: {
+    variants: { flowId: string; percentage: number }[];
+  }
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+  });
+  if (!project) throw new Error("Project not found");
+
+  const entryPoint = await prisma.entryPoint.findFirst({
+    where: { id: entryPointId, projectId },
+  });
+  if (!entryPoint) throw new Error("Entry point not found");
+
+  const parsed = updateEntryPointAllocationsSchema.parse(data);
+
+  // Validate all variant flows exist, belong to this project, and are published
+  const flowIds = parsed.variants.map((v) => v.flowId);
+  const flows = await prisma.flow.findMany({
+    where: {
+      projectId,
+      id: { in: flowIds },
+    },
+    include: {
+      developmentVersion: {
+        select: { id: true, version: true },
+      },
+      productionVersion: {
+        select: { id: true, version: true },
+      },
+    },
+  });
+
+  const flowById = new Map(flows.map((flow) => [flow.id, flow]));
+
+  for (const variant of parsed.variants) {
+    const flow = flowById.get(variant.flowId);
+    if (!flow) {
+      throw new Error(`Flow not found: ${variant.flowId}`);
+    }
+    if (
+      flow.status !== "PUBLISHED" ||
+      !hasPublishedVersionForEnvironment(flow, entryPoint.environment)
+    ) {
+      throw new Error(
+        `Flow "${flow.name}" must be published in the ${entryPoint.environment.toLowerCase()} environment`
+      );
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Delete existing variants
+    await tx.entryPointVariant.deleteMany({
+      where: { entryPointId },
+    });
+
+    // Create new variants
+    await tx.entryPointVariant.createMany({
+      data: parsed.variants.map((variant, index) => ({
+        entryPointId,
+        flowId: variant.flowId,
+        percentage: variant.percentage,
+        order: index,
+      })),
+    });
+
+    // Update the primary flowId to match the first variant
+    await tx.entryPoint.update({
+      where: { id: entryPointId },
+      data: { flowId: parsed.variants[0].flowId },
+    });
   });
 
   revalidatePath(`/dashboard/project/${projectId}`);

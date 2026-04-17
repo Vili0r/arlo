@@ -5,7 +5,6 @@ import prisma from "@/lib/prisma";
 const FIGMA_API_BASE_URL = "https://api.figma.com/v1";
 const FIGMA_AUTHORIZE_URL = "https://www.figma.com/oauth";
 const FIGMA_TOKEN_URL = "https://api.figma.com/v1/oauth/token";
-const FIGMA_REFRESH_URL = "https://api.figma.com/v1/oauth/refresh";
 
 export const FIGMA_OAUTH_STATE_COOKIE = "arlo_figma_oauth_state";
 const DEFAULT_FIGMA_OAUTH_SCOPES = ["file_content:read"] as const;
@@ -253,8 +252,10 @@ export function buildFigmaAuthorizeUrl(state: string): string {
 }
 
 export async function exchangeCodeForFigmaTokens(code: string): Promise<FigmaTokenResponse> {
-  const { redirectUri } = getRequiredOAuthConfig();
+  const { clientId, clientSecret, redirectUri } = getRequiredOAuthConfig();
   const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
     redirect_uri: redirectUri,
     code,
     grant_type: "authorization_code",
@@ -263,7 +264,6 @@ export async function exchangeCodeForFigmaTokens(code: string): Promise<FigmaTok
   const response = await fetch(FIGMA_TOKEN_URL, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${getBasicAuthHeader()}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: body.toString(),
@@ -274,14 +274,17 @@ export async function exchangeCodeForFigmaTokens(code: string): Promise<FigmaTok
 }
 
 async function refreshFigmaTokens(refreshToken: string): Promise<FigmaTokenResponse> {
+  const { clientId, clientSecret } = getRequiredOAuthConfig();
   const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
     refresh_token: refreshToken,
+    grant_type: "refresh_token",
   });
 
-  const response = await fetch(FIGMA_REFRESH_URL, {
+  const response = await fetch(FIGMA_TOKEN_URL, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${getBasicAuthHeader()}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: body.toString(),
@@ -486,7 +489,7 @@ export async function getUsableFigmaAccessToken(userId: string): Promise<{
     accessToken: nextAccessToken,
     refreshToken: nextRefreshToken,
     tokenType: refreshed.token_type || connection.tokenType,
-    expiresInSeconds: refreshed.expires_in,
+    expiresInSeconds: (refreshed.expires_in && refreshed.expires_in > 0) ? refreshed.expires_in : 7776000,
     figmaUserId: connection.figmaUserId,
     figmaHandle: connection.figmaHandle,
     figmaEmail: connection.figmaEmail,

@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token ?? "",
       tokenType: tokens.token_type,
-      expiresInSeconds: tokens.expires_in,
+      expiresInSeconds: (tokens.expires_in && tokens.expires_in > 0) ? tokens.expires_in : 7776000,
       figmaUserId: profile?.id || tokens.user_id_string || null,
       figmaHandle: profile?.handle || null,
       figmaEmail: profile?.email || null,

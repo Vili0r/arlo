@@ -44,37 +44,85 @@ test("variant assignment uses the configured percentage and subject key", () => 
   const selection = resolveEntryPointSelection({
     entryPointKey: "onboarding_home",
     controlFlow,
-    variantFlow,
-    variantPercentage: 50,
+    variants: [
+      { flow: variantFlow, percentage: 50 },
+      { flow: controlFlow, percentage: 50 },
+    ],
     subjectKey: "user:user_123",
   });
 
-  assert.equal(selection.assignment, "variant");
+  // onboarding_home:user:user_123 hashes to a bucket that falls in the first half
+  assert.equal(selection.assignment, "welcome-variant");
   assert.equal(selection.flow.slug, "welcome-variant");
 });
 
-test("control flow is used when the bucket misses the variant percentage", () => {
+test("control flow is used when the bucket falls into its variant range", () => {
   const selection = resolveEntryPointSelection({
     entryPointKey: "onboarding_home",
     controlFlow,
-    variantFlow,
-    variantPercentage: 20,
-    fallbackBucket: 87,
+    variants: [
+      { flow: controlFlow, percentage: 80 },
+      { flow: variantFlow, percentage: 20 },
+    ],
+    fallbackBucket: 10,
   });
 
-  assert.equal(selection.assignment, "control");
+  assert.equal(selection.assignment, "welcome-control");
   assert.equal(selection.flow.slug, "welcome-control");
 });
 
-test("split tests fall back to control when variant config is incomplete", () => {
+test("3-way split routes correctly based on bucket ranges", () => {
+  const flows = [
+    { ...controlFlow, slug: "flow-a" },
+    { ...controlFlow, slug: "flow-b" },
+    { ...controlFlow, slug: "flow-c" },
+  ];
+
+  const variants = [
+    { flow: flows[0], percentage: 30 },
+    { flow: flows[1], percentage: 30 },
+    { flow: flows[2], percentage: 40 },
+  ];
+
+  // Bucket 25 -> Flow A
+  const s1 = resolveEntryPointSelection({
+    entryPointKey: "test",
+    controlFlow: flows[0],
+    variants,
+    fallbackBucket: 25,
+  });
+  assert.equal(s1.assignment, "flow-a");
+
+  // Bucket 45 -> Flow B (30 + 15)
+  const s2 = resolveEntryPointSelection({
+    entryPointKey: "test",
+    controlFlow: flows[0],
+    variants,
+    fallbackBucket: 45,
+  });
+  assert.equal(s2.assignment, "flow-b");
+
+  // Bucket 85 -> Flow C (30 + 30 + 25)
+  const s3 = resolveEntryPointSelection({
+    entryPointKey: "test",
+    controlFlow: flows[0],
+    variants,
+    fallbackBucket: 85,
+  });
+  assert.equal(s3.assignment, "flow-c");
+});
+
+test("split tests fall back to control when variants total is not 100", () => {
   const selection = resolveEntryPointSelection({
     entryPointKey: "onboarding_home",
     controlFlow,
-    variantPercentage: 50,
+    variants: [
+      { flow: variantFlow, percentage: 50 },
+    ],
     subjectKey: "user:user_123",
   });
 
-  assert.equal(selection.assignment, "control");
+  assert.equal(selection.assignment, "welcome-control");
   assert.equal(selection.flow.slug, "welcome-control");
 });
 

@@ -7,12 +7,25 @@ import prisma from "@/lib/prisma";
 import { createProjectSchema, updateProjectSchema } from "@/lib/validations";
 import { projectListInclude, projectDetailInclude } from "@/lib/types";
 
+type ProjectEntryPointVariant = {
+  id: string;
+  flowId: string;
+  percentage: number;
+  order: number;
+  flow: {
+    id: string;
+    name: string;
+    slug: string;
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  };
+};
+
 type ProjectEntryPoint = {
   id: string;
   key: string;
   name: string | null;
   environment: "DEVELOPMENT" | "PRODUCTION";
-  variantPercentage: number | null;
+  variants: ProjectEntryPointVariant[];
   createdAt: Date;
   flow: {
     id: string;
@@ -20,12 +33,6 @@ type ProjectEntryPoint = {
     slug: string;
     status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   };
-  variantFlow: {
-    id: string;
-    name: string;
-    slug: string;
-    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
-  } | null;
 };
 
 type ProjectRegistryKey = {
@@ -93,12 +100,19 @@ export async function getProject(projectId: string) {
                 status: true,
               },
             },
-            variantFlow: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                status: true,
+            variants: {
+              include: {
+                flow: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    status: true,
+                  },
+                },
+              },
+              orderBy: {
+                order: "asc",
               },
             },
           },
@@ -191,22 +205,26 @@ export async function updateProject(projectId: string, formData: FormData) {
   const iconFile = formData.get("icon") as File | null;
   const removeIcon = formData.get("removeIcon") === "true";
 
-  // Build update payload from non-null fields
+  // Build update payload from non-null fields, then let Zod narrow enum strings.
+  const rawUpdateData: {
+    name?: string;
+    platform?: string;
+    iconUrl?: string | null;
+  } = {};
+  if (name) rawUpdateData.name = name;
+  if (platform) rawUpdateData.platform = platform;
+
+  // Validate provided fields
+  const validated = updateProjectSchema.parse(rawUpdateData);
   const updateData: {
     name?: string;
     platform?: "REACT_NATIVE" | "EXPO";
     iconUrl?: string | null;
-  } = {};
-  if (name) updateData.name = name;
-  if (platform) updateData.platform = platform;
-
-  // Validate provided fields
-  const validated = updateProjectSchema.parse(updateData);
+  } = { ...validated };
 
   // Handle icon removal
   if (removeIcon && project.iconUrl) {
     await del(project.iconUrl);
-    validated.iconUrl = undefined;
     updateData.iconUrl = null;
   }
 
@@ -235,7 +253,7 @@ export async function updateProject(projectId: string, formData: FormData) {
 
   const updated = await prisma.project.update({
     where: { id: projectId },
-    data: { ...validated, ...updateData },
+    data: updateData,
   });
 
   revalidatePath("/dashboard");

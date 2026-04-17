@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "arlo-sdk": ["./packages/arlo-sdk/src/index.ts"]
     }
   },
   "include": [

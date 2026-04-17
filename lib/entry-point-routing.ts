@@ -30,21 +30,40 @@ export interface EntryPointSubject {
 }
 
 export interface EntryPointSelection {
-  assignment: "control" | "variant";
+  assignment: string; // flow slug of the selected flow
   bucket: number;
   flow: ResolvableFlow;
 }
 
-function normalizeVariantPercentage(value: number | null | undefined): number | null {
-  if (typeof value !== "number" || Number.isNaN(value)) {
+export interface EntryPointVariantInput {
+  flow: ResolvableFlow;
+  percentage: number;
+}
+
+function normalizeVariants(
+  variants: EntryPointVariantInput[] | undefined | null
+): EntryPointVariantInput[] | null {
+  if (!variants || variants.length < 2) {
     return null;
   }
 
-  if (value < 1 || value > 99) {
+  const sum = variants.reduce((acc, v) => acc + v.percentage, 0);
+  if (sum !== 100) {
     return null;
   }
 
-  return Math.round(value);
+  for (const variant of variants) {
+    if (
+      typeof variant.percentage !== "number" ||
+      Number.isNaN(variant.percentage) ||
+      variant.percentage < 1 ||
+      variant.percentage > 99
+    ) {
+      return null;
+    }
+  }
+
+  return variants;
 }
 
 export function resolveEntryPointSubject(headers: HeaderGetter): EntryPointSubject {
@@ -100,16 +119,15 @@ export function computeEntryPointBucket(seed: string): number {
 export function resolveEntryPointSelection(input: {
   entryPointKey: string;
   controlFlow: ResolvableFlow;
-  variantFlow?: ResolvableFlow | null;
-  variantPercentage?: number | null;
+  variants?: EntryPointVariantInput[] | null;
   subjectKey?: string | null;
   fallbackBucket?: number;
 }): EntryPointSelection {
-  const percentage = normalizeVariantPercentage(input.variantPercentage);
+  const variants = normalizeVariants(input.variants);
 
-  if (!input.variantFlow || percentage === null) {
+  if (!variants) {
     return {
-      assignment: "control",
+      assignment: input.controlFlow.slug,
       bucket: 0,
       flow: input.controlFlow,
     };
@@ -120,17 +138,24 @@ export function resolveEntryPointSelection(input: {
       ? computeEntryPointBucket(`${input.entryPointKey}:${input.subjectKey}`)
       : input.fallbackBucket ?? Math.floor(Math.random() * 100);
 
-  if (bucket < percentage) {
-    return {
-      assignment: "variant",
-      bucket,
-      flow: input.variantFlow,
-    };
+  // Walk through variants accumulating percentages to find which range the bucket falls into
+  let cumulative = 0;
+  for (const variant of variants) {
+    cumulative += variant.percentage;
+    if (bucket < cumulative) {
+      return {
+        assignment: variant.flow.slug,
+        bucket,
+        flow: variant.flow,
+      };
+    }
   }
 
+  // Fallback to the last variant (should not happen if percentages sum to 100)
+  const lastVariant = variants[variants.length - 1];
   return {
-    assignment: "control",
+    assignment: lastVariant.flow.slug,
     bucket,
-    flow: input.controlFlow,
+    flow: lastVariant.flow,
   };
 }

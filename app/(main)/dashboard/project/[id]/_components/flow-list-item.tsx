@@ -89,7 +89,7 @@ export function FlowListItem({ projectId, flow }: FlowListItemProps) {
       <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <AlertDialogTrigger
           disabled={isPending}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-[#333] transition-colors hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40 sm:opacity-0 sm:group-hover:opacity-100"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-[#333] transition-colors hover:text-red-300/70 disabled:opacity-40 sm:opacity-0 sm:group-hover:opacity-100"
           aria-label={`Delete ${flow.name}`}
         >
           <Trash2 size={14} />

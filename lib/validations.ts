@@ -613,35 +613,83 @@ export const entryPointKeySchema = z.string()
   .max(80, "Entry point key must be under 80 characters")
   .regex(/^[a-z0-9_]+$/, "Entry point keys must use lowercase letters, numbers, and underscores");
 
+export const entryPointVariantSchema = z.object({
+  flowId: z.string().min(1, "Variant flow is required"),
+  percentage: z.number().int().min(1, "Min 1%").max(99, "Max 99%"),
+});
+
 export const createEntryPointSchema = z.object({
   key: entryPointKeySchema,
   name: z.string().max(80, "Entry point name must be under 80 characters").optional(),
-  flowId: z.string().min(1, "A control flow is required"),
+  flowId: z.string().min(1, "A primary flow is required"),
   environment: environmentEnum,
-  variantFlowId: z.string().min(1).optional(),
-  variantPercentage: z.number().int().min(1).max(99).optional(),
+  variants: z.array(entryPointVariantSchema).optional(),
 }).superRefine((data, ctx) => {
-  const hasVariantFlow = Boolean(data.variantFlowId);
-  const hasVariantPercentage = typeof data.variantPercentage === "number";
+  if (!data.variants || data.variants.length === 0) {
+    return; // No split — single flow entry point is fine
+  }
 
-  if (hasVariantFlow !== hasVariantPercentage) {
+  if (data.variants.length < 2) {
     ctx.addIssue({
       code: "custom",
-      path: hasVariantFlow ? ["variantPercentage"] : ["variantFlowId"],
-      message: "A/B tests need both a variant flow and a variant percentage",
+      path: ["variants"],
+      message: "A/B tests need at least 2 flows in the split",
+    });
+    return;
+  }
+
+  const sum = data.variants.reduce((acc, v) => acc + v.percentage, 0);
+  if (sum !== 100) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["variants"],
+      message: `Percentages must sum to 100 (currently ${sum})`,
     });
   }
 
-  if (data.variantFlowId && data.variantFlowId === data.flowId) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["variantFlowId"],
-      message: "Control and variant flows must be different",
-    });
+  const flowIds = new Set<string>();
+  for (const variant of data.variants) {
+    if (flowIds.has(variant.flowId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["variants"],
+        message: "Each flow can only appear once in the split",
+      });
+      break;
+    }
+    flowIds.add(variant.flowId);
   }
 });
 
 export type CreateEntryPointInput = z.infer<typeof createEntryPointSchema>;
+
+export const updateEntryPointAllocationsSchema = z.object({
+  variants: z.array(entryPointVariantSchema).min(2, "A/B tests need at least 2 flows"),
+}).superRefine((data, ctx) => {
+  const sum = data.variants.reduce((acc, v) => acc + v.percentage, 0);
+  if (sum !== 100) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["variants"],
+      message: `Percentages must sum to 100 (currently ${sum})`,
+    });
+  }
+
+  const flowIds = new Set<string>();
+  for (const variant of data.variants) {
+    if (flowIds.has(variant.flowId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["variants"],
+        message: "Each flow can only appear once in the split",
+      });
+      break;
+    }
+    flowIds.add(variant.flowId);
+  }
+});
+
+export type UpdateEntryPointAllocationsInput = z.infer<typeof updateEntryPointAllocationsSchema>;
 
 // ========== Flow Version Schemas ==========
 

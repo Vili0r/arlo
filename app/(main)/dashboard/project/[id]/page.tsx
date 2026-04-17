@@ -73,16 +73,12 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
   }));
   const entryPointCards = entryPoints.map((entryPoint) => {
     const flowVersions = flowVersionMap.get(entryPoint.flow.id);
-    const variantVersions = entryPoint.variantFlow
-      ? flowVersionMap.get(entryPoint.variantFlow.id)
-      : null;
 
     return {
       id: entryPoint.id,
       key: entryPoint.key,
       name: entryPoint.name,
       environment: entryPoint.environment,
-      variantPercentage: entryPoint.variantPercentage,
       flow: {
         id: entryPoint.flow.id,
         name: entryPoint.flow.name,
@@ -101,26 +97,33 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
             }
           : null,
       },
-      variantFlow: entryPoint.variantFlow
-        ? {
-            id: entryPoint.variantFlow.id,
-            name: entryPoint.variantFlow.name,
-            slug: entryPoint.variantFlow.slug,
-            status: entryPoint.variantFlow.status,
-            developmentVersion: variantVersions?.developmentVersion
+      variants: (entryPoint.variants ?? []).map((v) => {
+        const versionData = flowVersionMap.get(v.flow.id);
+        return {
+          id: v.id,
+          flowId: v.flowId ?? v.flow.id,
+          percentage: v.percentage,
+          order: v.order,
+          flow: {
+            id: v.flow.id,
+            name: v.flow.name,
+            slug: v.flow.slug,
+            status: v.flow.status,
+            developmentVersion: versionData?.developmentVersion
               ? {
-                  id: variantVersions.developmentVersion.id,
-                  version: variantVersions.developmentVersion.version,
+                  id: versionData.developmentVersion.id,
+                  version: versionData.developmentVersion.version,
                 }
               : null,
-            productionVersion: variantVersions?.productionVersion
+            productionVersion: versionData?.productionVersion
               ? {
-                  id: variantVersions.productionVersion.id,
-                  version: variantVersions.productionVersion.version,
+                  id: versionData.productionVersion.id,
+                  version: versionData.productionVersion.version,
                 }
               : null,
-          }
-        : null,
+          },
+        };
+      }),
       createdAt: entryPoint.createdAt.toISOString(),
     };
   });

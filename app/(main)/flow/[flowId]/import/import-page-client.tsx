@@ -203,39 +203,32 @@ export function ImportPageClient({
 
   return (
     <ImportPageShell
-      title="Import to Flow Builder"
-      description="Import screens from Figma designs or React and React Native code into the builder. The import is saved to your draft immediately, then you’ll return to the flow."
+      title="Import Flow Assets"
+      description={`Importing into ${currentScreenName || "Active Flow"}. Elements will be mapped to the Arlo Design System.`}
       onBack={() => router.push(buildBuilderHref())}
       footer={
         <>
           <Button
             type="button"
-            variant="outline"
-            onClick={() => router.push(buildBuilderHref())}
-            className="border-white/[0.08] bg-white/[0.02] text-white/70 hover:bg-white/[0.06] hover:text-white hover:border-white/[0.15] transition-all rounded-xl h-11"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
             onClick={handleImport}
             disabled={!canImport || isPending}
-            className="bg-white text-black hover:bg-white/90 h-11 rounded-xl font-medium transition-transform active:scale-95 disabled:hover:scale-100 shadow-[0_0_20px_rgba(255,255,255,0.15)] disabled:shadow-none"
+            className="bg-white text-black hover:bg-white/90 px-8 h-11 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95 disabled:scale-100 shadow-[0_0_30px_rgba(255,255,255,0.15)] disabled:shadow-none"
           >
-            {isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+            {isPending ? <Loader2 size={16} className="animate-spin" /> : <Upload size={14} className="mr-2" />}
             {tab === "figma"
-              ? `Import ${selectedImports.length || 0} screen${selectedImports.length === 1 ? "" : "s"}`
-              : "Import to builder"}
+              ? `Commit ${selectedImports.length || 0} screen${selectedImports.length === 1 ? "" : "s"}`
+              : "Commit to builder"}
           </Button>
         </>
       }
     >
-      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col">
-        <div className="border-b border-white/[0.06] px-6 py-4 flex justify-center bg-[#0a0a0a]/50 backdrop-blur-sm z-10 sticky top-[80px]">
-          <div className="relative flex p-1 rounded-full bg-white/[0.02] border border-white/[0.08] shadow-inner items-center">
+      <div className="flex flex-col gap-10">
+        {/* Superior Tab Navigator */}
+        <div className="flex justify-center">
+          <div className="relative flex p-1.5 rounded-[24px] border border-white/[0.06] bg-black/40 backdrop-blur-md shadow-inner group/tabs">
             <div
-              className={`absolute top-1 bottom-1 w-[130px] rounded-full bg-white/[0.12] shadow-sm transition-transform duration-300 ease-out border border-white/[0.08] ${
-                tab === "figma" ? "translate-x-0" : "translate-x-full"
+              className={`absolute top-1.5 bottom-1.5 w-[140px] rounded-[18px] bg-white/[0.08] shadow-[0_2px_10px_rgba(0,0,0,0.2)] transition-[transform,border-color,background-color] duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] border border-white/[0.1] ${
+                tab === "figma" ? "translate-x-0" : "translate-x-[140px]"
               }`}
             />
             <button
@@ -244,13 +237,13 @@ export function ImportPageClient({
                 setTab("figma");
                 router.replace(buildImportHref("figma"));
               }}
-              className={`relative z-10 flex w-[130px] items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors duration-300 ${
+              className={`relative z-10 flex w-[140px] items-center justify-center gap-2.5 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.2em] transition-[color] duration-500 ${
                 tab === "figma"
                   ? "text-white"
-                  : "text-white/50 hover:text-white/80"
+                  : "text-white/30 hover:text-white/60"
               }`}
             >
-              <PenTool size={14} />
+              <PenTool size={14} strokeWidth={tab === "figma" ? 3 : 2} className="transition-all" />
               Figma
             </button>
             <button
@@ -259,22 +252,23 @@ export function ImportPageClient({
                 setTab("code");
                 router.replace(buildImportHref("code"));
               }}
-              className={`relative z-10 flex w-[130px] items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors duration-300 ${
+              className={`relative z-10 flex w-[140px] items-center justify-center gap-2.5 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.2em] transition-[color] duration-500 ${
                 tab === "code"
                   ? "text-white"
-                  : "text-white/50 hover:text-white/80"
+                  : "text-white/30 hover:text-white/60"
               }`}
             >
-              <Code2 size={14} />
+              <Code2 size={14} strokeWidth={tab === "code" ? 3 : 2} className="transition-all" />
               Code
             </button>
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col lg:flex-row bg-[#0a0a0a]/20">
-          <div className="min-w-0 flex-1 border-b border-white/[0.06] px-6 py-8 lg:border-b-0 lg:border-r relative overflow-hidden">
-            <div className={`transition-all duration-500 transform-gpu ${
-                 tab === "figma" ? "opacity-100 translate-y-0 relative z-10" : "opacity-0 translate-y-4 absolute inset-x-6 pointer-events-none z-0"
+        {/* Global Action Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-10 items-start">
+          <div className="min-w-0 space-y-8">
+            <div className={`transition-[opacity,transform] duration-500 transform-gpu ${
+                 tab === "figma" ? "opacity-100 translate-y-0 relative z-10" : "opacity-0 translate-y-8 absolute inset-x-0 pointer-events-none z-0"
                }`}>
               <FigmaImportContent
                 source={figmaSource}
@@ -297,8 +291,9 @@ export function ImportPageClient({
                 onDeselectAll={() => setSelectedScreenIds(new Set())}
               />
             </div>
-            <div className={`transition-all duration-500 transform-gpu ${
-                 tab === "code" ? "opacity-100 translate-y-0 relative z-10" : "opacity-0 translate-y-4 absolute inset-x-6 top-8 pointer-events-none z-0"
+            
+            <div className={`transition-[opacity,transform] duration-500 transform-gpu ${
+                 tab === "code" ? "opacity-100 translate-y-0 relative z-10" : "opacity-0 translate-y-8 absolute inset-x-0 pointer-events-none z-0"
                }`}>
               <CodeImportContent
                 code={code}
@@ -310,40 +305,38 @@ export function ImportPageClient({
             </div>
           </div>
 
-          <div className="w-full shrink-0 bg-[#0f1115]/80 backdrop-blur-md px-6 py-6 lg:w-[380px] relative z-20 shadow-[-10px_0_30px_rgba(0,0,0,0.2)]">
-            <div className="flex flex-col gap-5 sticky top-[160px]">
-              <ImportModeSelector
-                mode={activeMode}
-                onSelectMode={setActiveMode}
-                currentScreenName={currentScreenName}
-                screenCount={activeScreenCount}
-              />
+          <aside className="space-y-6 sticky top-28">
+            <ImportModeSelector
+              mode={activeMode}
+              onSelectMode={setActiveMode}
+              currentScreenName={currentScreenName}
+              screenCount={activeScreenCount}
+            />
 
-              {submitError ? (
-                <div className="rounded-[24px] border border-rose-500/20 bg-rose-500/5 p-5 text-sm leading-6 text-rose-200/90 shadow-inner animate-in fade-in slide-in-from-top-2">
-                  <div className="flex items-center gap-2 font-medium text-white mb-2">
-                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-rose-500/10 text-rose-400">
-                       <AlertTriangle size={14} />
-                    </div>
-                    Import failed
-                  </div>
-                  <p className="ml-8">{submitError}</p>
+            {submitError && (
+              <div className="rounded-[24px] border border-rose-500/20 bg-rose-500/5 p-6 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="flex items-center gap-3 text-rose-400 mb-3">
+                  <AlertTriangle size={18} />
+                  <span className="text-[11px] font-bold uppercase tracking-[0.2em]">Deployment Failed</span>
                 </div>
-              ) : null}
-
-              <div className="transition-all duration-500">
-                {tab === "figma" ? (
-                  <FigmaImportSummary
-                    primaryImport={primaryImport}
-                    selectedCount={selectedImports.length}
-                    helperText="Arlo stores each imported screen with its direct Figma node URL, file metadata, warnings, and generated preview screen. The imported result stays read-only in the builder."
-                  />
-                ) : (
-                  <CodeImportSummary parsed={parsed} />
-                )}
+                <p className="text-[13px] text-rose-200/60 font-medium leading-relaxed">
+                  {submitError}
+                </p>
               </div>
+            )}
+
+            <div className="transition-[opacity,transform] duration-500 ease-out transform-gpu">
+              {tab === "figma" ? (
+                <FigmaImportSummary
+                  primaryImport={primaryImport}
+                  selectedCount={selectedImports.length}
+                  helperText="Imported Figma screens are added as frozen reference assets with active sync links for future design iterations."
+                />
+              ) : (
+                <CodeImportSummary parsed={parsed} />
+              )}
             </div>
-          </div>
+          </aside>
         </div>
       </div>
     </ImportPageShell>
