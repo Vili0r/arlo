@@ -16,6 +16,7 @@ import {
   ClipboardCheck,
   History,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function Home() {
   const authContext = await auth();
@@ -51,6 +52,7 @@ export default async function Home() {
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Show when="signed-in">
               <OrganizationSwitcher
                 hidePersonal
