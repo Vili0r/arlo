@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// -------------------------------------------------------------
+// Identity & Multi-Tenancy (Synced from Clerk)
+// -------------------------------------------------------------
+
+model User {
+  id          String    @id // Clerk User ID (user_...)
+  email       String    @unique
+  firstName   String?
+  lastName    String?
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime? // Soft delete
+
+  // Multi-tenant relations
+  memberships        OrganizationMember[]
+  createdComplaints  Complaint[]          @relation("ComplaintCreator")
+  assignedComplaints Complaint[]          @relation("ComplaintInvestigator")
+  approvedComplaints Complaint[]          @relation("ComplaintApprover")
+  createdCapas       Capa[]               @relation("CapaCreator")
+  assignedCapas      Capa[]               @relation("CapaOwner")
+  approvedCapas      Capa[]               @relation("CapaApprover")
+  auditLogs          AuditLog[]
+
+  @@index([email])
+}
+
+model Organization {
+  id        String    @id // Clerk Organization ID (org_...)
+  name      String
+  slug      String?   @unique
+  imageUrl  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // Soft delete
+
+  // Multi-tenant relations
+  members    OrganizationMember[]
+  complaints Complaint[]
+  capas      Capa[]
+  auditLogs  AuditLog[]
+
+  @@index([slug])
+}
+
+model OrganizationMember {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  role      String   // e.g. "org:admin", "org:qa_manager", "org:complaint_investigator", etc.
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([orgId])
+  @@index([userId])
+}
+
+// -------------------------------------------------------------
+// Core Quality Records (PMS / ISO 13485 / 21 CFR Part 11)
+// -------------------------------------------------------------
+
+enum ComplaintStatus {
+  OPEN
+  UNDER_INVESTIGATION
+  PENDING_REVIEW
+  CLOSED
+  REOPENED
+}
+
+enum Severity {
+  CRITICAL
+  MAJOR
+  MINOR
+  COSMETIC
+}
+
+model Complaint {
+  id                     String          @id @default(cuid())
+  orgId                  String          // Multi-tenant isolation
+  complaintNumber        String          // e.g. CMP-2026-0001
+  title                  String
+  description            String
+  status                 ComplaintStatus @default(OPEN)
+  severity               Severity
+  dateReceived           DateTime
+  deviceModel            String?
+  deviceSerialNumber     String?
+  lotNumber              String?
+  isAdverseEvent         Boolean         @default(false)
+  investigationSummary   String?
+  rootCause              String?
+  closureRationale       String?
+
+  // Accountability & Separation of Duties (21 CFR Part 11)
+  createdById            String
+  assignedInvestigatorId String?
+  approvedById           String?         // Must not equal assignedInvestigatorId
+
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  deletedAt              DateTime?       // Soft delete (No hard deletes)
+
+  // Relations
+  organization         Organization @relation(fields: [orgId], references: [id])
+  createdBy            User         @relation("ComplaintCreator", fields: [createdById], references: [id])
+  assignedInvestigator User?        @relation("ComplaintInvestigator", fields: [assignedInvestigatorId], references: [id])
+  approvedBy           User?        @relation("ComplaintApprover", fields: [approvedById], references: [id])
+  capas                Capa[]
+  auditLogs            AuditLog[]
+
+  @@unique([orgId, complaintNumber])
+  @@index([orgId, status])
+  @@index([orgId, severity])
+  @@index([createdById])
+  @@index([assignedInvestigatorId])
+}
+
+enum CapaStatus {
+  DRAFT
+  ACTION_PLANNING
+  IMPLEMENTATION
+  EFFECTIVENESS_CHECK
+  PENDING_APPROVAL
+  CLOSED
+}
+
+enum CapaType {
+  CORRECTIVE
+  PREVENTIVE
+}
+
+model Capa {
+  id                    String     @id @default(cuid())
+  orgId                 String     // Multi-tenant isolation
+  capaNumber            String     // e.g. CAPA-2026-0001
+  title                 String
+  problemStatement      String
+  type                  CapaType   @default(CORRECTIVE)
+  status                CapaStatus @default(DRAFT)
+  actionPlan            String?
+  effectivenessCriteria String?
+  closureRationale      String?
+
+  // Relations & Accountability (21 CFR Part 11)
+  complaintId     String?
+  createdById     String
+  assignedOwnerId String?
+  approvedById    String?        // Must not equal assignedOwnerId
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?      // Soft delete (No hard deletes)
+
+  organization  Organization @relation(fields: [orgId], references: [id])
+  complaint     Complaint?   @relation(fields: [complaintId], references: [id])
+  createdBy     User         @relation("CapaCreator", fields: [createdById], references: [id])
+  assignedOwner User?        @relation("CapaOwner", fields: [assignedOwnerId], references: [id])
+  approvedBy    User?        @relation("CapaApprover", fields: [approvedById], references: [id])
+  auditLogs     AuditLog[]
+
+  @@unique([orgId, capaNumber])
+  @@index([orgId, status])
+  @@index([createdById])
+  @@index([assignedOwnerId])
+}
+
+// -------------------------------------------------------------
+// Audit Trail (Immutable, 21 CFR Part 11 Compliant)
+// -------------------------------------------------------------
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  STATUS_CHANGE
+  INVESTIGATION_SUBMIT
+  APPROVE_CLOSE
+  SOFT_DELETE
+  RESTORE
+}
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  orgId        String      // Multi-tenant isolation
+  entityType   String      // "Complaint", "Capa", "User", "Organization", "OrganizationMember"
+  entityId     String
+  action       AuditAction
+  previousData Json?       // Snapshot of fields before mutation
+  newData      Json?       // Snapshot of fields after mutation
+  reason       String?     // Electronic signature justification / reason for change
+  timestamp    DateTime    @default(now())
+
+  // Accountability
+  changedById  String
+  changedBy    User         @relation(fields: [changedById], references: [id])
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  complaintId String?
+  complaint   Complaint? @relation(fields: [complaintId], references: [id])
+  capaId      String?
+  capa        Capa?      @relation(fields: [capaId], references: [id])
+
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, timestamp])
+  @@index([changedById])
+}
