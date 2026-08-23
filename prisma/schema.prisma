@@ -45,10 +45,11 @@ model Organization {
   deletedAt DateTime? // Soft delete
 
   // Multi-tenant relations
-  members    OrganizationMember[]
-  complaints Complaint[]
-  capas      Capa[]
-  auditLogs  AuditLog[]
+  members        OrganizationMember[]
+  complaints     Complaint[]
+  capas          Capa[]
+  formTemplates  FormTemplate[]
+  auditLogs      AuditLog[]
 
   @@index([slug])
 }
@@ -67,6 +68,27 @@ model OrganizationMember {
   @@unique([orgId, userId])
   @@index([orgId])
   @@index([userId])
+}
+
+// -------------------------------------------------------------
+// Dynamic Custom Form Templates (Category 4 Configured Software)
+// Stores the blueprint of custom fields as JSONB — no migrations
+// needed when an org adds/removes/archives fields.
+// -------------------------------------------------------------
+
+model FormTemplate {
+  id               String   @id @default(cuid())
+  orgId            String
+  entityType       String   // "Complaint", "Capa", etc.
+  version          Int      @default(1)
+  schemaDefinition Json     // Array<FormFieldDefinition>
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, entityType])
+  @@index([orgId])
 }
 
 // -------------------------------------------------------------
@@ -104,6 +126,10 @@ model Complaint {
   investigationSummary   String?
   rootCause              String?
   closureRationale       String?
+
+  // Dynamic custom fields (JSONB Template Pattern)
+  customData             Json?    @default("{}") // Record<fieldHash, value>
+  formTemplateVersion    Int?                    // Template version at time of entry
 
   // Accountability & Separation of Duties (21 CFR Part 11)
   createdById            String
@@ -190,6 +216,7 @@ enum AuditAction {
   APPROVE_CLOSE
   SOFT_DELETE
   RESTORE
+  TEMPLATE_UPDATE // Tracks custom form template changes
 }
 
 model AuditLog {
@@ -201,6 +228,7 @@ model AuditLog {
   previousData Json?       // Snapshot of fields before mutation
   newData      Json?       // Snapshot of fields after mutation
   reason       String?     // Electronic signature justification / reason for change
+  fieldChanges Json?       // Array<AuditFieldChange> — granular custom field diff
   timestamp    DateTime    @default(now())
 
   // Accountability

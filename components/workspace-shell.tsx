@@ -18,6 +18,7 @@ import {
   Search,
   PanelLeftClose,
   PanelLeft,
+  ChevronLeft,
   ChevronRight,
   MoreHorizontal,
   Bell,
@@ -130,12 +131,20 @@ export function WorkspaceShell({
 
       {/* Sidebar Container */}
       <aside
-        className={`flex flex-col border-r border-border bg-card text-card-foreground transition-all duration-300 ease-in-out shrink-0 select-none z-50 fixed md:relative inset-y-0 left-0 h-full ${
+        className={`flex flex-col border-r border-border bg-card text-card-foreground transition-all duration-300 ease-in-out shrink-0 select-none z-50 fixed md:relative inset-y-0 left-0 h-full group/sidebar relative ${
           isSidebarOpen
             ? "w-[250px] translate-x-0 opacity-100 shadow-2xl md:shadow-none"
             : "w-0 -translate-x-full opacity-0 overflow-hidden border-none"
         }`}
       >
+        {/* Collapse Button in vertical middle of sidebar on hover */}
+        <button
+          onClick={toggleSidebar}
+          title="Collapse Sidebar"
+          className="absolute -right-3.5 top-1/2 -translate-y-1/2 z-50 flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-md hover:bg-accent hover:text-foreground opacity-0 group-hover/sidebar:opacity-100 transition-all duration-200 cursor-pointer"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
         {/* Sidebar Header: Team / Org Selector */}
         <div className="flex h-14 items-center justify-between px-3 border-b border-border">
           <button
@@ -266,21 +275,19 @@ export function WorkspaceShell({
         <header className="flex h-14 items-center justify-between border-b border-border bg-card text-card-foreground px-4 shrink-0 relative">
           {/* Header Left Section */}
           <div className="flex items-center gap-3 z-10">
-            {/* Sidebar Toggle Button */}
-            <button
-              onClick={toggleSidebar}
-              title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors border border-transparent hover:border-border"
-            >
-              {isSidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
+            {/* Expand Sidebar Button (only visible when sidebar is collapsed) */}
+            {!isSidebarOpen && (
+              <button
+                onClick={toggleSidebar}
+                title="Expand Sidebar"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors border border-transparent hover:border-border"
+              >
                 <PanelLeft className="h-4 w-4" />
-              )}
-            </button>
+              </button>
+            )}
 
             {/* Scope Breadcrumb */}
-            <div className="flex items-center gap-2 border-l border-border pl-3">
+            <div className={`flex items-center gap-2 ${!isSidebarOpen ? "border-l border-border pl-3" : ""}`}>
               <button className="flex items-center gap-1.5 text-xs font-semibold text-foreground hover:text-primary transition-colors">
                 <span>All Projects</span>
                 <ChevronsUpDown className="h-3 w-3 text-muted-foreground" />

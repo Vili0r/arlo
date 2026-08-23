@@ -1,12 +1,5 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-
-const isPublicRoute = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/api/webhooks(.*)",
-]);
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   const hostname = req.headers.get("host") || "";
@@ -64,11 +57,6 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     return NextResponse.rewrite(
       new URL(`/${orgIdentifier}${pathname}${search}`, req.url)
     );
-  }
-
-  // Root domain handling
-  if (!isPublicRoute(req)) {
-    await auth.protect();
   }
 
   return NextResponse.next();

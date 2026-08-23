@@ -10,6 +10,8 @@ export interface CreateAuditLogParams {
   previousData?: Record<string, unknown> | null;
   newData?: Record<string, unknown> | null;
   reason?: string;
+  /** Granular custom field diff from generateJsonDiff — Array<AuditFieldChange> */
+  fieldChanges?: Record<string, unknown>[] | null;
   complaintId?: string;
   capaId?: string;
 }
@@ -27,6 +29,7 @@ export async function createAuditLog({
   previousData,
   newData,
   reason,
+  fieldChanges,
   complaintId,
   capaId,
 }: CreateAuditLogParams) {
@@ -45,6 +48,9 @@ export async function createAuditLog({
           ? (newData as Prisma.InputJsonValue)
           : Prisma.JsonNull,
         reason: reason ?? null,
+        fieldChanges: fieldChanges
+          ? (fieldChanges as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
         complaintId: complaintId ?? null,
         capaId: capaId ?? null,
       },
