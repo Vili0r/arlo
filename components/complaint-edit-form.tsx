@@ -73,6 +73,8 @@ import {
 } from "@/lib/constants/qms-options";
 
 import { useOrganization } from "@clerk/nextjs";
+import { FileUploader } from "@/components/file-uploader";
+import type { AttachmentInput } from "@/lib/actions/complaints";
 
 interface ProductEntry {
   id: string;
@@ -167,6 +169,13 @@ interface ComplaintEditFormProps {
       annexE_Codes: string[];
       annexF_Codes: string[];
     }>;
+    attachments?: Array<{
+      id: string;
+      fileUrl: string;
+      fileName: string;
+      fileSize: number | null;
+      mimeType: string | null;
+    }>;
     customerCommunications?: CustomerCommunicationItem[];
     sampleManagement?: SampleManagementData | null;
     complaintOwner?: {
@@ -218,6 +227,16 @@ export function ComplaintEditForm({
   const [complaintOwnerId, setComplaintOwnerId] = React.useState<string>(
     complaint.complaintOwnerId || ""
   );
+  
+  // Initialize attachments with existing ones
+  const [attachments, setAttachments] = React.useState<AttachmentInput[]>(() => {
+    return complaint.attachments?.map(a => ({
+      fileUrl: a.fileUrl,
+      fileName: a.fileName,
+      fileSize: a.fileSize,
+      mimeType: a.mimeType,
+    })) || [];
+  });
 
   // Customer & Reporter State
   const [customerName, setCustomerName] = React.useState(
@@ -494,6 +513,7 @@ export function ComplaintEditForm({
         isAdverseEvent: death === Death.YES || priority === Priority.CRITICAL,
         products: filteredProducts,
         patients: filteredPatients,
+        newAttachments: attachments.filter(a => !complaint.attachments?.some(ea => ea.fileUrl === a.fileUrl)),
       });
 
       setSuccessMessage("Complaint details updated successfully.");
@@ -721,6 +741,11 @@ export function ComplaintEditForm({
                         className="text-xs leading-relaxed"
                       />
                     </div>
+                    
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Attachments</Label>
+                      <FileUploader attachments={attachments} onChange={setAttachments} />
+                    </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-5">
                       <div className="space-y-1.5">
@@ -769,8 +794,11 @@ export function ComplaintEditForm({
                         >
                           <option value="">Unassigned</option>
                           {memberships?.data?.map((m) => (
-                            <option key={m.publicUserData.userId} value={m.publicUserData.userId || ""}>
-                              {m.publicUserData.firstName} {m.publicUserData.lastName}
+                            <option
+                              key={m.publicUserData?.userId || m.id}
+                              value={m.publicUserData?.userId || ""}
+                            >
+                              {m.publicUserData?.firstName || ""} {m.publicUserData?.lastName || m.publicUserData?.identifier || "User"}
                             </option>
                           ))}
                         </select>

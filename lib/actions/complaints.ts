@@ -42,6 +42,13 @@ export interface PatientInformationInput {
   annexF_Codes?: string[]; // IMDRF Annex F (Health Effects - Health Impact)
 }
 
+export interface AttachmentInput {
+  fileUrl: string;
+  fileName: string;
+  fileSize?: number | null;
+  mimeType?: string | null;
+}
+
 export interface CreateComplaintWithRelationsInput {
   // Core Complaint Mandatory & Configurable Fields
   shortDescription: string;
@@ -80,6 +87,7 @@ export interface CreateComplaintWithRelationsInput {
   // Nested Relational Payloads (1:N)
   products?: ProductInformationInput[];
   patients?: PatientInformationInput[];
+  attachments?: AttachmentInput[];
 
   // Automated Workflow Flags
   investigationRequired?: boolean; // Default true: auto-creates Investigation
@@ -220,10 +228,27 @@ export async function createComplaintWithRelations(
               },
             }
           : {}),
+
+        // Nested 1:N Attachment creation
+        ...(data.attachments && data.attachments.length > 0
+          ? {
+              attachments: {
+                create: data.attachments.map((att) => ({
+                  orgId,
+                  fileUrl: att.fileUrl,
+                  fileName: att.fileName,
+                  fileSize: att.fileSize ?? null,
+                  mimeType: att.mimeType ?? null,
+                  uploadedById: userId,
+                })),
+              },
+            }
+          : {}),
       },
       include: {
         productInformation: true,
         patientInformation: true,
+        attachments: true,
       },
     });
 
@@ -376,6 +401,7 @@ export interface UpdateComplaintWithRelationsInput {
 
   products?: ProductInformationInput[];
   patients?: PatientInformationInput[];
+  newAttachments?: AttachmentInput[];
 }
 
 /**
@@ -495,6 +521,30 @@ export async function updateComplaintWithRelations(
       },
     });
 
+    if (data.newAttachments && data.newAttachments.length > 0) {
+      await tx.attachment.createMany({
+        data: data.newAttachments.map((att) => ({
+          orgId,
+          complaintId: data.complaintId,
+          fileUrl: att.fileUrl,
+          fileName: att.fileName,
+          fileSize: att.fileSize ?? null,
+          mimeType: att.mimeType ?? null,
+          uploadedById: userId,
+        })),
+      });
+    }
+
+    // Fetch the fully updated entity for logging
+    const fullyUpdated = await tx.complaint.findUnique({
+      where: { id: data.complaintId },
+      include: {
+        productInformation: true,
+        patientInformation: true,
+        attachments: true,
+      },
+    });
+
     // Create 21 CFR Part 11 AuditLog for UPDATE
     await tx.auditLog.create({
       data: {
@@ -504,13 +554,13 @@ export async function updateComplaintWithRelations(
         action: AuditAction.UPDATE,
         changedById: userId,
         previousData: existing as unknown as Prisma.InputJsonValue,
-        newData: updated as unknown as Prisma.InputJsonValue,
+        newData: fullyUpdated as unknown as Prisma.InputJsonValue,
         reason: `Updated complaint details (${updated.complaintNumber})`,
         complaintId: data.complaintId,
       },
     });
 
-    return updated;
+    return fullyUpdated;
   });
 }
 

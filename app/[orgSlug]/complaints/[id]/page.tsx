@@ -24,6 +24,7 @@ export default async function ComplaintDetailPage({
       },
       productInformation: true,
       patientInformation: true,
+      attachments: true,
       customerCommunications: {
         orderBy: { communicationDate: "desc" },
         include: {

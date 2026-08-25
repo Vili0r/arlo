@@ -28,9 +28,13 @@ model User {
   assignedComplaints     Complaint[]             @relation("ComplaintInvestigator")
   approvedComplaints     Complaint[]             @relation("ComplaintApprover")
   ownedComplaints        Complaint[]             @relation("ComplaintOwner")
-  customerCommunications CustomerCommunication[]
-  investigations         Investigation[]
-  attachments            Attachment[]
+  customerCommunications         CustomerCommunication[]
+  investigations                 Investigation[]              @relation("InvestigationInvestigator")
+  riskReviewedInvestigations     Investigation[]              @relation("RiskReviewCompletedBy")
+  summaryCompletedInvestigations Investigation[]              @relation("InvestigationSummaryCompletedBy")
+  assignedCustomSections         InvestigationCustomSection[] @relation("CustomSectionAssignedTo")
+  completedCustomSections        InvestigationCustomSection[] @relation("CustomSectionCompletedBy")
+  attachments                    Attachment[]
   createdCapas           Capa[]                  @relation("CapaCreator")
   assignedCapas          Capa[]                  @relation("CapaOwner")
   approvedCapas          Capa[]                  @relation("CapaApprover")
@@ -54,10 +58,13 @@ model Organization {
   productInformation     ProductInformation[]
   patientInformation     PatientInformation[]
   customerCommunications CustomerCommunication[]
-  sampleManagements      SampleManagement[]
-  investigations         Investigation[]
-  vigilanceDecisionTrees VigilanceDecisionTree[]
-  attachments            Attachment[]
+  sampleManagements             SampleManagement[]
+  investigations                Investigation[]
+  investigationImdrfCodes       InvestigationIMDRFCode[]
+  investigationSectionTemplates InvestigationSectionTemplate[]
+  investigationCustomSections   InvestigationCustomSection[]
+  vigilanceDecisionTrees        VigilanceDecisionTree[]
+  attachments                   Attachment[]
   capas                  Capa[]
   formTemplates          FormTemplate[]
   auditLogs              AuditLog[]
@@ -250,8 +257,9 @@ model ProductInformation {
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
-  organization        Organization @relation(fields: [orgId], references: [id])
-  complaint           Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  organization        Organization             @relation(fields: [orgId], references: [id])
+  complaint           Complaint                @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  imdrfCodes          InvestigationIMDRFCode[]
 
   @@index([orgId])
   @@index([complaintId])
@@ -327,12 +335,47 @@ model Investigation {
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
+  // A. Attachments & Sample Analysis
+  attachments                   Attachment[]
+  sampleAnalysisAssignedDate    DateTime?
+  sampleAnalysisCompleteDate    DateTime?
+  sampleAnalysisRequired        Boolean             @default(false)
+  sampleAnalysisExemptRationale String?
+  decontaminatedAt              DateTime?
+  sampleReceivedDate            DateTime?
+  quantity                      Int?
+  sampleAnalysisResults         String?
+
+  // B. Risk Review Section
+  riskReviewRequired            Boolean             @default(false)
+  riskReviewExemptRationale     String?
+  riskReviewCompletedAt         DateTime?
+  riskReviewCompletedById       String?
+
+  // C. Investigation Summary
+  investigationSummaryCompletedById String?
+  investigationSummaryCompletedAt   DateTime?
+  summary                           String?
+  report                            String?
+  capaRationale                     String?
+  capaRequired                      Boolean             @default(false)
+  capaRef                           String?
+  notes                             String?
+  reportabilityReviewRequired       Boolean             @default(false)
+
   organization          Organization        @relation(fields: [orgId], references: [id])
   complaint             Complaint           @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-  investigator          User?               @relation(fields: [investigatorId], references: [id])
+  investigator          User?               @relation("InvestigationInvestigator", fields: [investigatorId], references: [id])
+  riskReviewCompletedBy           User?               @relation("RiskReviewCompletedBy", fields: [riskReviewCompletedById], references: [id])
+  investigationSummaryCompletedBy User?               @relation("InvestigationSummaryCompletedBy", fields: [investigationSummaryCompletedById], references: [id])
+
+  imdrfCodes            InvestigationIMDRFCode[]
+  customSections        InvestigationCustomSection[]
 
   @@index([orgId])
   @@index([investigatorId])
+  @@index([riskReviewCompletedById])
+  @@index([investigationSummaryCompletedById])
 }
 
 model VigilanceDecisionTree {
@@ -366,10 +409,13 @@ model Attachment {
   organization Organization @relation(fields: [orgId], references: [id])
   complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
   uploadedBy   User?        @relation(fields: [uploadedById], references: [id])
+  investigationId String?
+  investigation Investigation? @relation(fields: [investigationId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
   @@index([complaintId])
   @@index([uploadedById])
+  @@index([investigationId])
 }
 
 // -------------------------------------------------------------
@@ -465,4 +511,77 @@ model AuditLog {
   @@index([orgId, entityType, entityId])
   @@index([orgId, timestamp])
   @@index([changedById])
+}
+
+// -------------------------------------------------------------
+// New Investigation Models
+// -------------------------------------------------------------
+
+enum ImdrfAnnex {
+  ANNEX_B
+  ANNEX_C
+  ANNEX_D
+  ANNEX_G
+}
+
+model InvestigationIMDRFCode {
+  id                   String       @id @default(cuid())
+  orgId                String
+  investigationId      String
+  productInformationId String?
+  annex                ImdrfAnnex
+  code                 String
+  term                 String
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  organization         Organization @relation(fields: [orgId], references: [id])
+  investigation        Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  productInformation   ProductInformation? @relation(fields: [productInformationId], references: [id])
+
+  @@index([orgId])
+  @@index([investigationId])
+  @@index([productInformationId])
+}
+
+model InvestigationSectionTemplate {
+  id           String       @id @default(cuid())
+  orgId        String
+  sectionName  String
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  customSections InvestigationCustomSection[]
+
+  @@index([orgId])
+}
+
+model InvestigationCustomSection {
+  id              String       @id @default(cuid())
+  orgId           String
+  investigationId String
+  templateId      String
+  isRequired      Boolean      @default(false)
+  assignedToId    String?
+  exemptRationale String?
+  assignedDate    DateTime?
+  completedById   String?
+  completedAt     DateTime?
+  results         String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [orgId], references: [id])
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  template        InvestigationSectionTemplate @relation(fields: [templateId], references: [id])
+  assignedTo      User?        @relation("CustomSectionAssignedTo", fields: [assignedToId], references: [id])
+  completedBy     User?        @relation("CustomSectionCompletedBy", fields: [completedById], references: [id])
+
+  @@index([orgId])
+  @@index([investigationId])
+  @@index([templateId])
+  @@index([assignedToId])
+  @@index([completedById])
 }

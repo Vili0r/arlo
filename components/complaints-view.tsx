@@ -606,7 +606,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                           <Calendar className="h-2.5 w-2.5" /> Awareness Date
                         </span>
                         <span className="font-mono text-foreground">
-                          {new Date(c.awarenessDate).toLocaleDateString()}
+                          {new Date(c.awarenessDate).toLocaleDateString("en-US")}
                         </span>
                       </div>
                       <div>
@@ -636,7 +636,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                             <div className="relative group text-xs">
                               {/* Horizontal branch line */}
                               <div className="absolute -left-5 top-3 w-4 h-0.5 bg-primary/30" />
-                              <div className="rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1">
+                              <Link href={`/complaints/${c.id}/investigation`} className="block rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1">
                                 <div className="flex items-center justify-between">
                                   <span className="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
                                     <SearchCode className="h-3.5 w-3.5 text-indigo-500" />
@@ -649,7 +649,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                 <p className="text-[11px] text-muted-foreground truncate">
                                   {investigation.rootCauseDesc || "Root cause investigation open / not started."}
                                 </p>
-                              </div>
+                              </Link>
                             </div>
                           )}
 
@@ -657,7 +657,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                           {vigilance && (
                             <div className="relative group text-xs">
                               <div className="absolute -left-5 top-3 w-4 h-0.5 bg-primary/30" />
-                              <div className="rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1">
+                              <Link href={`/complaints/${c.id}/vigilance`} className="block rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1">
                                 <div className="flex items-center justify-between">
                                   <span className="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
                                     <ShieldAlert className="h-3.5 w-3.5 text-purple-500" />
@@ -670,7 +670,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                 <p className="text-[11px] text-muted-foreground truncate">
                                   {vigilance.reportable ? "🚨 Reportable Incident" : "🛡️ Non-Reportable Evaluation"} • {vigilance.rationale || "Initial decision tree pending."}
                                 </p>
-                              </div>
+                              </Link>
                             </div>
                           )}
 
@@ -678,20 +678,20 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                           {communications.map((comm) => (
                             <div key={comm.id} className="relative group text-xs">
                               <div className="absolute -left-5 top-3 w-4 h-0.5 bg-primary/30" />
-                              <div className="rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1">
+                              <Link href={`/complaints/${c.id}/communications/${comm.id}`} className="block rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1">
                                 <div className="flex items-center justify-between">
                                   <span className="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
                                     <MessageSquare className="h-3.5 w-3.5 text-blue-500" />
                                     Customer Follow-up ({comm.direction})
                                   </span>
                                   <span className="text-[10px] text-muted-foreground font-mono">
-                                    {new Date(comm.communicationDate).toLocaleDateString()}
+                                    {new Date(comm.communicationDate).toLocaleDateString("en-US")}
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-muted-foreground truncate">
                                   {comm.notes}
                                 </p>
-                              </div>
+                              </Link>
                             </div>
                           ))}
                         </div>
@@ -705,7 +705,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                       {getStatusBadge(c.status)}
                     </div>
                     <div className="flex items-center gap-2 text-[11px]">
-                      <span>{new Date(c.dateReceived).toLocaleDateString()}</span>
+                      <span>{new Date(c.dateReceived).toLocaleDateString("en-US")}</span>
                       <Link
                         href={`/complaints/${c.id}`}
                         className="p-1 hover:text-foreground text-muted-foreground transition-colors"
@@ -811,7 +811,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
 
                           {/* Awareness Date */}
                           <td className="py-3.5 px-4 text-muted-foreground font-mono">
-                            {new Date(c.awarenessDate).toLocaleDateString()}
+                            {new Date(c.awarenessDate).toLocaleDateString("en-US")}
                           </td>
 
                           {/* Event Country */}
@@ -821,7 +821,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
 
                           {/* Date Received */}
                           <td className="py-3.5 px-4 text-muted-foreground font-mono">
-                            {new Date(c.dateReceived).toLocaleDateString()}
+                            {new Date(c.dateReceived).toLocaleDateString("en-US")}
                           </td>
 
                           {/* Three-Dots Actions Dropdown Menu */}
@@ -888,7 +888,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                 <div className="relative pl-6 ml-4 border-l-2 border-primary/40 space-y-2">
                                   {/* 1. Investigation Sub-Row */}
                                   {investigation && (
-                                    <div className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group">
+                                    <Link href={`/complaints/${c.id}/investigation`} className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block">
                                       {/* Horizontal Branch Marker */}
                                       <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-5 h-0.5 bg-primary/40" />
 
@@ -919,12 +919,12 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                           </strong>
                                         </span>
                                       </div>
-                                    </div>
+                                    </Link>
                                   )}
 
                                   {/* 2. Vigilance Decision Tree Sub-Row */}
                                   {vigilance && (
-                                    <div className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group">
+                                    <Link href={`/complaints/${c.id}/vigilance`} className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block">
                                       <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-5 h-0.5 bg-primary/40" />
 
                                       <div className="flex items-center gap-3">
@@ -951,14 +951,15 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                           Decision Tree #{vigilance.id.slice(-6)}
                                         </span>
                                       </div>
-                                    </div>
+                                    </Link>
                                   )}
 
                                   {/* 3. Customer Communications Sub-Row */}
                                   {communications.map((comm) => (
-                                    <div
+                                    <Link
                                       key={comm.id}
-                                      className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group"
+                                      href={`/complaints/${c.id}/communications/${comm.id}`}
+                                      className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block"
                                     >
                                       <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-5 h-0.5 bg-primary/40" />
 
@@ -984,7 +985,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                       <div className="flex items-center gap-4 text-[11px] text-muted-foreground font-mono shrink-0">
                                         <span>{new Date(comm.communicationDate).toLocaleString()}</span>
                                       </div>
-                                    </div>
+                                    </Link>
                                   ))}
                                 </div>
                               </div>

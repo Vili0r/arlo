@@ -66,6 +66,9 @@ interface ProductEntry {
 
 import { useOrganization } from "@clerk/nextjs";
 
+import { FileUploader } from "@/components/file-uploader";
+import type { AttachmentInput } from "@/lib/actions/complaints";
+
 interface PatientEntry {
   id: string;
   patientName: string;
@@ -101,6 +104,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
   const [dateReceived, setDateReceived] = React.useState<Date>(new Date());
   const [death, setDeath] = React.useState<Death>(Death.NO);
   const [complaintOwnerId, setComplaintOwnerId] = React.useState("");
+  const [attachments, setAttachments] = React.useState<AttachmentInput[]>([]);
 
   // Customer & Reporter State
   const [customerName, setCustomerName] = React.useState("");
@@ -300,6 +304,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
         isAdverseEvent: death === Death.YES || priority === Priority.CRITICAL,
         products: filteredProducts.length > 0 ? filteredProducts : undefined,
         patients: filteredPatients.length > 0 ? filteredPatients : undefined,
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
 
       router.push("/complaints");
@@ -383,6 +388,11 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     onChange={(e) => setShortDescription(e.target.value)}
                     placeholder="e.g. Infusion pump flow rate sensor discrepancy during clinical administration"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Attachments</Label>
+                  <FileUploader attachments={attachments} onChange={setAttachments} />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
