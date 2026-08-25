@@ -188,11 +188,11 @@ export default async function ComplaintDetailPage({
               {complaint.status}
             </span>
             <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-              {complaint.severity}
+              {complaint.priority}
             </span>
           </div>
           <h1 className="text-xl font-bold tracking-tight mt-2">
-            {complaint.title}
+            {complaint.shortDescription}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             Logged on {new Date(complaint.createdAt).toLocaleString()} by{" "}

@@ -23,14 +23,18 @@ model User {
   deletedAt   DateTime? // Soft delete
 
   // Multi-tenant relations
-  memberships        OrganizationMember[]
-  createdComplaints  Complaint[]          @relation("ComplaintCreator")
-  assignedComplaints Complaint[]          @relation("ComplaintInvestigator")
-  approvedComplaints Complaint[]          @relation("ComplaintApprover")
-  createdCapas       Capa[]               @relation("CapaCreator")
-  assignedCapas      Capa[]               @relation("CapaOwner")
-  approvedCapas      Capa[]               @relation("CapaApprover")
-  auditLogs          AuditLog[]
+  memberships            OrganizationMember[]
+  createdComplaints      Complaint[]             @relation("ComplaintCreator")
+  assignedComplaints     Complaint[]             @relation("ComplaintInvestigator")
+  approvedComplaints     Complaint[]             @relation("ComplaintApprover")
+  ownedComplaints        Complaint[]             @relation("ComplaintOwner")
+  customerCommunications CustomerCommunication[]
+  investigations         Investigation[]
+  attachments            Attachment[]
+  createdCapas           Capa[]                  @relation("CapaCreator")
+  assignedCapas          Capa[]                  @relation("CapaOwner")
+  approvedCapas          Capa[]                  @relation("CapaApprover")
+  auditLogs              AuditLog[]
 
   @@index([email])
 }
@@ -45,11 +49,18 @@ model Organization {
   deletedAt DateTime? // Soft delete
 
   // Multi-tenant relations
-  members        OrganizationMember[]
-  complaints     Complaint[]
-  capas          Capa[]
-  formTemplates  FormTemplate[]
-  auditLogs      AuditLog[]
+  members                OrganizationMember[]
+  complaints             Complaint[]
+  productInformation     ProductInformation[]
+  patientInformation     PatientInformation[]
+  customerCommunications CustomerCommunication[]
+  sampleManagements      SampleManagement[]
+  investigations         Investigation[]
+  vigilanceDecisionTrees VigilanceDecisionTree[]
+  attachments            Attachment[]
+  capas                  Capa[]
+  formTemplates          FormTemplate[]
+  auditLogs              AuditLog[]
 
   @@index([slug])
 }
@@ -103,57 +114,267 @@ enum ComplaintStatus {
   REOPENED
 }
 
-enum Severity {
+enum Priority {
   CRITICAL
-  MAJOR
-  MINOR
-  COSMETIC
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum Death {
+  YES
+  NO
+  UNKNOWN
+}
+
+enum CommunicationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum SampleStatus {
+  PENDING
+  RECEIVED
+  UNDER_EVALUATION
+  RETURNED
+  DISPOSED
+  NOT_AVAILABLE
+}
+
+enum InvestigationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  NOT_REQUIRED
+}
+
+enum VigilanceStatus {
+  PENDING
+  REPORTABLE
+  NOT_REPORTABLE
+  SUBMITTED
 }
 
 model Complaint {
-  id                     String          @id @default(cuid())
-  orgId                  String          // Multi-tenant isolation
-  complaintNumber        String          // e.g. CMP-2026-0001
-  title                  String
-  description            String
-  status                 ComplaintStatus @default(OPEN)
-  severity               Severity
-  dateReceived           DateTime
-  deviceModel            String?
-  deviceSerialNumber     String?
-  lotNumber              String?
-  isAdverseEvent         Boolean         @default(false)
-  investigationSummary   String?
-  rootCause              String?
-  closureRationale       String?
+  id                              String          @id @default(cuid())
+  orgId                           String          // Multi-tenant isolation
+  complaintNumber                 String          // e.g. CMP-2026-0001
+  shortDescription                String          // Replaces title
+  description                     String
+  status                          ComplaintStatus @default(OPEN)
+  priority                        Priority        // Replaces severity (CRITICAL, HIGH, MEDIUM, LOW)
+  awarenessDate                   DateTime        // Date manufacturer became aware
+  dateReceived                    DateTime        // Date logged
+  regulatoryReportingReference    String?
+  customerName                    String
+  customerType                    String
+  initialReporterName             String
+  initialReporterSurname          String
+  email                           String
+  address                         String
+  country                         String
+  telNumber                       String
+  countryEventOccurred            String
+  region                          String
+  death                           Death           @default(NO)
+  detailDescriptionNativeLanguage String?
+  customerResponseNeeded          Boolean         @default(true)
+  finalResponseCompletedOn        DateTime?
+  followUpRequired                Boolean         @default(true) // Unified with customer communication / follow-up
+  complaintOwnerId                String          // Maps to Clerk User ID
+
+  // Legacy / Intact Optional Fields
+  deviceModel                     String?
+  deviceSerialNumber              String?
+  lotNumber                       String?
+  isAdverseEvent                  Boolean         @default(false)
+  investigationSummary            String?
+  rootCause                       String?
+  closureRationale                String?
 
   // Dynamic custom fields (JSONB Template Pattern)
-  customData             Json?    @default("{}") // Record<fieldHash, value>
-  formTemplateVersion    Int?                    // Template version at time of entry
+  customData                      Json?           @default("{}") // Record<fieldHash, value>
+  formTemplateVersion             Int?                           // Template version at time of entry
 
   // Accountability & Separation of Duties (21 CFR Part 11)
-  createdById            String
-  assignedInvestigatorId String?
-  approvedById           String?         // Must not equal assignedInvestigatorId
+  createdById                     String
+  assignedInvestigatorId          String?
+  approvedById                    String?                        // Must not equal assignedInvestigatorId
 
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
-  deletedAt              DateTime?       // Soft delete (No hard deletes)
+  createdAt                       DateTime        @default(now())
+  updatedAt                       DateTime        @updatedAt
+  deletedAt                       DateTime?       // Soft delete (No hard deletes)
 
-  // Relations
-  organization         Organization @relation(fields: [orgId], references: [id])
-  createdBy            User         @relation("ComplaintCreator", fields: [createdById], references: [id])
-  assignedInvestigator User?        @relation("ComplaintInvestigator", fields: [assignedInvestigatorId], references: [id])
-  approvedBy           User?        @relation("ComplaintApprover", fields: [approvedById], references: [id])
-  capas                Capa[]
-  auditLogs            AuditLog[]
+  // Multi-tenant & Identity Relations
+  organization                    Organization    @relation(fields: [orgId], references: [id])
+  createdBy                       User            @relation("ComplaintCreator", fields: [createdById], references: [id])
+  assignedInvestigator            User?           @relation("ComplaintInvestigator", fields: [assignedInvestigatorId], references: [id])
+  approvedBy                      User?           @relation("ComplaintApprover", fields: [approvedById], references: [id])
+  complaintOwner                  User?           @relation("ComplaintOwner", fields: [complaintOwnerId], references: [id])
+
+  // Relational Models (1:N and 1:1)
+  productInformation              ProductInformation[]
+  patientInformation              PatientInformation[]
+  customerCommunications          CustomerCommunication[]
+  sampleManagement                SampleManagement?
+  investigation                   Investigation?
+  vigilanceDecisionTree           VigilanceDecisionTree?
+  attachments                     Attachment[]
+  capas                           Capa[]
+  auditLogs                       AuditLog[]
 
   @@unique([orgId, complaintNumber])
   @@index([orgId, status])
-  @@index([orgId, severity])
+  @@index([orgId, priority])
   @@index([createdById])
+  @@index([complaintOwnerId])
   @@index([assignedInvestigatorId])
 }
+
+// -------------------------------------------------------------
+// Relational Sub-Models (IMDRF, Patient, Product & Vigilance)
+// -------------------------------------------------------------
+
+model ProductInformation {
+  id                  String       @id @default(cuid())
+  orgId               String       // Multi-tenant isolation
+  complaintId         String
+  occurrence          String?
+  materialNumber      String?
+  materialDescription String?
+  serialNumber        String?
+  batchNumber         String?
+  asReportedCode1     String?      // IMDRF Code 1
+  asReportedCode2     String?      // IMDRF Code 2
+  softwareVersion     String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  organization        Organization @relation(fields: [orgId], references: [id])
+  complaint           Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([complaintId])
+}
+
+model PatientInformation {
+  id                String       @id @default(cuid())
+  orgId             String       // Multi-tenant isolation
+  complaintId       String
+  patientImpact     String?
+  patientImpactDesc String?
+  patientName       String?
+  sex               String?
+  age               Int?
+  eventOccurred     DateTime?
+  annexE_Codes      String[]     @default([]) // IMDRF Annex E codes
+  annexF_Codes      String[]     @default([]) // IMDRF Annex F codes
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  organization      Organization @relation(fields: [orgId], references: [id])
+  complaint         Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([complaintId])
+}
+
+model CustomerCommunication {
+  id                String                 @id @default(cuid())
+  orgId             String                 // Multi-tenant isolation
+  complaintId       String
+  communicationDate DateTime               @default(now())
+  notes             String
+  direction         CommunicationDirection @default(INBOUND)
+  authorId          String                 // Clerk User ID
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  organization      Organization           @relation(fields: [orgId], references: [id])
+  complaint         Complaint              @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  author            User?                  @relation(fields: [authorId], references: [id])
+
+  @@index([orgId])
+  @@index([complaintId])
+  @@index([authorId])
+}
+
+model SampleManagement {
+  id              String       @id @default(cuid())
+  orgId           String       // Multi-tenant isolation
+  complaintId     String       @unique
+  sampleAvailable Boolean      @default(false)
+  trackingDetails String?
+  status          SampleStatus @default(PENDING)
+  receivedDate    DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [orgId], references: [id])
+  complaint       Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+model Investigation {
+  id                    String              @id @default(cuid())
+  orgId                 String              // Multi-tenant isolation
+  complaintId           String              @unique
+  status                InvestigationStatus @default(NOT_STARTED)
+  investigatorId        String?             // Clerk User ID
+  rootCauseDesc         String?
+  investigationRequired Boolean             @default(true)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  organization          Organization        @relation(fields: [orgId], references: [id])
+  complaint             Complaint           @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  investigator          User?               @relation(fields: [investigatorId], references: [id])
+
+  @@index([orgId])
+  @@index([investigatorId])
+}
+
+model VigilanceDecisionTree {
+  id          String          @id @default(cuid())
+  orgId       String          // Multi-tenant isolation
+  complaintId String          @unique
+  status      VigilanceStatus @default(PENDING)
+  reportable  Boolean         @default(false)
+  rationale   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  organization Organization   @relation(fields: [orgId], references: [id])
+  complaint    Complaint      @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+model Attachment {
+  id           String       @id @default(cuid())
+  orgId        String       // Multi-tenant isolation
+  complaintId  String
+  fileUrl      String
+  fileName     String
+  fileSize     Int?
+  mimeType     String?
+  uploadedById String       // Clerk User ID
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  uploadedBy   User?        @relation(fields: [uploadedById], references: [id])
+
+  @@index([orgId])
+  @@index([complaintId])
+  @@index([uploadedById])
+}
+
+// -------------------------------------------------------------
+// CAPA Records (Corrective and Preventive Actions)
+// -------------------------------------------------------------
 
 enum CapaStatus {
   DRAFT
@@ -182,14 +403,14 @@ model Capa {
   closureRationale      String?
 
   // Relations & Accountability (21 CFR Part 11)
-  complaintId     String?
-  createdById     String
-  assignedOwnerId String?
-  approvedById    String?        // Must not equal assignedOwnerId
+  complaintId           String?
+  createdById           String
+  assignedOwnerId       String?
+  approvedById          String?        // Must not equal assignedOwnerId
 
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  deletedAt       DateTime?      // Soft delete (No hard deletes)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  deletedAt             DateTime?      // Soft delete (No hard deletes)
 
   organization  Organization @relation(fields: [orgId], references: [id])
   complaint     Complaint?   @relation(fields: [complaintId], references: [id])
@@ -222,7 +443,7 @@ enum AuditAction {
 model AuditLog {
   id           String      @id @default(cuid())
   orgId        String      // Multi-tenant isolation
-  entityType   String      // "Complaint", "Capa", "User", "Organization", "OrganizationMember"
+  entityType   String      // "Complaint", "Capa", "User", "Organization", "OrganizationMember", etc.
   entityId     String
   action       AuditAction
   previousData Json?       // Snapshot of fields before mutation
@@ -236,10 +457,10 @@ model AuditLog {
   changedBy    User         @relation(fields: [changedById], references: [id])
   organization Organization @relation(fields: [orgId], references: [id])
 
-  complaintId String?
-  complaint   Complaint? @relation(fields: [complaintId], references: [id])
-  capaId      String?
-  capa        Capa?      @relation(fields: [capaId], references: [id])
+  complaintId  String?
+  complaint    Complaint?   @relation(fields: [complaintId], references: [id])
+  capaId       String?
+  capa         Capa?        @relation(fields: [capaId], references: [id])
 
   @@index([orgId, entityType, entityId])
   @@index([orgId, timestamp])

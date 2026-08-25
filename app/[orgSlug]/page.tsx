@@ -23,7 +23,7 @@ export default async function OrgOverviewPage({
         where: { orgId, status: "OPEN", deletedAt: null },
       }),
       prisma.complaint.count({
-        where: { orgId, severity: "CRITICAL", deletedAt: null },
+        where: { orgId, priority: "CRITICAL", deletedAt: null },
       }),
       prisma.capa.count({
         where: { orgId, deletedAt: null },

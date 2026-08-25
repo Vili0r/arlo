@@ -16,14 +16,14 @@ import {
   Plus,
 } from "lucide-react";
 import { AddNewDropdown } from "./add-new-dropdown";
-import { Severity, ComplaintStatus } from "@prisma/client";
+import { Priority, ComplaintStatus } from "@prisma/client";
 
 interface ComplaintRecord {
   id: string;
   complaintNumber: string;
-  title: string;
+  shortDescription: string;
   description: string;
-  severity: Severity;
+  priority: Priority;
   status: ComplaintStatus;
   deviceModel: string | null;
   lotNumber: string | null;
@@ -60,7 +60,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
 
   const filteredComplaints = complaints.filter(
     (c) =>
-      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.complaintNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.deviceModel &&
         c.deviceModel.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -68,30 +68,30 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
         c.lotNumber.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const getSeverityBadge = (severity: Severity) => {
-    switch (severity) {
+  const getPriorityBadge = (priority: Priority) => {
+    switch (priority) {
       case "CRITICAL":
         return (
           <span className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-2 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-500/20">
             <AlertTriangle className="h-3 w-3" /> Critical
           </span>
         );
-      case "MAJOR":
+      case "HIGH":
         return (
           <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
-            Major
+            High
           </span>
         );
-      case "MINOR":
+      case "MEDIUM":
         return (
           <span className="inline-flex items-center gap-1 rounded bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 border border-blue-500/20">
-            Minor
+            Medium
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground border border-border">
-            Cosmetic
+            Low
           </span>
         );
     }
@@ -251,7 +251,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {getSeverityBadge(c.severity)}
+                    {getPriorityBadge(c.priority)}
                   </div>
                 </div>
 
@@ -260,7 +260,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                     href={`/complaints/${c.id}`}
                     className="text-xs font-semibold text-foreground hover:underline block line-clamp-1"
                   >
-                    {c.title}
+                    {c.shortDescription}
                   </Link>
                   <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
                     {c.description}
@@ -292,8 +292,8 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                 <thead className="border-b border-border bg-muted/40 text-muted-foreground font-semibold uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Record ID</th>
-                    <th className="py-3 px-4">Title & Details</th>
-                    <th className="py-3 px-4">Severity</th>
+                    <th className="py-3 px-4">Description & Details</th>
+                    <th className="py-3 px-4">Priority</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4">Logged By</th>
                     <th className="py-3 px-4">Date Received</th>
@@ -318,14 +318,14 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                           href={`/complaints/${c.id}`}
                           className="font-medium text-foreground hover:underline block truncate"
                         >
-                          {c.title}
+                          {c.shortDescription}
                         </Link>
                         <span className="text-[11px] text-muted-foreground truncate block">
                           {c.deviceModel ? `Model: ${c.deviceModel}` : ""}{" "}
                           {c.lotNumber ? `(Lot: ${c.lotNumber})` : ""}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4">{getSeverityBadge(c.severity)}</td>
+                      <td className="py-3.5 px-4">{getPriorityBadge(c.priority)}</td>
                       <td className="py-3.5 px-4">{getStatusBadge(c.status)}</td>
                       <td className="py-3.5 px-4 text-muted-foreground">
                         {c.createdBy?.firstName

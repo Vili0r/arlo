@@ -19,7 +19,7 @@ export default async function CapaPage({ params }: CapaPageProps) {
       createdBy: { select: { email: true } },
       assignedOwner: { select: { email: true } },
       approvedBy: { select: { email: true } },
-      complaint: { select: { complaintNumber: true, title: true } },
+      complaint: { select: { complaintNumber: true, shortDescription: true } },
     },
   });
 

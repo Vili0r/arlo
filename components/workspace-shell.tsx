@@ -75,6 +75,41 @@ export function WorkspaceShell({
     });
   };
 
+  // Compute dynamic screen title based on active path
+  const screenTitle = React.useMemo(() => {
+    if (!pathname) return "Overview";
+    const cleanPath = pathname.replace(/\/+$/, "") || "/";
+
+    if (cleanPath === "/" || cleanPath === `/${orgSlug}`) {
+      return "Overview";
+    }
+
+    if (cleanPath.endsWith("/complaints/new") || cleanPath === "/complaints/new") {
+      return "New Complaint";
+    }
+    if (cleanPath.endsWith("/complaints") || cleanPath === "/complaints") {
+      return "Complaints";
+    }
+    if (cleanPath.includes("/complaints/")) {
+      return "Complaint Details";
+    }
+    if (cleanPath.endsWith("/capa") || cleanPath === "/capa" || cleanPath.includes("/capa/")) {
+      return "CAPA Management";
+    }
+    if (cleanPath.endsWith("/audit-trail") || cleanPath === "/audit-trail") {
+      return "Audit Trail (21 CFR Part 11)";
+    }
+
+    // Fallback: parse segments excluding orgSlug
+    const segments = cleanPath.split("/").filter(Boolean);
+    const relevantSegments = segments.filter((s) => s !== orgSlug);
+    if (relevantSegments.length === 0) return "Overview";
+
+    return relevantSegments
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" - ");
+  }, [pathname, orgSlug]);
+
   const navItems = [
     {
       title: "Overview",
@@ -89,7 +124,7 @@ export function WorkspaceShell({
       icon: FileSpreadsheet,
     },
     {
-      title: "Log New Complaint",
+      title: "New Complaint",
       href: "/complaints/new",
       icon: PlusCircle,
     },
@@ -295,10 +330,10 @@ export function WorkspaceShell({
             </div>
           </div>
 
-          {/* Center Section: Overview Tab */}
+          {/* Center Section: Dynamic Screen Tab / Title */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex items-center justify-center h-full">
-            <span className="text-xs font-semibold text-foreground border-b-2 border-foreground flex items-center h-full px-1">
-              Overview
+            <span className="text-xs font-semibold text-foreground border-b-2 border-foreground flex items-center h-full px-2 transition-all duration-200">
+              {screenTitle}
             </span>
           </div>
 
