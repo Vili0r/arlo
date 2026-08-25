@@ -23,17 +23,41 @@ export default async function ComplaintsPage({
       createdBy: {
         select: { email: true, firstName: true, lastName: true },
       },
+      complaintOwner: {
+        select: { email: true, firstName: true, lastName: true },
+      },
       assignedInvestigator: {
         select: { email: true, firstName: true, lastName: true },
       },
       approvedBy: {
         select: { email: true, firstName: true, lastName: true },
       },
+      investigation: {
+        include: {
+          investigator: {
+            select: { email: true, firstName: true, lastName: true },
+          },
+        },
+      },
+      vigilanceDecisionTree: true,
+      customerCommunications: {
+        orderBy: { communicationDate: "desc" },
+        include: {
+          author: {
+            select: { email: true, firstName: true, lastName: true },
+          },
+        },
+      },
+      _count: {
+        select: {
+          customerCommunications: true,
+        },
+      },
     },
   });
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-8xl mx-auto">
       {/* Page Heading */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">

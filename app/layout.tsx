@@ -2,7 +2,6 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -24,7 +23,26 @@ export const metadata: Metadata = {
   description: "Post-Market Surveillance for medical device manufacturers",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+const themeInitScript = `(function() {
+  try {
+    var storageKey = 'arlo-ui-theme';
+    var theme = localStorage.getItem(storageKey);
+    var isDark = theme === 'dark' || ((!theme || theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
+    }
+  } catch (e) {}
+})();`;
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
@@ -39,7 +57,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       )}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-150">
-        <Script src="/theme-init.js" strategy="beforeInteractive" />
+        <script
+          dangerouslySetInnerHTML={{ __html: themeInitScript }}
+          suppressHydrationWarning
+        />
         <ThemeProvider defaultTheme="system">
           <ClerkProvider appearance={{ theme: shadcn }}>
             {children}

@@ -6,8 +6,10 @@ import { generateJsonDiff } from "@/lib/json-diff";
 import type { FormSchemaDefinition } from "@/lib/types/form-template.types";
 import {
   Priority,
+  ComplaintStatus,
   Death,
   CommunicationDirection,
+  SampleStatus,
   InvestigationStatus,
   VigilanceStatus,
   AuditAction,
@@ -127,10 +129,21 @@ export async function createComplaintWithRelations(
   const deathStatus: Death = data.death ?? Death.NO;
 
   return await prisma.$transaction(async (tx) => {
-    // 1. Generate sequential complaint identifier (CMP-YYYY-0001) for this tenant
-    const count = await tx.complaint.count({ where: { orgId } });
-    const year = new Date().getFullYear();
-    const complaintNumber = `CMP-${year}-${String(count + 1).padStart(4, "0")}`;
+    // 1. Generate sequential complaint identifier (CMP-YYYY-0001) scoped per calendar year for this tenant
+    const currentYear = new Date().getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear + 1, 0, 1);
+
+    const count = await tx.complaint.count({
+      where: {
+        orgId,
+        createdAt: {
+          gte: startOfYear,
+          lt: endOfYear,
+        },
+      },
+    });
+    const complaintNumber = `CMP-${currentYear}-${String(count + 1).padStart(4, "0")}`;
 
     // 2. Create the Complaint and nested 1:N relations (ProductInformation & PatientInformation)
     const complaint = await tx.complaint.create({
@@ -329,3 +342,271 @@ export async function createComplaintWithRelations(
     };
   });
 }
+
+export interface UpdateComplaintWithRelationsInput {
+  complaintId: string;
+  shortDescription: string;
+  description?: string;
+  priority: Priority;
+  status?: ComplaintStatus;
+  awarenessDate: Date | string;
+  dateReceived?: Date | string;
+  regulatoryReportingReference?: string | null;
+  customerName: string;
+  customerType: string;
+  initialReporterName: string;
+  initialReporterSurname: string;
+  email: string;
+  address: string;
+  country: string;
+  telNumber: string;
+  countryEventOccurred: string;
+  region: string;
+  death?: Death;
+  detailDescriptionNativeLanguage?: string | null;
+  customerResponseNeeded?: boolean;
+  finalResponseCompletedOn?: Date | string | null;
+  followUpRequired?: boolean;
+  complaintOwnerId?: string;
+
+  deviceModel?: string | null;
+  deviceSerialNumber?: string | null;
+  lotNumber?: string | null;
+  isAdverseEvent?: boolean;
+
+  products?: ProductInformationInput[];
+  patients?: PatientInformationInput[];
+}
+
+/**
+ * Server Action: updateComplaintWithRelations
+ * Updates a complaint's fields, products, patients, and logs an immutable audit event.
+ */
+export async function updateComplaintWithRelations(
+  data: UpdateComplaintWithRelationsInput
+) {
+  const { userId, orgId } = await requireOrgAuth(PERMISSIONS.COMPLAINTS_CREATE);
+
+  return await prisma.$transaction(async (tx) => {
+    const existing = await tx.complaint.findUnique({
+      where: { id: data.complaintId, orgId },
+      include: {
+        productInformation: true,
+        patientInformation: true,
+      },
+    });
+
+    if (!existing) {
+      throw new Error("Complaint not found or insufficient permissions.");
+    }
+
+    const awarenessDate = new Date(data.awarenessDate);
+    const dateReceived = data.dateReceived
+      ? new Date(data.dateReceived)
+      : existing.dateReceived;
+
+    // Replace products if provided
+    if (data.products !== undefined) {
+      await tx.productInformation.deleteMany({
+        where: { complaintId: data.complaintId },
+      });
+      if (data.products.length > 0) {
+        await tx.productInformation.createMany({
+          data: data.products.map((p) => ({
+            orgId,
+            complaintId: data.complaintId,
+            occurrence: p.occurrence ?? null,
+            materialNumber: p.materialNumber ?? null,
+            materialDescription: p.materialDescription ?? null,
+            serialNumber: p.serialNumber ?? null,
+            batchNumber: p.batchNumber ?? null,
+            asReportedCode1: p.asReportedCode1 ?? null,
+            asReportedCode2: p.asReportedCode2 ?? null,
+            softwareVersion: p.softwareVersion ?? null,
+          })),
+        });
+      }
+    }
+
+    // Replace patients if provided
+    if (data.patients !== undefined) {
+      await tx.patientInformation.deleteMany({
+        where: { complaintId: data.complaintId },
+      });
+      if (data.patients.length > 0) {
+        await tx.patientInformation.createMany({
+          data: data.patients.map((pt) => ({
+            orgId,
+            complaintId: data.complaintId,
+            patientName: pt.patientName ?? null,
+            patientImpact: pt.patientImpact ?? null,
+            patientImpactDesc: pt.patientImpactDesc ?? null,
+            sex: pt.sex ?? null,
+            age: pt.age ?? null,
+            eventOccurred: pt.eventOccurred
+              ? new Date(pt.eventOccurred)
+              : awarenessDate,
+            annexE_Codes: pt.annexE_Codes ?? [],
+            annexF_Codes: pt.annexF_Codes ?? [],
+          })),
+        });
+      }
+    }
+
+    const updated = await tx.complaint.update({
+      where: { id: data.complaintId },
+      data: {
+        shortDescription: data.shortDescription,
+        description: data.description ?? data.shortDescription,
+        priority: data.priority,
+        status: data.status ?? existing.status,
+        awarenessDate,
+        dateReceived,
+        regulatoryReportingReference: data.regulatoryReportingReference ?? null,
+        customerName: data.customerName,
+        customerType: data.customerType,
+        initialReporterName: data.initialReporterName,
+        initialReporterSurname: data.initialReporterSurname,
+        email: data.email,
+        address: data.address,
+        country: data.country,
+        telNumber: data.telNumber,
+        countryEventOccurred: data.countryEventOccurred,
+        region: data.region,
+        death: data.death ?? existing.death,
+        detailDescriptionNativeLanguage:
+          data.detailDescriptionNativeLanguage ?? null,
+        customerResponseNeeded:
+          data.customerResponseNeeded ?? existing.customerResponseNeeded,
+        finalResponseCompletedOn: data.finalResponseCompletedOn
+          ? new Date(data.finalResponseCompletedOn)
+          : null,
+        followUpRequired: data.followUpRequired ?? existing.followUpRequired,
+        complaintOwnerId: data.complaintOwnerId || existing.complaintOwnerId,
+        deviceModel: data.deviceModel ?? existing.deviceModel,
+        deviceSerialNumber:
+          data.deviceSerialNumber ?? existing.deviceSerialNumber,
+        lotNumber: data.lotNumber ?? existing.lotNumber,
+        isAdverseEvent: data.isAdverseEvent ?? existing.isAdverseEvent,
+      },
+      include: {
+        productInformation: true,
+        patientInformation: true,
+      },
+    });
+
+    // Create 21 CFR Part 11 AuditLog for UPDATE
+    await tx.auditLog.create({
+      data: {
+        orgId,
+        entityType: "Complaint",
+        entityId: data.complaintId,
+        action: AuditAction.UPDATE,
+        changedById: userId,
+        previousData: existing as unknown as Prisma.InputJsonValue,
+        newData: updated as unknown as Prisma.InputJsonValue,
+        reason: `Updated complaint details (${updated.complaintNumber})`,
+        complaintId: data.complaintId,
+      },
+    });
+
+    return updated;
+  });
+}
+
+export interface AddCustomerCommunicationInput {
+  complaintId: string;
+  notes: string;
+  direction: CommunicationDirection;
+  communicationDate?: Date | string;
+}
+
+export async function addCustomerCommunication(
+  data: AddCustomerCommunicationInput
+) {
+  const { userId, orgId } = await requireOrgAuth(PERMISSIONS.COMPLAINTS_CREATE);
+
+  return await prisma.$transaction(async (tx) => {
+    const communication = await tx.customerCommunication.create({
+      data: {
+        orgId,
+        complaintId: data.complaintId,
+        notes: data.notes,
+        direction: data.direction,
+        communicationDate: data.communicationDate
+          ? new Date(data.communicationDate)
+          : new Date(),
+        authorId: userId,
+      },
+      include: {
+        author: {
+          select: { email: true, firstName: true, lastName: true },
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        orgId,
+        entityType: "Complaint",
+        entityId: data.complaintId,
+        action: AuditAction.UPDATE,
+        changedById: userId,
+        reason: `Logged ${data.direction} customer communication`,
+        complaintId: data.complaintId,
+      },
+    });
+
+    return communication;
+  });
+}
+
+export interface UpdateSampleManagementInput {
+  complaintId: string;
+  sampleAvailable: boolean;
+  trackingDetails?: string | null;
+  status: SampleStatus;
+  receivedDate?: Date | string | null;
+}
+
+export async function updateSampleManagement(
+  data: UpdateSampleManagementInput
+) {
+  const { userId, orgId } = await requireOrgAuth(PERMISSIONS.COMPLAINTS_CREATE);
+
+  return await prisma.$transaction(async (tx) => {
+    const sample = await tx.sampleManagement.upsert({
+      where: { complaintId: data.complaintId },
+      create: {
+        orgId,
+        complaintId: data.complaintId,
+        sampleAvailable: data.sampleAvailable,
+        trackingDetails: data.trackingDetails ?? null,
+        status: data.status,
+        receivedDate: data.receivedDate ? new Date(data.receivedDate) : null,
+      },
+      update: {
+        sampleAvailable: data.sampleAvailable,
+        trackingDetails: data.trackingDetails ?? null,
+        status: data.status,
+        receivedDate: data.receivedDate ? new Date(data.receivedDate) : null,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        orgId,
+        entityType: "Complaint",
+        entityId: data.complaintId,
+        action: AuditAction.UPDATE,
+        changedById: userId,
+        reason: `Updated sample management status to ${data.status}`,
+        complaintId: data.complaintId,
+      },
+    });
+
+    return sample;
+  });
+}
+
+

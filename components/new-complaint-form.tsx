@@ -32,6 +32,14 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { createComplaintWithRelations } from "@/lib/actions/complaints";
 import {
   CUSTOMER_TYPES,
@@ -56,6 +64,8 @@ interface ProductEntry {
   softwareVersion: string;
 }
 
+import { useOrganization } from "@clerk/nextjs";
+
 interface PatientEntry {
   id: string;
   patientName: string;
@@ -76,6 +86,13 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  const { memberships } = useOrganization({
+    memberships: {
+      pageSize: 100,
+      keepPreviousData: true,
+    },
+  });
+
   // Core Form State
   const [shortDescription, setShortDescription] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -83,6 +100,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
   const [awarenessDate, setAwarenessDate] = React.useState<Date>(new Date());
   const [dateReceived, setDateReceived] = React.useState<Date>(new Date());
   const [death, setDeath] = React.useState<Death>(Death.NO);
+  const [complaintOwnerId, setComplaintOwnerId] = React.useState("");
 
   // Customer & Reporter State
   const [customerName, setCustomerName] = React.useState("");
@@ -271,6 +289,8 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
         countryEventOccurred,
         region,
         death,
+        detailDescriptionNativeLanguage: null,
+        complaintOwnerId: complaintOwnerId || undefined,
         customerResponseNeeded: true,
         followUpRequired: true,
         investigationRequired: true,
@@ -298,12 +318,17 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
       <div className="w-full max-w-4xl space-y-6">
         {/* Navigation & Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <Link
-            href="/complaints"
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Complaints
-          </Link>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/complaints">Complaints</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>New Complaint</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-[11px] font-mono">
               21 CFR Part 11
@@ -360,7 +385,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="priority">Priority Classification *</Label>
                     <select
@@ -371,17 +396,37 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                       className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       <option value="CRITICAL">
-                        CRITICAL (Patient Safety Risk / Death)
+                        CRITICAL
                       </option>
                       <option value="HIGH">
-                        HIGH (Device Malfunction / Severe Impact)
+                        HIGH
                       </option>
                       <option value="MEDIUM">
-                        MEDIUM (Non-critical Performance Discrepancy)
+                        MEDIUM
                       </option>
                       <option value="LOW">
-                        LOW (Cosmetic / Packaging / Inconvenience)
+                        LOW
                       </option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="complaintOwnerId">Complaint Owner</Label>
+                    <select
+                      id="complaintOwnerId"
+                      value={complaintOwnerId}
+                      onChange={(e) => setComplaintOwnerId(e.target.value)}
+                      className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
+                    >
+                      <option value="">Unassigned</option>
+                      {memberships?.data?.map((m) => (
+                        <option
+                          key={m.publicUserData?.userId || m.id}
+                          value={m.publicUserData?.userId || ""}
+                        >
+                          {m.publicUserData?.firstName || ""} {m.publicUserData?.lastName || m.publicUserData?.identifier || "User"}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -396,7 +441,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="dateReceived">Date Received / Logged *</Label>
+                    <Label htmlFor="dateReceived">Date Received *</Label>
                     <DatePicker
                       id="dateReceived"
                       value={dateReceived}
