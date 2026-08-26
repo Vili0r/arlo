@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -224,6 +225,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
         attachments: data.attachments.length > 0 ? data.attachments : undefined,
       });
 
+      toast.success("Complaint Created", { description: "The new complaint has been successfully created." });
       router.push("/complaints");
       router.refresh();
     } catch (err: any) {

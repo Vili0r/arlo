@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,10 +30,23 @@ function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
   );
 }
 
+
+
 function BreadcrumbLink({
   className,
+  href,
   ...props
 }: React.ComponentProps<"a">) {
+  if (href) {
+    return (
+      <Link
+        href={href}
+        data-slot="breadcrumb-link"
+        className={cn("hover:text-foreground transition-colors", className)}
+        {...props as any}
+      />
+    );
+  }
   return (
     <a
       data-slot="breadcrumb-link"

@@ -11,7 +11,7 @@ export async function uploadFileToBlob(formData: FormData) {
     throw new Error("No file provided");
   }
 
-  const blob = await put(file.name, file, { access: "public" });
+  const blob = await put(file.name, file, { access: "private" });
 
   return {
     fileUrl: blob.url,

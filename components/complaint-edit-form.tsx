@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -175,7 +176,6 @@ export function ComplaintEditForm({
   const [activeTab, setActiveTab] = React.useState("intake");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
 
   const { memberships } = useOrganization({
     memberships: {
@@ -332,7 +332,6 @@ export function ComplaintEditForm({
   const onSubmit = async (data: ComplaintFormValues) => {
     setIsSubmitting(true);
     setError(null);
-    setSuccessMessage(null);
 
     try {
       const filteredProducts = data.products
@@ -410,7 +409,7 @@ export function ComplaintEditForm({
         ),
       });
 
-      setSuccessMessage("Complaint details updated successfully.");
+      toast.success("Success", { description: "Complaint details updated successfully." });
       router.refresh();
     } catch (err: any) {
       console.error("[Complaint Update Error]", err);
@@ -445,7 +444,7 @@ export function ComplaintEditForm({
         ...prev,
       ]);
       setNewCommNotes("");
-      setSuccessMessage("Customer communication logged successfully.");
+      toast.success("Success", { description: "Customer communication logged successfully." });
       router.refresh();
     } catch (err: any) {
       console.error("[Communication Add Error]", err);
@@ -468,7 +467,7 @@ export function ComplaintEditForm({
         status: sampleStatus,
         receivedDate: sampleReceivedDate ? sampleReceivedDate.toISOString() : null,
       });
-      setSuccessMessage("Sample & RMA management updated successfully.");
+      toast.success("Success", { description: "Sample & RMA management updated successfully." });
       router.refresh();
     } catch (err: any) {
       console.error("[Sample Update Error]", err);
@@ -517,92 +516,54 @@ export function ComplaintEditForm({
           </div>
         )}
 
-        {successMessage && (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 shrink-0" />
-            <span>{successMessage}</span>
-          </div>
-        )}
-
         {/* Shadcn Tabs Navigation */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full sm:w-auto flex items-center h-9 p-0 bg-transparent gap-1.5 sm:gap-2">
-            <TabsTrigger
-              value="intake"
-              className={`gap-1.5 text-xs transition-colors px-2.5 sm:px-3 py-1.5 ${
-                activeTab === "intake"
-                  ? "font-bold text-foreground"
-                  : "font-normal text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Activity className={`h-3.5 w-3.5 ${activeTab === "intake" ? "text-primary" : ""}`} />
-              <span className={activeTab === "intake" ? "font-bold text-foreground" : ""}>Intake &amp; Overview</span>
+          <TabsList className="w-full sm:w-auto flex flex-wrap h-auto p-1 bg-muted/50 gap-1 rounded-lg">
+            <TabsTrigger value="intake" className="gap-2 text-xs py-2">
+              <Activity className="h-4 w-4" /> Intake &amp; Overview
             </TabsTrigger>
-
-            <span className="h-3.5 w-px bg-border shrink-0 select-none" aria-hidden="true" />
-
-            <TabsTrigger
-              value="followup"
-              className={`gap-1.5 text-xs transition-colors px-2.5 sm:px-3 py-1.5 ${
-                activeTab === "followup"
-                  ? "font-bold text-foreground"
-                  : "font-normal text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <MessageSquare className={`h-3.5 w-3.5 ${activeTab === "followup" ? "text-blue-500" : ""}`} />
-              <span className={activeTab === "followup" ? "font-bold text-foreground" : ""}>Follow-ups</span>
+            <TabsTrigger value="followup" className="gap-2 text-xs py-2">
+              <MessageSquare className="h-4 w-4" /> Follow-ups
             </TabsTrigger>
-
-            <span className="h-3.5 w-px bg-border shrink-0 select-none" aria-hidden="true" />
-
-            <TabsTrigger
-              value="sample"
-              className={`gap-1.5 text-xs transition-colors px-2.5 sm:px-3 py-1.5 ${
-                activeTab === "sample"
-                  ? "font-bold text-foreground"
-                  : "font-normal text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Box className={`h-3.5 w-3.5 ${activeTab === "sample" ? "text-amber-500" : ""}`} />
-              <span className={activeTab === "sample" ? "font-bold text-foreground" : ""}>Sample &amp; RMA</span>
+            <TabsTrigger value="sample" className="gap-2 text-xs py-2">
+              <Box className="h-4 w-4" /> Sample &amp; RMA
             </TabsTrigger>
           </TabsList>
-
+          <div className="mt-6 bg-card border border-border rounded-xl p-6">
           {/* TAB 1: Intake & Overview Form */}
-          <TabsContent value="intake" className="mt-4">
-            <Card className="border-border shadow-sm">
-              <CardHeader className="border-b border-border pb-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl font-bold">
-                      Complaint Details &amp; Intake Form
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      View and update post-market surveillance data, customer details, device metrics, and IMDRF coding.
-                    </CardDescription>
-                  </div>
-                  <div className="hidden sm:flex flex-col items-end gap-1 text-[11px] text-muted-foreground">
-                    <span>
-                      Owner:{" "}
-                      <strong className="text-foreground">
-                        {complaint.complaintOwner?.firstName
-                          ? `${complaint.complaintOwner.firstName} ${complaint.complaintOwner.lastName ?? ""}`
-                          : complaint.complaintOwner?.email || "Unassigned"}
-                      </strong>
-                    </span>
-                    <span>
-                      Logged by:{" "}
-                      <strong className="text-foreground">
-                        {complaint.createdBy?.email || "System"}
-                      </strong>
-                    </span>
-                  </div>
+          <TabsContent value="intake" className="mt-0 outline-none">
+            <div className="border-b border-border pb-5 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold">
+                    Complaint Details &amp; Intake Form
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    View and update post-market surveillance data, customer details, device metrics, and IMDRF coding.
+                  </p>
                 </div>
-              </CardHeader>
+                <div className="hidden sm:flex flex-col items-end gap-1 text-[11px] text-muted-foreground">
+                  <span>
+                    Owner:{" "}
+                    <strong className="text-foreground">
+                      {complaint.complaintOwner?.firstName
+                        ? `${complaint.complaintOwner.firstName} ${complaint.complaintOwner.lastName ?? ""}`
+                        : complaint.complaintOwner?.email || "Unassigned"}
+                    </strong>
+                  </span>
+                  <span>
+                    Logged by:{" "}
+                    <strong className="text-foreground">
+                      {complaint.createdBy?.email || "System"}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+            </div>
 
-              <form onSubmit={handleSubmit(onSubmit)}>
-                <CardContent className="space-y-8 pt-6">
-                  {/* SECTION 1: Core Complaint Information */}
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <div className="space-y-8">
+                {/* SECTION 1: Core Complaint Information */}
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       <Activity className="h-4 w-4 text-primary" />
@@ -1240,9 +1201,9 @@ export function ComplaintEditForm({
                       ))}
                     </div>
                   </div>
-                </CardContent>
+                </div>
 
-                <CardFooter className="border-t border-border pt-5 flex items-center justify-between">
+                <div className="border-t border-border mt-5 pt-5 flex items-center justify-between">
                   <Link
                     href="/complaints"
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -1268,26 +1229,27 @@ export function ComplaintEditForm({
                       )}
                     </Button>
                   </div>
-                </CardFooter>
+                </div>
               </form>
-            </Card>
           </TabsContent>
 
           {/* TAB 2: Customer Follow-ups & Communications */}
-          <TabsContent value="followup" className="mt-4 space-y-6">
+          <TabsContent value="followup" className="mt-0 outline-none space-y-6">
+            <h2 className="text-xl font-semibold border-b pb-2">Customer Follow-ups & Communications</h2>
+            
             {/* New Communication Form */}
-            <Card className="border-border shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <div className="bg-muted/10 border border-border rounded-lg p-4">
+              <div className="mb-4">
+                <h3 className="text-sm font-bold flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-blue-500" />
                   <span>Log Customer Communication &amp; Follow-up</span>
-                </CardTitle>
-                <CardDescription className="text-xs">
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
                   Record intake calls, customer follow-up emails, clarification notes, and correspondence.
-                </CardDescription>
-              </CardHeader>
+                </p>
+              </div>
               <form onSubmit={handleAddCommunication}>
-                <CardContent className="space-y-4">
+                <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs">Communication Direction *</Label>
@@ -1339,8 +1301,8 @@ export function ComplaintEditForm({
                       Logged follow-up interactions are permanently recorded in this complaint's chronological history and can be reviewed in the <strong>View History</strong> drawer.
                     </span>
                   </div>
-                </CardContent>
-                <CardFooter className="border-t border-border pt-4 flex justify-end">
+                </div>
+                <div className="border-t border-border mt-4 pt-4 flex justify-end">
                   <Button
                     type="submit"
                     disabled={isAddingComm || !newCommNotes.trim()}
@@ -1358,34 +1320,33 @@ export function ComplaintEditForm({
                       </>
                     )}
                   </Button>
-                </CardFooter>
+                </div>
               </form>
-            </Card>
+            </div>
           </TabsContent>
 
           {/* TAB 3: Sample & RMA Management */}
-          <TabsContent value="sample" className="mt-4">
-            <Card className="border-border shadow-sm">
-              <CardHeader className="border-b border-border pb-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl font-bold flex items-center gap-2">
-                      <Box className="h-5 w-5 text-amber-500" />
-                      <span>Physical Sample &amp; RMA Management</span>
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      Track the return authorization, courier logistics, lab custody, and decontamination status of the complaint device.
-                    </CardDescription>
-                  </div>
-                  <Badge variant="outline" className="text-xs font-mono">
-                    ISO 13485:2016
-                  </Badge>
+          <TabsContent value="sample" className="mt-0 outline-none">
+            <div className="border-b border-border pb-5 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold flex items-center gap-2">
+                    <Box className="h-5 w-5 text-amber-500" />
+                    <span>Physical Sample &amp; RMA Management</span>
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Track the return authorization, courier logistics, lab custody, and decontamination status of the complaint device.
+                  </p>
                 </div>
-              </CardHeader>
+                <Badge variant="outline" className="text-xs font-mono">
+                  ISO 13485:2016
+                </Badge>
+              </div>
+            </div>
 
-              <form onSubmit={handleSaveSample}>
-                <CardContent className="space-y-6 pt-6">
-                  {/* Sample Availability Toggle */}
+            <form onSubmit={handleSaveSample}>
+              <div className="space-y-6">
+                {/* Sample Availability Toggle */}
                   <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-2">
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
@@ -1450,9 +1411,8 @@ export function ComplaintEditForm({
                       Include return merchandise authorization (RMA) identifier, courier service, tracking numbers, or lab bin location.
                     </span>
                   </div>
-                </CardContent>
-
-                <CardFooter className="border-t border-border pt-5 flex justify-end">
+                </div>
+                <div className="border-t border-border mt-5 pt-5 flex justify-end">
                   <Button
                     type="submit"
                     disabled={isUpdatingSample}
@@ -1470,10 +1430,10 @@ export function ComplaintEditForm({
                       </>
                     )}
                   </Button>
-                </CardFooter>
+                </div>
               </form>
-            </Card>
           </TabsContent>
+          </div>
         </Tabs>
       </div>
     </div>
