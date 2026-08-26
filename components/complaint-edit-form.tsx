@@ -34,14 +34,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -72,7 +64,6 @@ import {
   IMDRF_ANNEX_E_CODES,
   IMDRF_ANNEX_F_CODES,
 } from "@/lib/constants/qms-options";
-
 import { useOrganization } from "@clerk/nextjs";
 import { FileUploader } from "@/components/file-uploader";
 import { ComplaintFormSchema, type ComplaintFormValues } from "@/lib/validations/complaint";

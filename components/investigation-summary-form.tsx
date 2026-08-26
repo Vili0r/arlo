@@ -22,10 +22,10 @@ const summarySchema = z.object({
   summary: z.string().nullable().optional(),
   report: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
-  capaRequired: z.boolean().default(false),
+  capaRequired: z.boolean(),
   capaRef: z.string().nullable().optional(),
   capaRationale: z.string().nullable().optional(),
-  reportabilityReviewRequired: z.boolean().default(false),
+  reportabilityReviewRequired: z.boolean(),
 });
 
 type SummaryFormValues = z.infer<typeof summarySchema>;

@@ -39,7 +39,7 @@ export const ComplaintFormSchema = z.object({
   status: z.nativeEnum(ComplaintStatus).optional(), // optional because new forms don't have status selection
   awarenessDate: z.date(),
   dateReceived: z.date(),
-  death: z.nativeEnum(Death).default(Death.NO),
+  death: z.nativeEnum(Death),
   complaintOwnerId: z.string().optional(),
   
   customerName: z.string().min(1, "Customer Name is required"),
@@ -53,9 +53,9 @@ export const ComplaintFormSchema = z.object({
   countryEventOccurred: z.string().min(1, "Country of Event is required"),
   region: z.string().min(1, "Region is required"),
 
-  attachments: z.array(AttachmentSchema).default([]),
-  products: z.array(ProductEntrySchema).default([]),
-  patients: z.array(PatientEntrySchema).default([]),
+  attachments: z.array(AttachmentSchema),
+  products: z.array(ProductEntrySchema),
+  patients: z.array(PatientEntrySchema),
 });
 
 export type ComplaintFormValues = z.infer<typeof ComplaintFormSchema>;

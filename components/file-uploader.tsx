@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { UploadCloud, X, File, Loader2 } from "lucide-react";
+import { UploadCloud, X, File as FileIcon, Loader2 } from "lucide-react";
 import { uploadFileToBlob } from "@/lib/actions/upload";
 import { AttachmentInput } from "@/lib/actions/complaints";
 import {
@@ -32,20 +32,23 @@ export function FileUploader({ attachments, onChange }: FileUploaderProps) {
 
   // Sync external changes (like initial load in edit form)
   React.useEffect(() => {
-    // We only sync initial attachments that are already uploaded and don't exist in our state
-    const existingUrls = new Set(uploads.map(u => u.fileUrl));
-    const newUploads = attachments
-      .filter(a => !existingUrls.has(a.fileUrl))
-      .map(a => ({
-        ...a,
-        id: a.fileUrl,
-        state: "done" as const,
-        file: new File([], a.fileName, { type: a.mimeType || "" }), // Dummy file
-      }));
-    
-    if (newUploads.length > 0) {
-      setUploads(prev => [...prev, ...newUploads]);
-    }
+    setUploads(prev => {
+      // We only sync initial attachments that are already uploaded and don't exist in our state
+      const existingUrls = new Set(prev.filter(u => u.fileUrl).map(u => u.fileUrl));
+      const newUploads = attachments
+        .filter(a => a.fileUrl && !existingUrls.has(a.fileUrl))
+        .map(a => ({
+          ...a,
+          id: a.fileUrl,
+          state: "done" as const,
+          file: new File([], a.fileName, { type: a.mimeType || "" }), // Dummy file
+        }));
+      
+      if (newUploads.length > 0) {
+        return [...prev, ...newUploads];
+      }
+      return prev;
+    });
   }, [attachments]);
 
   const notifyChange = (newUploads: UploadedFile[]) => {
@@ -92,7 +95,7 @@ export function FileUploader({ attachments, onChange }: FileUploaderProps) {
               ? { ...u, ...result, state: "done" as const }
               : u
           );
-          notifyChange(updated);
+          setTimeout(() => notifyChange(updated), 0);
           return updated;
         });
       } catch (error) {
@@ -101,7 +104,7 @@ export function FileUploader({ attachments, onChange }: FileUploaderProps) {
           const updated = prev.map((u) =>
             u.id === uploadItem.id ? { ...u, state: "error" as const } : u
           );
-          notifyChange(updated);
+          setTimeout(() => notifyChange(updated), 0);
           return updated;
         });
       }
@@ -116,7 +119,7 @@ export function FileUploader({ attachments, onChange }: FileUploaderProps) {
   const removeFile = (id: string) => {
     setUploads((prev) => {
       const updated = prev.filter((u) => u.id !== id);
-      notifyChange(updated);
+      setTimeout(() => notifyChange(updated), 0);
       return updated;
     });
   };
@@ -159,7 +162,7 @@ export function FileUploader({ attachments, onChange }: FileUploaderProps) {
                 {upload.mimeType?.startsWith("image/") && upload.fileUrl ? (
                   <img src={upload.fileUrl} alt={upload.fileName} />
                 ) : (
-                  <File className="text-muted-foreground" />
+                  <FileIcon className="text-muted-foreground" />
                 )}
               </AttachmentMedia>
               <AttachmentContent>

@@ -23,23 +23,25 @@ model User {
   deletedAt DateTime? // Soft delete
 
   // Multi-tenant relations
-  memberships                    OrganizationMember[]
-  createdComplaints              Complaint[]                  @relation("ComplaintCreator")
-  assignedComplaints             Complaint[]                  @relation("ComplaintInvestigator")
-  approvedComplaints             Complaint[]                  @relation("ComplaintApprover")
-  ownedComplaints                Complaint[]                  @relation("ComplaintOwner")
-  customerCommunications         CustomerCommunication[]
-  investigations                        Investigation[]              @relation("InvestigationInvestigator")
-  riskReviewedInvestigations            Investigation[]              @relation("RiskReviewCompletedBy")
-  investigationSummaryCompletedBy       Investigation[]              @relation("InvestigationSummaryCompletedBy")
-  summaryCompletedInvestigations        InvestigationSummary[]       @relation("InvestigationSummaryCompletedBy")
-  assignedCustomSections         InvestigationCustomSection[] @relation("CustomSectionAssignedTo")
-  completedCustomSections        InvestigationCustomSection[] @relation("CustomSectionCompletedBy")
-  attachments                    Attachment[]
-  createdCapas                   Capa[]                       @relation("CapaCreator")
-  assignedCapas                  Capa[]                       @relation("CapaOwner")
-  approvedCapas                  Capa[]                       @relation("CapaApprover")
-  auditLogs                      AuditLog[]
+  memberships                     OrganizationMember[]
+  createdComplaints               Complaint[]                  @relation("ComplaintCreator")
+  assignedComplaints              Complaint[]                  @relation("ComplaintInvestigator")
+  approvedComplaints              Complaint[]                  @relation("ComplaintApprover")
+  ownedComplaints                 Complaint[]                  @relation("ComplaintOwner")
+  customerCommunications          CustomerCommunication[]
+  investigations                  Investigation[]              @relation("InvestigationInvestigator")
+  riskReviewedInvestigations      Investigation[]              @relation("RiskReviewCompletedBy")
+  investigationSummaryCompletedBy Investigation[]              @relation("InvestigationSummaryCompletedBy")
+  summaryCompletedInvestigations  InvestigationSummary[]       @relation("InvestigationSummaryCompletedBy")
+  assignedCustomSections          InvestigationCustomSection[] @relation("CustomSectionAssignedTo")
+  completedCustomSections         InvestigationCustomSection[] @relation("CustomSectionCompletedBy")
+  attachments                     Attachment[]
+  createdCapas                    Capa[]                       @relation("CapaCreator")
+  assignedCapas                   Capa[]                       @relation("CapaOwner")
+  approvedCapas                   Capa[]                       @relation("CapaApprover")
+  ownedVigilanceRecords           VigilanceDecisionTree[]      @relation("VigilanceOwner")
+  approvedVigilanceRecords        VigilanceDecisionTree[]      @relation("VigilanceApprover")
+  auditLogs                       AuditLog[]
 
   @@index([email])
 }
@@ -162,6 +164,21 @@ enum VigilanceStatus {
   REPORTABLE
   NOT_REPORTABLE
   SUBMITTED
+}
+
+enum VigilanceReportabilityDecision {
+  NON_REPORTABLE
+  REPORTABLE_30_DAY
+  REPORTABLE_15_DAY
+  REPORTABLE_5_DAY
+  REPORTABLE_OTHER
+}
+
+enum VigilanceReportType {
+  INITIAL
+  FOLLOW_UP
+  FINAL
+  COMBINED_INITIAL_FINAL
 }
 
 model Complaint {
@@ -356,13 +373,13 @@ model Investigation {
   // C. Investigation Summary (Decoupled)
   investigationSummaryCompletedById String?
   investigationSummaryCompletedAt   DateTime?
-  summary InvestigationSummary?
+  summary                           InvestigationSummary?
 
-  organization                      Organization @relation(fields: [orgId], references: [id])
-  complaint                         Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-  investigator                      User?        @relation("InvestigationInvestigator", fields: [investigatorId], references: [id])
-  riskReviewCompletedBy             User?        @relation("RiskReviewCompletedBy", fields: [riskReviewCompletedById], references: [id])
-  investigationSummaryCompletedBy   User?        @relation("InvestigationSummaryCompletedBy", fields: [investigationSummaryCompletedById], references: [id])
+  organization                    Organization @relation(fields: [orgId], references: [id])
+  complaint                       Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  investigator                    User?        @relation("InvestigationInvestigator", fields: [investigatorId], references: [id])
+  riskReviewCompletedBy           User?        @relation("RiskReviewCompletedBy", fields: [riskReviewCompletedById], references: [id])
+  investigationSummaryCompletedBy User?        @relation("InvestigationSummaryCompletedBy", fields: [investigationSummaryCompletedById], references: [id])
 
   customSections InvestigationCustomSection[]
 
@@ -403,14 +420,35 @@ model VigilanceDecisionTree {
   complaintId String          @unique
   status      VigilanceStatus @default(PENDING)
   reportable  Boolean         @default(false)
-  rationale   String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+
+  // Ownership & Approval (Separation of Duties)
+  ownerId    String? // Clerk User ID (The person drafting the assessment)
+  approverId String? // Clerk User ID (The person signing off)
+
+  // Reporting Metrics
+  targetRegion  String?
+  decision      VigilanceReportabilityDecision?
+  reportType    VigilanceReportType?
+  awarenessDate DateTime?
+  dueDate       DateTime?
+
+  // Text & Rationale
+  rationale          String?
+  cancelledRationale String?
+  notes              String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id])
   complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  owner        User?        @relation("VigilanceOwner", fields: [ownerId], references: [id])
+  approver     User?        @relation("VigilanceApprover", fields: [approverId], references: [id])
+  attachments  Attachment[]
 
   @@index([orgId])
+  @@index([ownerId])
+  @@index([approverId])
 }
 
 model Attachment {
@@ -425,16 +463,19 @@ model Attachment {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  organization    Organization   @relation(fields: [orgId], references: [id])
-  complaint       Complaint      @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-  uploadedBy      User?          @relation(fields: [uploadedById], references: [id])
+  organization    Organization           @relation(fields: [orgId], references: [id])
+  complaint       Complaint              @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  uploadedBy      User?                  @relation(fields: [uploadedById], references: [id])
   investigationId String?
-  investigation   Investigation? @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  investigation   Investigation?         @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  vigilanceId     String?
+  vigilance       VigilanceDecisionTree? @relation(fields: [vigilanceId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
   @@index([complaintId])
   @@index([uploadedById])
   @@index([investigationId])
+  @@index([vigilanceId])
 }
 
 // -------------------------------------------------------------
