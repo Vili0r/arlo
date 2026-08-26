@@ -272,8 +272,6 @@ export async function createComplaintWithRelations(
           complaintId: complaint.id,
           status: InvestigationStatus.NOT_STARTED,
           investigatorId: null,
-          rootCauseDesc: null,
-          investigationRequired: true,
         },
       });
     }

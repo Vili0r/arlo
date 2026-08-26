@@ -3,8 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ArrowLeft,
   User,
   Package,
   HeartPulse,
@@ -51,34 +52,9 @@ import {
   IMDRF_ANNEX_F_CODES,
 } from "@/lib/constants/qms-options";
 
-interface ProductEntry {
-  id: string;
-  occurrence: string;
-  materialNumber: string;
-  materialDescription: string;
-  serialNumber: string;
-  batchNumber: string;
-  annexA_Category: string; // e.g. "A01", "A02", etc.
-  asReportedCode1: string; // e.g. "A0101", "A0102", etc.
-  asReportedCode2: string;
-  softwareVersion: string;
-}
-
 import { useOrganization } from "@clerk/nextjs";
-
 import { FileUploader } from "@/components/file-uploader";
-import type { AttachmentInput } from "@/lib/actions/complaints";
-
-interface PatientEntry {
-  id: string;
-  patientName: string;
-  patientImpact: string;
-  patientImpactDesc: string;
-  sex: string;
-  age: string;
-  annexE_Code: string;
-  annexF_Code: string;
-}
+import { ComplaintFormSchema, type ComplaintFormValues } from "@/lib/validations/complaint";
 
 interface NewComplaintFormProps {
   orgSlug: string;
@@ -96,144 +72,85 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
     },
   });
 
-  // Core Form State
-  const [shortDescription, setShortDescription] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [priority, setPriority] = React.useState<Priority>(Priority.MEDIUM);
-  const [awarenessDate, setAwarenessDate] = React.useState<Date>(new Date());
-  const [dateReceived, setDateReceived] = React.useState<Date>(new Date());
-  const [death, setDeath] = React.useState<Death>(Death.NO);
-  const [complaintOwnerId, setComplaintOwnerId] = React.useState("");
-  const [attachments, setAttachments] = React.useState<AttachmentInput[]>([]);
-
-  // Customer & Reporter State
-  const [customerName, setCustomerName] = React.useState("");
-  const [customerType, setCustomerType] = React.useState(
-    CUSTOMER_TYPES[0].value
-  );
-  const [initialReporterName, setInitialReporterName] = React.useState("");
-  const [initialReporterSurname, setInitialReporterSurname] = React.useState("");
-  const [email, setEmail] = React.useState("");
-  const [address, setAddress] = React.useState("");
-  const [country, setCountry] = React.useState("United States");
-  const [telNumber, setTelNumber] = React.useState("");
-  const [countryEventOccurred, setCountryEventOccurred] = React.useState(
-    "United States"
-  );
-  const [region, setRegion] = React.useState(REGIONS[0].value);
-
-  // Dynamic Multiple Products State
-  const [products, setProducts] = React.useState<ProductEntry[]>([
-    {
-      id: crypto.randomUUID(),
-      occurrence: "Device #1 (Primary)",
-      materialNumber: "",
-      materialDescription: "",
-      serialNumber: "",
-      batchNumber: "",
-      annexA_Category: "",
-      asReportedCode1: "",
-      asReportedCode2: "",
-      softwareVersion: "",
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<ComplaintFormValues>({
+    resolver: zodResolver(ComplaintFormSchema),
+    defaultValues: {
+      shortDescription: "",
+      description: "",
+      priority: Priority.MEDIUM,
+      awarenessDate: new Date(),
+      dateReceived: new Date(),
+      death: Death.NO,
+      complaintOwnerId: "",
+      customerName: "",
+      customerType: CUSTOMER_TYPES[0].value,
+      initialReporterName: "",
+      initialReporterSurname: "",
+      email: "",
+      address: "",
+      country: "United States",
+      telNumber: "",
+      countryEventOccurred: "United States",
+      region: REGIONS[0].value,
+      attachments: [],
+      products: [
+        {
+          occurrence: "Device #1 (Primary)",
+          materialNumber: "",
+          materialDescription: "",
+          serialNumber: "",
+          batchNumber: "",
+          annexA_Category: "",
+          asReportedCode1: "",
+          asReportedCode2: "",
+          softwareVersion: "",
+        },
+      ],
+      patients: [
+        {
+          patientName: "",
+          patientImpact: "",
+          patientImpactDesc: "",
+          sex: "UNKNOWN",
+          age: "",
+          annexE_Code: "",
+          annexF_Code: "",
+        },
+      ],
     },
-  ]);
+  });
 
-  // Dynamic Multiple Patients State
-  const [patients, setPatients] = React.useState<PatientEntry[]>([
-    {
-      id: crypto.randomUUID(),
-      patientName: "",
-      patientImpact: "",
-      patientImpactDesc: "",
-      sex: "UNKNOWN",
-      age: "",
-      annexE_Code: "",
-      annexF_Code: "",
-    },
-  ]);
+  const {
+    fields: productFields,
+    append: appendProduct,
+    remove: removeProduct,
+  } = useFieldArray({
+    control,
+    name: "products",
+  });
 
-  // Product Actions
-  const handleAddProduct = () => {
-    setProducts((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        occurrence: `Device #${prev.length + 1}`,
-        materialNumber: "",
-        materialDescription: "",
-        serialNumber: "",
-        batchNumber: "",
-        annexA_Category: "",
-        asReportedCode1: "",
-        asReportedCode2: "",
-        softwareVersion: "",
-      },
-    ]);
-  };
+  const {
+    fields: patientFields,
+    append: appendPatient,
+    remove: removePatient,
+  } = useFieldArray({
+    control,
+    name: "patients",
+  });
 
-  const handleRemoveProduct = (id: string) => {
-    if (products.length === 1) return;
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-  };
-
-  const handleUpdateProduct = (
-    id: string,
-    field: keyof ProductEntry,
-    value: string
-  ) => {
-    setProducts((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        // If changing Level 1 category, reset Level 2 specific code
-        if (field === "annexA_Category") {
-          return { ...p, annexA_Category: value, asReportedCode1: "" };
-        }
-        return { ...p, [field]: value };
-      })
-    );
-  };
-
-  // Patient Actions
-  const handleAddPatient = () => {
-    setPatients((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        patientName: "",
-        patientImpact: "",
-        patientImpactDesc: "",
-        sex: "UNKNOWN",
-        age: "",
-        annexE_Code: "",
-        annexF_Code: "",
-      },
-    ]);
-  };
-
-  const handleRemovePatient = (id: string) => {
-    if (patients.length === 1) return;
-    setPatients((prev) => prev.filter((p) => p.id !== id));
-  };
-
-  const handleUpdatePatient = (
-    id: string,
-    field: keyof PatientEntry,
-    value: string
-  ) => {
-    setPatients((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
-    );
-  };
-
-  // Form Submit Handler
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (data: ComplaintFormValues) => {
     setIsSubmitting(true);
     setError(null);
 
     try {
       // Filter non-empty products
-      const filteredProducts = products
+      const filteredProducts = data.products
         .filter(
           (p) =>
             p.materialNumber ||
@@ -255,7 +172,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
         }));
 
       // Filter non-empty patients
-      const filteredPatients = patients
+      const filteredPatients = data.patients
         .filter(
           (pt) =>
             pt.patientName ||
@@ -271,40 +188,40 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
           patientImpactDesc: pt.patientImpactDesc || null,
           sex: pt.sex || null,
           age: pt.age ? parseInt(pt.age, 10) : null,
-          eventOccurred: awarenessDate,
+          eventOccurred: data.awarenessDate,
           annexE_Codes: pt.annexE_Code ? [pt.annexE_Code] : [],
           annexF_Codes: pt.annexF_Code ? [pt.annexF_Code] : [],
         }));
 
       await createComplaintWithRelations({
-        shortDescription,
-        description: description || shortDescription,
-        priority,
-        awarenessDate,
-        dateReceived,
-        customerName,
-        customerType,
-        initialReporterName,
-        initialReporterSurname,
-        email,
-        address: address || "N/A",
-        country,
-        telNumber: telNumber || "N/A",
-        countryEventOccurred,
-        region,
-        death,
+        shortDescription: data.shortDescription,
+        description: data.description || data.shortDescription,
+        priority: data.priority,
+        awarenessDate: data.awarenessDate,
+        dateReceived: data.dateReceived,
+        customerName: data.customerName,
+        customerType: data.customerType,
+        initialReporterName: data.initialReporterName,
+        initialReporterSurname: data.initialReporterSurname,
+        email: data.email,
+        address: data.address || "N/A",
+        country: data.country,
+        telNumber: data.telNumber || "N/A",
+        countryEventOccurred: data.countryEventOccurred,
+        region: data.region,
+        death: data.death,
         detailDescriptionNativeLanguage: null,
-        complaintOwnerId: complaintOwnerId || undefined,
+        complaintOwnerId: data.complaintOwnerId || undefined,
         customerResponseNeeded: true,
         followUpRequired: true,
         investigationRequired: true,
         deviceModel: filteredProducts[0]?.materialDescription || null,
         deviceSerialNumber: filteredProducts[0]?.serialNumber || null,
         lotNumber: filteredProducts[0]?.batchNumber || null,
-        isAdverseEvent: death === Death.YES || priority === Priority.CRITICAL,
+        isAdverseEvent: data.death === Death.YES || data.priority === Priority.CRITICAL,
         products: filteredProducts.length > 0 ? filteredProducts : undefined,
         patients: filteredPatients.length > 0 ? filteredPatients : undefined,
-        attachments: attachments.length > 0 ? attachments : undefined,
+        attachments: data.attachments.length > 0 ? data.attachments : undefined,
       });
 
       router.push("/complaints");
@@ -316,6 +233,8 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
       setIsSubmitting(false);
     }
   };
+
+  const watchProducts = watch("products");
 
   return (
     <div className="w-full flex justify-center py-6 px-4">
@@ -368,7 +287,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
             </div>
           </CardHeader>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit(onSubmit)}>
             <CardContent className="space-y-8 pt-6">
               {/* SECTION 1: Core Complaint Information */}
               <div className="space-y-4">
@@ -383,16 +302,21 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                   </Label>
                   <Input
                     id="shortDescription"
-                    required
-                    value={shortDescription}
-                    onChange={(e) => setShortDescription(e.target.value)}
+                    {...register("shortDescription")}
                     placeholder="e.g. Infusion pump flow rate sensor discrepancy during clinical administration"
                   />
+                  {errors.shortDescription && <p className="text-destructive text-xs">{errors.shortDescription.message}</p>}
                 </div>
 
                 <div className="space-y-1.5">
                   <Label>Attachments</Label>
-                  <FileUploader attachments={attachments} onChange={setAttachments} />
+                  <Controller
+                    control={control}
+                    name="attachments"
+                    render={({ field }) => (
+                      <FileUploader attachments={field.value} onChange={field.onChange} />
+                    )}
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
@@ -400,23 +324,13 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     <Label htmlFor="priority">Priority Classification *</Label>
                     <select
                       id="priority"
-                      required
-                      value={priority}
-                      onChange={(e) => setPriority(e.target.value as Priority)}
+                      {...register("priority")}
                       className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
-                      <option value="CRITICAL">
-                        CRITICAL
-                      </option>
-                      <option value="HIGH">
-                        HIGH
-                      </option>
-                      <option value="MEDIUM">
-                        MEDIUM
-                      </option>
-                      <option value="LOW">
-                        LOW
-                      </option>
+                      <option value="CRITICAL">CRITICAL</option>
+                      <option value="HIGH">HIGH</option>
+                      <option value="MEDIUM">MEDIUM</option>
+                      <option value="LOW">LOW</option>
                     </select>
                   </div>
 
@@ -424,8 +338,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     <Label htmlFor="complaintOwnerId">Complaint Owner</Label>
                     <select
                       id="complaintOwnerId"
-                      value={complaintOwnerId}
-                      onChange={(e) => setComplaintOwnerId(e.target.value)}
+                      {...register("complaintOwnerId")}
                       className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       <option value="">Unassigned</option>
@@ -441,22 +354,24 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="awarenessDate">Awareness Date *</Label>
-                    <DatePicker
-                      id="awarenessDate"
-                      value={awarenessDate}
-                      onChange={(date) => setAwarenessDate(date)}
-                      required
+                    <Label>Awareness Date *</Label>
+                    <Controller
+                      control={control}
+                      name="awarenessDate"
+                      render={({ field }) => (
+                        <DatePicker value={field.value} onChange={field.onChange} />
+                      )}
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="dateReceived">Date Received *</Label>
-                    <DatePicker
-                      id="dateReceived"
-                      value={dateReceived}
-                      onChange={(date) => setDateReceived(date)}
-                      required
+                    <Label>Date Received *</Label>
+                    <Controller
+                      control={control}
+                      name="dateReceived"
+                      render={({ field }) => (
+                        <DatePicker value={field.value} onChange={field.onChange} />
+                      )}
                     />
                   </div>
                 </div>
@@ -467,12 +382,11 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                   </Label>
                   <Textarea
                     id="description"
-                    required
                     rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    {...register("description")}
                     placeholder="Provide exact narrative of the event, clinical context, operating environment, and initial findings..."
                   />
+                  {errors.description && <p className="text-destructive text-xs">{errors.description.message}</p>}
                 </div>
               </div>
 
@@ -490,20 +404,17 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     <Label htmlFor="customerName">Customer / Facility Name *</Label>
                     <Input
                       id="customerName"
-                      required
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
+                      {...register("customerName")}
                       placeholder="e.g. St. Jude Regional Hospital"
                     />
+                    {errors.customerName && <p className="text-destructive text-xs">{errors.customerName.message}</p>}
                   </div>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="customerType">Customer Type *</Label>
                     <select
                       id="customerType"
-                      required
-                      value={customerType}
-                      onChange={(e) => setCustomerType(e.target.value)}
+                      {...register("customerType")}
                       className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       {CUSTOMER_TYPES.map((ct) => (
@@ -520,22 +431,20 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     <Label htmlFor="initialReporterName">Reporter First Name *</Label>
                     <Input
                       id="initialReporterName"
-                      required
-                      value={initialReporterName}
-                      onChange={(e) => setInitialReporterName(e.target.value)}
+                      {...register("initialReporterName")}
                       placeholder="e.g. Sarah"
                     />
+                    {errors.initialReporterName && <p className="text-destructive text-xs">{errors.initialReporterName.message}</p>}
                   </div>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="initialReporterSurname">Reporter Surname *</Label>
                     <Input
                       id="initialReporterSurname"
-                      required
-                      value={initialReporterSurname}
-                      onChange={(e) => setInitialReporterSurname(e.target.value)}
+                      {...register("initialReporterSurname")}
                       placeholder="e.g. Jenkins"
                     />
+                    {errors.initialReporterSurname && <p className="text-destructive text-xs">{errors.initialReporterSurname.message}</p>}
                   </div>
 
                   <div className="space-y-1.5">
@@ -543,11 +452,10 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     <Input
                       id="email"
                       type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      {...register("email")}
                       placeholder="sarah.jenkins@stjude.org"
                     />
+                    {errors.email && <p className="text-destructive text-xs">{errors.email.message}</p>}
                   </div>
                 </div>
 
@@ -556,8 +464,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     <Label htmlFor="address">Address</Label>
                     <Input
                       id="address"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
+                      {...register("address")}
                       placeholder="700 Care Way, Suite 400"
                     />
                   </div>
@@ -566,9 +473,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     <Label htmlFor="country">Customer Country *</Label>
                     <select
                       id="country"
-                      required
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
+                      {...register("country")}
                       className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       {COUNTRIES.map((c) => (
@@ -585,9 +490,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     </Label>
                     <select
                       id="countryEventOccurred"
-                      required
-                      value={countryEventOccurred}
-                      onChange={(e) => setCountryEventOccurred(e.target.value)}
+                      {...register("countryEventOccurred")}
                       className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       {COUNTRIES.map((c) => (
@@ -602,9 +505,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                     <Label htmlFor="region">Regulatory Region *</Label>
                     <select
                       id="region"
-                      required
-                      value={region}
-                      onChange={(e) => setRegion(e.target.value)}
+                      {...register("region")}
                       className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       {REGIONS.map((r) => (
@@ -619,18 +520,28 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
 
               <Separator />
 
-              {/* SECTION 3: Dynamic Multiple Product / Device Information (Two-Tier IMDRF Annex A) */}
+              {/* SECTION 3: Dynamic Multiple Product / Device Information */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     <Package className="h-4 w-4 text-primary" />
-                    <span>Product & Device Information ({products.length})</span>
+                    <span>Product & Device Information ({productFields.length})</span>
                   </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="xs"
-                    onClick={handleAddProduct}
+                    onClick={() => appendProduct({
+                      occurrence: `Device #${productFields.length + 1}`,
+                      materialNumber: "",
+                      materialDescription: "",
+                      serialNumber: "",
+                      batchNumber: "",
+                      annexA_Category: "",
+                      asReportedCode1: "",
+                      asReportedCode2: "",
+                      softwareVersion: "",
+                    })}
                     className="gap-1 text-primary hover:text-primary font-semibold"
                   >
                     <Plus className="h-3 w-3" /> Add Another Device
@@ -638,14 +549,15 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                 </div>
 
                 <div className="space-y-4">
-                  {products.map((product, idx) => {
-                    const subCodes = product.annexA_Category
-                      ? IMDRF_ANNEX_A_SUBCAT_MAP[product.annexA_Category] || []
+                  {productFields.map((field, idx) => {
+                    const currentAnnexACategory = watchProducts?.[idx]?.annexA_Category;
+                    const subCodes = currentAnnexACategory
+                      ? IMDRF_ANNEX_A_SUBCAT_MAP[currentAnnexACategory] || []
                       : [];
 
                     return (
                       <div
-                        key={product.id}
+                        key={field.id}
                         className="rounded-lg border border-border bg-muted/20 p-4 space-y-4 relative group"
                       >
                         <div className="flex items-center justify-between pb-1 border-b border-border/60">
@@ -653,16 +565,13 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                             <Badge variant="secondary" className="text-[10px] font-semibold">
                               Device #{idx + 1}
                             </Badge>
-                            <span className="text-xs font-medium text-foreground">
-                              {product.materialDescription || "Medical Device Record"}
-                            </span>
                           </div>
-                          {products.length > 1 && (
+                          {productFields.length > 1 && (
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon-xs"
-                              onClick={() => handleRemoveProduct(product.id)}
+                              onClick={() => removeProduct(idx)}
                               className="text-muted-foreground hover:text-destructive transition-colors"
                               title="Remove device"
                             >
@@ -676,44 +585,21 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                           <div className="space-y-1">
                             <Label className="text-[11px]">Material Number / Model</Label>
                             <Input
-                              value={product.materialNumber}
-                              onChange={(e) =>
-                                handleUpdateProduct(
-                                  product.id,
-                                  "materialNumber",
-                                  e.target.value
-                                )
-                              }
+                              {...register(`products.${idx}.materialNumber` as const)}
                               placeholder="e.g. MAT-9021"
                             />
                           </div>
-
                           <div className="space-y-1">
                             <Label className="text-[11px]">Material Description</Label>
                             <Input
-                              value={product.materialDescription}
-                              onChange={(e) =>
-                                handleUpdateProduct(
-                                  product.id,
-                                  "materialDescription",
-                                  e.target.value
-                                )
-                              }
+                              {...register(`products.${idx}.materialDescription` as const)}
                               placeholder="e.g. CardiaSense Monitor Pro"
                             />
                           </div>
-
                           <div className="space-y-1">
                             <Label className="text-[11px]">Serial Number</Label>
                             <Input
-                              value={product.serialNumber}
-                              onChange={(e) =>
-                                handleUpdateProduct(
-                                  product.id,
-                                  "serialNumber",
-                                  e.target.value
-                                )
-                              }
+                              {...register(`products.${idx}.serialNumber` as const)}
                               placeholder="e.g. SN-49202"
                             />
                           </div>
@@ -725,22 +611,13 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                             <AlertOctagon className="h-4 w-4 shrink-0" />
                             <span>IMDRF Annex A - Device Problem (Two-Tier Classification)</span>
                           </div>
-
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            {/* Step 1: Category Selection (A01, A02, A03...) */}
                             <div className="space-y-1.5">
                               <Label className="text-xs font-medium text-foreground flex items-center h-5">
                                 1. Annex A Category (A01, A02, A03...) *
                               </Label>
                               <select
-                                value={product.annexA_Category}
-                                onChange={(e) =>
-                                  handleUpdateProduct(
-                                    product.id,
-                                    "annexA_Category",
-                                    e.target.value
-                                  )
-                                }
+                                {...register(`products.${idx}.annexA_Category` as const)}
                                 className="border-input bg-background flex h-9 w-full rounded-md border px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                               >
                                 <option value="">Select Category (A01 - A15)...</option>
@@ -751,31 +628,20 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                                 ))}
                               </select>
                             </div>
-
-                            {/* Step 2: Specific Sub-Code Selection (A0101, A0102...) */}
                             <div className="space-y-1.5">
                               <Label className="text-xs font-medium text-foreground flex items-center h-5">
-                                2. Specific Problem Code ({product.annexA_Category || "Axx"}...) *
+                                2. Specific Problem Code *
                               </Label>
                               <select
-                                value={product.asReportedCode1}
-                                disabled={!product.annexA_Category}
-                                onChange={(e) =>
-                                  handleUpdateProduct(
-                                    product.id,
-                                    "asReportedCode1",
-                                    e.target.value
-                                  )
-                                }
+                                {...register(`products.${idx}.asReportedCode1` as const)}
+                                disabled={!currentAnnexACategory}
                                 className="border-input bg-background flex h-9 w-full rounded-md border px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                {!product.annexA_Category ? (
+                                {!currentAnnexACategory ? (
                                   <option value="">← Select Level 1 Category first</option>
                                 ) : (
                                   <>
-                                    <option value="">
-                                      Select specific {product.annexA_Category} code...
-                                    </option>
+                                    <option value="">Select specific code...</option>
                                     {subCodes.map((code) => (
                                       <option key={code.value} value={code.value}>
                                         {code.label}
@@ -793,29 +659,14 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                           <div className="space-y-1">
                             <Label className="text-[11px]">Batch / Lot Number</Label>
                             <Input
-                              value={product.batchNumber}
-                              onChange={(e) =>
-                                handleUpdateProduct(
-                                  product.id,
-                                  "batchNumber",
-                                  e.target.value
-                                )
-                              }
+                              {...register(`products.${idx}.batchNumber` as const)}
                               placeholder="e.g. BATCH-2026-08"
                             />
                           </div>
-
                           <div className="space-y-1">
                             <Label className="text-[11px]">Software Version</Label>
                             <Input
-                              value={product.softwareVersion}
-                              onChange={(e) =>
-                                handleUpdateProduct(
-                                  product.id,
-                                  "softwareVersion",
-                                  e.target.value
-                                )
-                              }
+                              {...register(`products.${idx}.softwareVersion` as const)}
                               placeholder="e.g. v3.4.1"
                             />
                           </div>
@@ -833,13 +684,21 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     <HeartPulse className="h-4 w-4 text-primary" />
-                    <span>Patient Information & Health Impact ({patients.length})</span>
+                    <span>Patient Information & Health Impact ({patientFields.length})</span>
                   </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="xs"
-                    onClick={handleAddPatient}
+                    onClick={() => appendPatient({
+                      patientName: "",
+                      patientImpact: "",
+                      patientImpactDesc: "",
+                      sex: "UNKNOWN",
+                      age: "",
+                      annexE_Code: "",
+                      annexF_Code: "",
+                    })}
                     className="gap-1 text-primary hover:text-primary font-semibold"
                   >
                     <Plus className="h-3 w-3" /> Add Another Patient
@@ -847,7 +706,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                 </div>
 
                 <div className="space-y-4">
-                  {patients.map((patient, idx) => (
+                  {patientFields.map((patient, idx) => (
                     <div
                       key={patient.id}
                       className="rounded-lg border border-border bg-muted/20 p-4 space-y-3 relative group"
@@ -857,16 +716,13 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                           <Badge variant="secondary" className="text-[10px] font-semibold">
                             Patient #{idx + 1}
                           </Badge>
-                          <span className="text-xs font-medium text-foreground">
-                            {patient.patientName || "Patient Safety Profile"}
-                          </span>
                         </div>
-                        {patients.length > 1 && (
+                        {patientFields.length > 1 && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon-xs"
-                            onClick={() => handleRemovePatient(patient.id)}
+                            onClick={() => removePatient(idx)}
                             className="text-muted-foreground hover:text-destructive transition-colors"
                             title="Remove patient"
                           >
@@ -879,8 +735,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                         <div className="space-y-1">
                           <Label className="text-[11px]">Patient Death? *</Label>
                           <select
-                            value={death}
-                            onChange={(e) => setDeath(e.target.value as Death)}
+                            {...register("death")}
                             className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                           >
                             <option value="NO">NO - No Patient Death</option>
@@ -892,14 +747,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                         <div className="space-y-1">
                           <Label className="text-[11px]">Patient Name / Identifier</Label>
                           <Input
-                            value={patient.patientName}
-                            onChange={(e) =>
-                              handleUpdatePatient(
-                                patient.id,
-                                "patientName",
-                                e.target.value
-                              )
-                            }
+                            {...register(`patients.${idx}.patientName` as const)}
                             placeholder="e.g. PT-8820"
                           />
                         </div>
@@ -910,14 +758,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                             type="number"
                             min="0"
                             max="120"
-                            value={patient.age}
-                            onChange={(e) =>
-                              handleUpdatePatient(
-                                patient.id,
-                                "age",
-                                e.target.value
-                              )
-                            }
+                            {...register(`patients.${idx}.age` as const)}
                             placeholder="e.g. 54"
                           />
                         </div>
@@ -925,14 +766,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                         <div className="space-y-1">
                           <Label className="text-[11px]">Sex</Label>
                           <select
-                            value={patient.sex}
-                            onChange={(e) =>
-                              handleUpdatePatient(
-                                patient.id,
-                                "sex",
-                                e.target.value
-                              )
-                            }
+                            {...register(`patients.${idx}.sex` as const)}
                             className="border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                           >
                             <option value="UNKNOWN">Unknown / Not Specified</option>
@@ -947,14 +781,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                         <div className="space-y-1">
                           <Label className="text-[11px]">Patient Impact / Outcome</Label>
                           <Input
-                            value={patient.patientImpact}
-                            onChange={(e) =>
-                              handleUpdatePatient(
-                                patient.id,
-                                "patientImpact",
-                                e.target.value
-                              )
-                            }
+                            {...register(`patients.${idx}.patientImpact` as const)}
                             placeholder="e.g. Temporary Discomfort / None"
                           />
                         </div>
@@ -965,14 +792,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                             IMDRF Annex E (Clinical Signs)
                           </Label>
                           <select
-                            value={patient.annexE_Code}
-                            onChange={(e) =>
-                              handleUpdatePatient(
-                                patient.id,
-                                "annexE_Code",
-                                e.target.value
-                              )
-                            }
+                            {...register(`patients.${idx}.annexE_Code` as const)}
                             className="border-input flex h-9 w-full rounded-md border bg-transparent px-2.5 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                           >
                             <option value="">Select Annex E Clinical Sign...</option>
@@ -990,14 +810,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                             IMDRF Annex F (Health Impact)
                           </Label>
                           <select
-                            value={patient.annexF_Code}
-                            onChange={(e) =>
-                              handleUpdatePatient(
-                                patient.id,
-                                "annexF_Code",
-                                e.target.value
-                              )
-                            }
+                            {...register(`patients.${idx}.annexF_Code` as const)}
                             className="border-input flex h-9 w-full rounded-md border bg-transparent px-2.5 py-1 text-xs shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none"
                           >
                             <option value="">Select Annex F Health Impact...</option>

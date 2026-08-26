@@ -1,3 +1,4 @@
+import { Toaster } from "@/components/ui/sonner";
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
 import type { Metadata } from "next";
@@ -45,6 +46,7 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="system">
           <ClerkProvider appearance={{ theme: shadcn }}>
             {children}
+            <Toaster />
           </ClerkProvider>
         </ThemeProvider>
       </body>

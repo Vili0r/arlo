@@ -90,6 +90,15 @@ export function WorkspaceShell({
     if (cleanPath.endsWith("/complaints") || cleanPath === "/complaints") {
       return "Complaints";
     }
+    if (cleanPath.includes("/investigation")) {
+      return "Investigation Details";
+    }
+    if (cleanPath.includes("/vigilance")) {
+      return "Vigilance Details";
+    }
+    if (cleanPath.includes("/communications")) {
+      return "Communication Details";
+    }
     if (cleanPath.includes("/complaints/")) {
       return "Complaint Details";
     }
@@ -132,6 +141,11 @@ export function WorkspaceShell({
       title: "CAPA Management",
       href: "/capa",
       icon: ClipboardCheck,
+    },
+    {
+      title: "Settings (Templates)",
+      href: "/settings/investigation-templates",
+      icon: SlidersHorizontal,
     },
     {
       title: "Audit Trail (21 CFR Part 11)",
