@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox"; // Assuming there's a custom Checkbox or we use native
 
 import {
   saveInvestigationSummaryDraft,
@@ -120,7 +119,7 @@ export function InvestigationSummaryForm({
           <div className="absolute top-0 left-0 w-full bg-purple-900/40 border-b border-purple-500/30 px-6 py-3 flex items-center justify-center gap-2">
             <Lock className="h-4 w-4 text-purple-400" />
             <span className="text-sm font-semibold text-purple-200">
-              Completed and Locked (21 CFR Part 11)
+              Completed and Locked
             </span>
           </div>
         )}

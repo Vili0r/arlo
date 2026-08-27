@@ -78,7 +78,7 @@ export default async function CommunicationPage({
           </div>
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-1">Communication Date</h3>
-            <p className="font-mono text-sm">{new Date(communication.communicationDate).toLocaleString()}</p>
+            <p className="font-mono text-sm" suppressHydrationWarning>{new Date(communication.communicationDate).toLocaleString("en-US", { timeZone: "UTC" })}</p>
           </div>
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-1">Author</h3>

@@ -42,6 +42,15 @@ import {
 } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -203,6 +212,18 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
   const [drawerTab, setDrawerTab] = React.useState<
     "all" | "communications" | "audit"
   >("all");
+  const [historyPage, setHistoryPage] = React.useState(1);
+  const [complaintsPage, setComplaintsPage] = React.useState(1);
+
+  // Reset complaints page when search query changes
+  React.useEffect(() => {
+    setComplaintsPage(1);
+  }, [searchQuery]);
+
+  // Reset history page when complaint or tab changes
+  React.useEffect(() => {
+    setHistoryPage(1);
+  }, [activeHistoryComplaint?.id, drawerTab]);
 
   // Copy helper with temporary check indicator
   const copyToClipboard = (text: string) => {
@@ -254,6 +275,192 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
     localStorage.setItem("arlo-complaints-view-mode", mode);
   };
 
+  // Deterministic date formatters to prevent SSR/client hydration mismatch
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) return "N/A";
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "N/A";
+    return d.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      timeZone: "UTC",
+    });
+  };
+
+  const formatDateTime = (date: Date | string | null | undefined) => {
+    if (!date) return "N/A";
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "N/A";
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZone: "UTC",
+    });
+  };
+
+  // Clean metadata and noise from JSON objects for audit trail diffing
+  const cleanNoise = (val: unknown): unknown => {
+    if (val === null || val === undefined) return val;
+    if (Array.isArray(val)) {
+      return val.map(cleanNoise);
+    }
+    if (typeof val === "object") {
+      const cleaned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+        if (["orgId", "createdAt", "updatedAt", "deletedAt", "complaintId"].includes(k)) continue;
+        cleaned[k] = cleanNoise(v);
+      }
+      return cleaned;
+    }
+    return val;
+  };
+
+  const formatFieldTitle = (name: string): string => {
+    if (!name) return "Field";
+    return name
+      .replace(/([A-Z])/g, " $1")
+      .replace(/_/g, " ")
+      .replace(/^./, (str) => str.toUpperCase())
+      .trim();
+  };
+
+  const formatScalarValue = (val: unknown): string => {
+    if (val === null || val === undefined) return "null";
+    if (typeof val === "boolean") return val ? "true" : "false";
+    if (typeof val === "string") {
+      if (val === "") return '"" (empty)';
+      return val;
+    }
+    if (typeof val === "number") return String(val);
+    return JSON.stringify(cleanNoise(val));
+  };
+
+  const extractDetailedDiffs = (
+    oldVal: unknown,
+    newVal: unknown
+  ): Array<{ label: string; oldDisplay: string; newDisplay: string }> => {
+    const isOldObj = typeof oldVal === "object" && oldVal !== null;
+    const isNewObj = typeof newVal === "object" && newVal !== null;
+
+    if (!isOldObj && !isNewObj) {
+      return [
+        {
+          label: "",
+          oldDisplay: formatScalarValue(oldVal),
+          newDisplay: formatScalarValue(newVal),
+        },
+      ];
+    }
+
+    if (Array.isArray(oldVal) || Array.isArray(newVal)) {
+      const oldArr = Array.isArray(oldVal) ? oldVal : oldVal ? [oldVal] : [];
+      const newArr = Array.isArray(newVal) ? newVal : newVal ? [newVal] : [];
+      const maxLen = Math.max(oldArr.length, newArr.length);
+      const diffs: Array<{ label: string; oldDisplay: string; newDisplay: string }> = [];
+
+      for (let i = 0; i < maxLen; i++) {
+        const oItem = oldArr[i];
+        const nItem = newArr[i];
+        const prefix = maxLen > 1 ? `[Item ${i + 1}] ` : "";
+
+        if (oItem !== undefined && nItem === undefined) {
+          diffs.push({
+            label: `${prefix}Item Removed`,
+            oldDisplay: formatScalarValue(cleanNoise(oItem)),
+            newDisplay: "(removed)",
+          });
+        } else if (oItem === undefined && nItem !== undefined) {
+          diffs.push({
+            label: `${prefix}Item Added`,
+            oldDisplay: "(none)",
+            newDisplay: formatScalarValue(cleanNoise(nItem)),
+          });
+        } else if (typeof oItem === "object" && typeof nItem === "object" && oItem !== null && nItem !== null) {
+          const cOld = cleanNoise(oItem) as Record<string, unknown>;
+          const cNew = cleanNoise(nItem) as Record<string, unknown>;
+          const allKeys = Array.from(new Set([...Object.keys(cOld), ...Object.keys(cNew)]));
+
+          let subDiffFound = false;
+          for (const k of allKeys) {
+            const oSub = cOld[k];
+            const nSub = cNew[k];
+            if (JSON.stringify(oSub) !== JSON.stringify(nSub)) {
+              subDiffFound = true;
+              diffs.push({
+                label: `${prefix}${k}`,
+                oldDisplay: formatScalarValue(oSub),
+                newDisplay: formatScalarValue(nSub),
+              });
+            }
+          }
+          if (!subDiffFound) {
+            diffs.push({
+              label: `${prefix}Record updated`,
+              oldDisplay: "modified",
+              newDisplay: "re-saved",
+            });
+          }
+        } else {
+          diffs.push({
+            label: `${prefix}`,
+            oldDisplay: formatScalarValue(oItem),
+            newDisplay: formatScalarValue(nItem),
+          });
+        }
+      }
+      return diffs.length > 0
+        ? diffs
+        : [
+            {
+              label: "",
+              oldDisplay: formatScalarValue(oldVal),
+              newDisplay: formatScalarValue(newVal),
+            },
+          ];
+    }
+
+    if (isOldObj && isNewObj) {
+      const cOld = cleanNoise(oldVal) as Record<string, unknown>;
+      const cNew = cleanNoise(newVal) as Record<string, unknown>;
+      const allKeys = Array.from(new Set([...Object.keys(cOld), ...Object.keys(cNew)]));
+      const diffs: Array<{ label: string; oldDisplay: string; newDisplay: string }> = [];
+
+      for (const k of allKeys) {
+        const oSub = cOld[k];
+        const nSub = cNew[k];
+        if (JSON.stringify(oSub) !== JSON.stringify(nSub)) {
+          diffs.push({
+            label: k,
+            oldDisplay: formatScalarValue(oSub),
+            newDisplay: formatScalarValue(nSub),
+          });
+        }
+      }
+      return diffs.length > 0
+        ? diffs
+        : [
+            {
+              label: "",
+              oldDisplay: formatScalarValue(oldVal),
+              newDisplay: formatScalarValue(newVal),
+            },
+          ];
+    }
+
+    return [
+      {
+        label: "",
+        oldDisplay: formatScalarValue(oldVal),
+        newDisplay: formatScalarValue(newVal),
+      },
+    ];
+  };
+
   const filteredComplaints = complaints.filter(
     (c) =>
       c.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -271,6 +478,24 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
       (c.complaintOwner?.lastName &&
         c.complaintOwner.lastName.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const MAX_COMPLAINTS_PAGES = 10;
+  const COMPLAINTS_PER_PAGE = 10;
+
+  const totalComplaintsItems = filteredComplaints.length;
+  const totalComplaintsPages = Math.min(
+    MAX_COMPLAINTS_PAGES,
+    Math.max(1, Math.ceil(totalComplaintsItems / COMPLAINTS_PER_PAGE))
+  );
+  const currentComplaintsPage = Math.min(complaintsPage, totalComplaintsPages);
+
+  const paginatedComplaints = React.useMemo(() => {
+    const startIndex = (currentComplaintsPage - 1) * COMPLAINTS_PER_PAGE;
+    return filteredComplaints.slice(
+      startIndex,
+      startIndex + COMPLAINTS_PER_PAGE
+    );
+  }, [filteredComplaints, currentComplaintsPage]);
 
   const getPriorityBadge = (priority: Priority) => {
     switch (priority) {
@@ -365,6 +590,71 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
     }
   };
 
+  const MAX_HISTORY_PAGES = 5;
+  const HISTORY_ITEMS_PER_PAGE = 5;
+
+  type HistoryTimelineItem =
+    | {
+        type: "communication";
+        id: string;
+        timestamp: number;
+        data: RelatedCommunication;
+      }
+    | {
+        type: "audit";
+        id: string;
+        timestamp: number;
+        logIndex: number;
+        data: RelatedAuditLog;
+      };
+
+  const activeHistoryItems = React.useMemo<HistoryTimelineItem[]>(() => {
+    if (!activeHistoryComplaint) return [];
+
+    const items: HistoryTimelineItem[] = [];
+
+    if (drawerTab === "all" || drawerTab === "communications") {
+      (activeHistoryComplaint.customerCommunications || []).forEach((comm) => {
+        items.push({
+          type: "communication",
+          id: comm.id,
+          timestamp: new Date(comm.communicationDate).getTime() || 0,
+          data: comm,
+        });
+      });
+    }
+
+    if (drawerTab === "all" || drawerTab === "audit") {
+      const logs = activeHistoryComplaint.auditLogs || [];
+      logs.forEach((log, index) => {
+        items.push({
+          type: "audit",
+          id: log.id,
+          timestamp: new Date(log.timestamp).getTime() || 0,
+          logIndex: logs.length - index,
+          data: log,
+        });
+      });
+    }
+
+    return items.sort((a, b) => b.timestamp - a.timestamp);
+  }, [activeHistoryComplaint, drawerTab]);
+
+  const totalHistoryItems = activeHistoryItems.length;
+  const totalHistoryPages = Math.min(
+    MAX_HISTORY_PAGES,
+    Math.max(1, Math.ceil(totalHistoryItems / HISTORY_ITEMS_PER_PAGE))
+  );
+  const currentHistoryPage = Math.min(historyPage, totalHistoryPages);
+
+  const paginatedHistoryItems = React.useMemo(() => {
+    const startIndex = (currentHistoryPage - 1) * HISTORY_ITEMS_PER_PAGE;
+    return activeHistoryItems.slice(
+      startIndex,
+      startIndex + HISTORY_ITEMS_PER_PAGE
+    );
+  }, [activeHistoryItems, currentHistoryPage]);
+
   return (
     <div className="space-y-6 w-full max-w-8xl mx-auto">
       {/* Full-Width Action Toolbar */}
@@ -447,7 +737,10 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
             Complaints Records
           </span>
           <span className="text-[11px] font-mono text-muted-foreground">
-            Showing {filteredComplaints.length} of {complaints.length}
+            Showing {paginatedComplaints.length} of {totalComplaintsItems}
+            {totalComplaintsPages > 1
+              ? ` (Page ${currentComplaintsPage} of ${totalComplaintsPages})`
+              : ""}
           </span>
         </div>
 
@@ -466,7 +759,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
         ) : viewMode === "grid" ? (
           /* Grid View Layout (2 columns) with Nested Tree Extension */
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredComplaints.map((c) => {
+            {paginatedComplaints.map((c) => {
               const isExpanded = expandedIds.has(c.id);
               const communications = c.customerCommunications || [];
               const investigation = c.investigation;
@@ -554,12 +847,6 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                               <History className="h-3.5 w-3.5 text-amber-500" />
                               <span>View History</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href="/capa" className="flex items-center gap-2">
-                                <GitPullRequest className="h-3.5 w-3.5 text-emerald-500" />
-                                <span>Trigger CAPA</span>
-                              </Link>
-                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={() => copyToClipboard(c.complaintNumber)}
@@ -605,8 +892,8 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                         <span className="text-muted-foreground block text-[10px] flex items-center gap-1">
                           <Calendar className="h-2.5 w-2.5" /> Awareness Date
                         </span>
-                        <span className="font-mono text-foreground">
-                          {new Date(c.awarenessDate).toLocaleDateString("en-US")}
+                        <span className="font-mono text-foreground" suppressHydrationWarning>
+                          {formatDate(c.awarenessDate)}
                         </span>
                       </div>
                       <div>
@@ -684,8 +971,8 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                     <MessageSquare className="h-3.5 w-3.5 text-blue-500" />
                                     Customer Follow-up ({comm.direction})
                                   </span>
-                                  <span className="text-[10px] text-muted-foreground font-mono">
-                                    {new Date(comm.communicationDate).toLocaleDateString("en-US")}
+                                  <span className="text-[10px] text-muted-foreground font-mono" suppressHydrationWarning>
+                                    {formatDate(comm.communicationDate)}
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-muted-foreground truncate">
@@ -705,7 +992,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                       {getStatusBadge(c.status)}
                     </div>
                     <div className="flex items-center gap-2 text-[11px]">
-                      <span>{new Date(c.dateReceived).toLocaleDateString("en-US")}</span>
+                      <span suppressHydrationWarning>{formatDate(c.dateReceived)}</span>
                       <Link
                         href={`/complaints/${c.id}`}
                         className="p-1 hover:text-foreground text-muted-foreground transition-colors"
@@ -737,7 +1024,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredComplaints.map((c) => {
+                  {paginatedComplaints.map((c) => {
                     const isExpanded = expandedIds.has(c.id);
                     const communications = c.customerCommunications || [];
                     const investigation = c.investigation;
@@ -765,34 +1052,38 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                 {c.complaintNumber}
                               </Link>
 
-                              {/* Git-Merge Trigger Button right next to Record ID */}
-                              <button
-                                type="button"
-                                onClick={(e) => toggleExpand(c.id, e)}
-                                title={
-                                  isExpanded
-                                    ? "Collapse related records"
-                                    : `Expand ${totalRelations} related records`
-                                }
-                                className={`flex h-6 w-6 items-center justify-center rounded-md border transition-all cursor-pointer ${
-                                  isExpanded
-                                    ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                                    : "bg-muted/80 hover:bg-accent border-border text-muted-foreground hover:text-foreground"
-                                }`}
-                              >
-                                <GitMerge className="h-3.5 w-3.5" />
-                              </button>
+                              {/* Expand/Collapse Toggle Button */}
+                              {totalRelations > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => toggleExpand(c.id, e)}
+                                  className="text-muted-foreground hover:text-foreground p-0.5 rounded transition-transform cursor-pointer"
+                                  title={
+                                    isExpanded
+                                      ? "Collapse related records"
+                                      : "Expand related records"
+                                  }
+                                >
+                                  <ChevronRight
+                                    className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                                      isExpanded ? "rotate-90 text-primary" : ""
+                                    }`}
+                                  />
+                                </button>
+                              )}
                             </div>
                           </td>
 
-                          {/* Description */}
+                          {/* Short Description */}
                           <td className="py-3.5 px-4 max-w-xs">
-                            <span className="font-medium text-foreground block truncate">
+                            <span
+                              className="text-xs font-semibold text-foreground truncate block"
+                              title={c.shortDescription}
+                            >
                               {c.shortDescription}
                             </span>
-                            <span className="text-[11px] text-muted-foreground truncate block font-mono">
-                              {c.deviceModel ? `Model: ${c.deviceModel}` : ""}{" "}
-                              {c.lotNumber ? `(Lot: ${c.lotNumber})` : ""}
+                            <span className="text-[11px] text-muted-foreground truncate block">
+                              {c.deviceModel ? `Model: ${c.deviceModel}` : "Standard Device"}
                             </span>
                           </td>
 
@@ -803,25 +1094,25 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                           <td className="py-3.5 px-4">{getStatusBadge(c.status)}</td>
 
                           {/* Complaint Owner */}
-                          <td className="py-3.5 px-4 text-foreground font-medium">
+                          <td className="py-3.5 px-4 text-xs text-muted-foreground">
                             {c.complaintOwner?.firstName
                               ? `${c.complaintOwner.firstName} ${c.complaintOwner.lastName ?? ""}`
                               : c.complaintOwner?.email || "Unassigned"}
                           </td>
 
                           {/* Awareness Date */}
-                          <td className="py-3.5 px-4 text-muted-foreground font-mono">
-                            {new Date(c.awarenessDate).toLocaleDateString("en-US")}
+                          <td className="py-3.5 px-4 text-xs font-mono text-muted-foreground" suppressHydrationWarning>
+                            {formatDate(c.awarenessDate)}
                           </td>
 
                           {/* Event Country */}
-                          <td className="py-3.5 px-4 text-foreground">
-                            {c.countryEventOccurred || "N/A"}
+                          <td className="py-3.5 px-4 text-xs font-mono text-muted-foreground">
+                            {c.countryEventOccurred || "US"}
                           </td>
 
                           {/* Date Received */}
-                          <td className="py-3.5 px-4 text-muted-foreground font-mono">
-                            {new Date(c.dateReceived).toLocaleDateString("en-US")}
+                          <td className="py-3.5 px-4 text-xs font-mono text-muted-foreground" suppressHydrationWarning>
+                            {formatDate(c.dateReceived)}
                           </td>
 
                           {/* Three-Dots Actions Dropdown Menu */}
@@ -850,12 +1141,6 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                   <History className="h-3.5 w-3.5 text-amber-500" />
                                   <span>View History</span>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                  <Link href="/capa" className="flex items-center gap-2">
-                                    <GitPullRequest className="h-3.5 w-3.5 text-emerald-500" />
-                                    <span>Trigger CAPA</span>
-                                  </Link>
-                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => copyToClipboard(c.complaintNumber)}
@@ -875,21 +1160,21 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                           </td>
                         </tr>
 
-                        {/* Nested Tree Sub-Rows (Rendered when expanded) */}
-                        {isExpanded && (
+                        {/* Nested Expansion Rows */}
+                        {isExpanded && totalRelations > 0 && (
                           <tr className="bg-muted/15">
                             <td colSpan={9} className="p-0 border-b border-border/80">
-                              <div className="py-3 px-6 space-y-2">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
-                                  <span>Hierarchy of Linked Records ({totalRelations})</span>
+                              <div className="py-3 px-6 pl-12 space-y-2 border-l-2 border-primary/50 ml-6 my-2">
+                                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                                  Related Workflows &amp; Direct Linkages:
                                 </div>
-
-                                {/* Continuous vertical line matching user image */}
-                                <div className="relative pl-6 ml-4 border-l-2 border-primary/40 space-y-2">
-                                  {/* 1. Investigation Sub-Row */}
+                                <div className="space-y-1.5">
+                                  {/* 1. Investigation Workflow Sub-Row */}
                                   {investigation && (
-                                    <Link href={`/complaints/${c.id}/investigation`} className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block">
-                                      {/* Horizontal Branch Marker */}
+                                    <Link
+                                      href={`/complaints/${c.id}/investigation`}
+                                      className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block"
+                                    >
                                       <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-5 h-0.5 bg-primary/40" />
 
                                       <div className="flex items-center gap-3">
@@ -899,7 +1184,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                         <div>
                                           <div className="flex items-center gap-2">
                                             <span className="font-semibold text-foreground text-xs">
-                                              Root Cause Investigation
+                                              Formal Investigation Workflow
                                             </span>
                                             <Badge variant="outline" className="text-[9px] bg-indigo-500/10 text-indigo-600 border-indigo-500/20 py-0">
                                               {investigation.status}
@@ -924,7 +1209,10 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
 
                                   {/* 2. Vigilance Decision Tree Sub-Row */}
                                   {vigilance && (
-                                    <Link href={`/complaints/${c.id}/vigilance`} className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block">
+                                    <Link
+                                      href={`/complaints/${c.id}/vigilance`}
+                                      className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block"
+                                    >
                                       <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-5 h-0.5 bg-primary/40" />
 
                                       <div className="flex items-center gap-3">
@@ -941,7 +1229,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             </Badge>
                                           </div>
                                           <span className="text-[11px] text-muted-foreground">
-                                            {vigilance.reportable ? "🚨 Reportable Incident (Adverse Event)" : "🛡️ Non-Reportable"} • {vigilance.rationale || "Evaluation pending."}
+                                            {vigilance.reportable ? "🚨 Reportable Incident (Adverse Event)" : "🛡️ Non-Reportable"} &bull; {vigilance.rationale || "Evaluation pending."}
                                           </span>
                                         </div>
                                       </div>
@@ -983,7 +1271,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                       </div>
 
                                       <div className="flex items-center gap-4 text-[11px] text-muted-foreground font-mono shrink-0">
-                                        <span>{new Date(comm.communicationDate).toLocaleString()}</span>
+                                        <span suppressHydrationWarning>{formatDateTime(comm.communicationDate)}</span>
                                       </div>
                                     </Link>
                                   ))}
@@ -998,6 +1286,94 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* Pagination Controls for Grid & Row (List) view */}
+        {totalComplaintsPages > 1 && (
+          <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
+            <span className="text-xs font-mono text-muted-foreground">
+              Showing {(currentComplaintsPage - 1) * COMPLAINTS_PER_PAGE + 1} -{" "}
+              {Math.min(
+                currentComplaintsPage * COMPLAINTS_PER_PAGE,
+                totalComplaintsItems
+              )}{" "}
+              of {totalComplaintsItems} complaints &bull; Page {currentComplaintsPage} of {totalComplaintsPages} (Max {MAX_COMPLAINTS_PAGES} pages)
+            </span>
+            <Pagination className="w-auto mx-0 justify-end">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentComplaintsPage > 1) {
+                        setComplaintsPage((p) => Math.max(1, p - 1));
+                      }
+                    }}
+                    className={
+                      currentComplaintsPage <= 1
+                        ? "pointer-events-none opacity-50 cursor-not-allowed"
+                        : "cursor-pointer"
+                    }
+                  />
+                </PaginationItem>
+
+                {Array.from({ length: totalComplaintsPages }).map((_, i) => {
+                  const pageNumber = i + 1;
+                  if (
+                    totalComplaintsPages <= 7 ||
+                    pageNumber === 1 ||
+                    pageNumber === totalComplaintsPages ||
+                    (pageNumber >= currentComplaintsPage - 1 &&
+                      pageNumber <= currentComplaintsPage + 1)
+                  ) {
+                    return (
+                      <PaginationItem key={pageNumber}>
+                        <PaginationLink
+                          href="#"
+                          isActive={currentComplaintsPage === pageNumber}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setComplaintsPage(pageNumber);
+                          }}
+                          className="cursor-pointer"
+                        >
+                          {pageNumber}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  } else if (
+                    pageNumber === currentComplaintsPage - 2 ||
+                    pageNumber === currentComplaintsPage + 2
+                  ) {
+                    return (
+                      <PaginationItem key={pageNumber}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+                  return null;
+                })}
+
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentComplaintsPage < totalComplaintsPages) {
+                        setComplaintsPage((p) => Math.min(totalComplaintsPages, p + 1));
+                      }
+                    }}
+                    className={
+                      currentComplaintsPage >= totalComplaintsPages
+                        ? "pointer-events-none opacity-50 cursor-not-allowed"
+                        : "cursor-pointer"
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
         )}
       </div>
@@ -1021,9 +1397,6 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                       <span className="font-mono text-sm font-bold text-primary">
                         {activeHistoryComplaint.complaintNumber}
                       </span>
-                      <Badge variant="outline" className="text-[10px] font-mono">
-                        21 CFR Part 11
-                      </Badge>
                       <Badge variant="secondary" className="text-[10px]">
                         {orgSlug}
                       </Badge>
@@ -1046,7 +1419,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                 </div>
 
                 {/* Sub-tab Filter Selector */}
-                <div className="flex items-center gap-1.5 border-b border-border/80 pb-1">
+                <div className="flex items-center gap-1.5 pt-1">
                   <button
                     type="button"
                     onClick={() => setDrawerTab("all")}
@@ -1093,132 +1466,312 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
               </div>
 
               {/* Drawer Content / Timeline */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* 1. Customer Communications Section */}
-                {(drawerTab === "all" || drawerTab === "communications") && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground border-b border-border/80 pb-2">
-                      <span className="font-semibold uppercase tracking-wider text-[10px] flex items-center gap-1.5 text-foreground">
-                        <MessageSquare className="h-3.5 w-3.5 text-blue-500" />
-                        Customer Communications ({activeHistoryComplaint.customerCommunications?.length || 0})
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground border-b border-border/80 pb-2">
+                    <span className="font-semibold uppercase tracking-wider text-[10px] flex items-center gap-1.5 text-foreground">
+                      {drawerTab === "communications" ? (
+                        <>
+                          <MessageSquare className="h-3.5 w-3.5 text-blue-500" />
+                          Customer Communications ({activeHistoryComplaint.customerCommunications?.length || 0})
+                        </>
+                      ) : drawerTab === "audit" ? (
+                        <>
+                          <History className="h-3.5 w-3.5 text-amber-500" />
+                          Electronic Audit Trail ({activeHistoryComplaint.auditLogs?.length || 0})
+                        </>
+                      ) : (
+                        <>
+                          <History className="h-3.5 w-3.5 text-primary" />
+                          Activity Timeline ({totalHistoryItems})
+                        </>
+                      )}
+                    </span>
+                    {totalHistoryPages > 1 && (
+                      <span className="text-[11px] font-mono text-muted-foreground">
+                        Page {currentHistoryPage} of {totalHistoryPages} (Max {MAX_HISTORY_PAGES})
                       </span>
-                    </div>
-
-                    {!activeHistoryComplaint.customerCommunications ||
-                    activeHistoryComplaint.customerCommunications.length === 0 ? (
-                      <div className="text-center py-6 text-muted-foreground text-xs bg-muted/20 rounded-lg border border-dashed border-border/80">
-                        <MessageSquare className="h-6 w-6 mx-auto mb-1.5 opacity-40" />
-                        <p>No customer communications logged yet.</p>
-                      </div>
-                    ) : (
-                      <div className="relative pl-5 border-l-2 border-blue-500/40 space-y-4">
-                        {activeHistoryComplaint.customerCommunications.map((comm) => (
-                          <div key={comm.id} className="relative group">
-                            {/* Bullet dot */}
-                            <div className="absolute -left-[27px] top-1 h-3 w-3 rounded-full bg-card border-2 border-blue-500" />
-
-                            <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 shadow-xs">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Badge
-                                    variant={comm.direction === "INBOUND" ? "secondary" : "outline"}
-                                    className="text-[10px] font-mono"
-                                  >
-                                    {comm.direction === "INBOUND" ? "📥 INBOUND" : "📤 OUTBOUND"}
-                                  </Badge>
-                                  <span className="text-xs font-semibold text-foreground">
-                                    Customer Contact
-                                  </span>
-                                </div>
-                                <span className="text-[10px] font-mono text-muted-foreground">
-                                  {new Date(comm.communicationDate).toLocaleString()}
-                                </span>
-                              </div>
-
-                              <div className="text-[11px] text-muted-foreground">
-                                Logged by:{" "}
-                                <strong className="text-foreground font-sans font-medium">
-                                  {comm.author?.firstName
-                                    ? `${comm.author.firstName} ${comm.author.lastName ?? ""}`
-                                    : comm.author?.email || "System"}
-                                </strong>
-                              </div>
-
-                              <div className="rounded-lg bg-muted/40 p-2.5 text-xs text-foreground leading-relaxed whitespace-pre-wrap border border-border/40">
-                                {comm.notes}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     )}
                   </div>
-                )}
 
-                {/* 2. System Audit Trail Section */}
-                {(drawerTab === "all" || drawerTab === "audit") && (
-                  <div className="space-y-3 pt-2">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground border-b border-border/80 pb-2">
-                      <span className="font-semibold uppercase tracking-wider text-[10px] flex items-center gap-1.5 text-foreground">
-                        <History className="h-3.5 w-3.5 text-amber-500" />
-                        Electronic Audit Trail ({activeHistoryComplaint.auditLogs?.length || 0})
-                      </span>
+                  {paginatedHistoryItems.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground text-xs bg-muted/20 rounded-lg border border-dashed border-border/80">
+                      {drawerTab === "communications" ? (
+                        <>
+                          <MessageSquare className="h-7 w-7 mx-auto mb-2 opacity-40 text-blue-500" />
+                          <p>No customer communications logged yet.</p>
+                        </>
+                      ) : drawerTab === "audit" ? (
+                        <>
+                          <History className="h-7 w-7 mx-auto mb-2 opacity-40 text-amber-500" />
+                          <p>No audit events recorded yet.</p>
+                        </>
+                      ) : (
+                        <>
+                          <History className="h-7 w-7 mx-auto mb-2 opacity-40" />
+                          <p>No history or audit events recorded yet.</p>
+                        </>
+                      )}
                     </div>
+                  ) : (
+                    <div className="relative pl-5 border-l-2 border-border space-y-4">
+                      {paginatedHistoryItems.map((item) => {
+                        if (item.type === "communication") {
+                          const comm = item.data;
+                          return (
+                            <div key={`comm-${comm.id}`} className="relative group">
+                              {/* Bullet dot */}
+                              <div className="absolute -left-[27px] top-1.5 h-3.5 w-3.5 rounded-full bg-card border-2 border-blue-500 ring-4 ring-background" />
 
-                    {!activeHistoryComplaint.auditLogs ||
-                    activeHistoryComplaint.auditLogs.length === 0 ? (
-                      <div className="text-center py-6 text-muted-foreground text-xs bg-muted/20 rounded-lg border border-dashed border-border/80">
-                        <History className="h-6 w-6 mx-auto mb-1.5 opacity-40" />
-                        <p>No audit events recorded yet.</p>
-                      </div>
-                    ) : (
-                      <div className="relative pl-5 border-l-2 border-primary/40 space-y-4">
-                        {activeHistoryComplaint.auditLogs.map((log, index) => (
-                          <div key={log.id} className="relative group">
-                            {/* Bullet point on timeline */}
-                            <div className="absolute -left-[27px] top-1 h-3 w-3 rounded-full bg-card border-2 border-primary" />
-
-                            <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 shadow-xs">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  {getAuditActionBadge(log.action)}
-                                  <span className="text-xs font-semibold text-foreground">
-                                    {log.reason || "Record Action"}
+                              <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 shadow-xs hover:border-blue-500/30 transition-colors">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant={comm.direction === "INBOUND" ? "secondary" : "outline"}
+                                      className="text-[10px] font-mono"
+                                    >
+                                      {comm.direction === "INBOUND" ? "📥 INBOUND" : "📤 OUTBOUND"}
+                                    </Badge>
+                                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                      <MessageSquare className="h-3 w-3 text-blue-500" />
+                                      Customer Contact
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-mono text-muted-foreground" suppressHydrationWarning>
+                                    {formatDateTime(comm.communicationDate)}
                                   </span>
                                 </div>
-                                <span className="text-[10px] font-mono text-muted-foreground">
-                                  #{activeHistoryComplaint.auditLogs!.length - index}
-                                </span>
-                              </div>
 
-                              <div className="text-[11px] text-muted-foreground flex items-center justify-between font-mono">
-                                <span>
-                                  By:{" "}
+                                <div className="text-[11px] text-muted-foreground">
+                                  Logged by:{" "}
                                   <strong className="text-foreground font-sans font-medium">
-                                    {log.changedBy?.firstName
-                                      ? `${log.changedBy.firstName} ${log.changedBy.lastName ?? ""}`
-                                      : log.changedBy?.email || log.changedById}
+                                    {comm.author?.firstName
+                                      ? `${comm.author.firstName} ${comm.author.lastName ?? ""}`
+                                      : comm.author?.email || "System"}
                                   </strong>
-                                </span>
-                                <span>{new Date(log.timestamp).toLocaleString()}</span>
-                              </div>
-
-                              {/* Technical details or diff preview */}
-                              {Boolean(log.fieldChanges) && (
-                                <div className="pt-2 border-t border-border/80">
-                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
-                                    Field Modifications:
-                                  </span>
-                                  <pre className="text-[10px] font-mono bg-muted/50 p-2 rounded overflow-x-auto text-foreground">
-                                    {JSON.stringify(log.fieldChanges, null, 2)}
-                                  </pre>
                                 </div>
-                              )}
+
+                                <div className="rounded-lg bg-muted/40 p-2.5 text-xs text-foreground leading-relaxed whitespace-pre-wrap border border-border/40">
+                                  {comm.notes}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          );
+                        }
+
+                        if (item.type === "audit") {
+                          const log = item.data;
+                          return (
+                            <div key={`audit-${log.id}`} className="relative group">
+                              {/* Bullet point on timeline */}
+                              <div className="absolute -left-[27px] top-1.5 h-3.5 w-3.5 rounded-full bg-card border-2 border-amber-500 ring-4 ring-background" />
+
+                              <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 shadow-xs hover:border-amber-500/30 transition-colors">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    {getAuditActionBadge(log.action)}
+                                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                      <History className="h-3 w-3 text-amber-500" />
+                                      {log.reason || "Record Action"}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-mono text-muted-foreground">
+                                    #{item.logIndex}
+                                  </span>
+                                </div>
+
+                                <div className="text-[11px] text-muted-foreground flex items-center justify-between font-mono">
+                                  <span>
+                                    By:{" "}
+                                    <strong className="text-foreground font-sans font-medium">
+                                      {log.changedBy?.firstName
+                                        ? `${log.changedBy.firstName} ${log.changedBy.lastName ?? ""}`
+                                        : log.changedBy?.email || log.changedById}
+                                    </strong>
+                                  </span>
+                                  <span suppressHydrationWarning>{formatDateTime(log.timestamp)}</span>
+                                </div>
+
+                                {/* Technical details or diff preview */}
+                                {Boolean(log.fieldChanges) &&
+                                  Array.isArray(log.fieldChanges) &&
+                                  (log.fieldChanges as Record<string, unknown>[]).length > 0 && (
+                                    <div className="pt-2 border-t border-border/80 space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                                          Field Modifications:
+                                        </span>
+                                        <span className="text-[10px] font-mono text-muted-foreground">
+                                          {(log.fieldChanges as Record<string, unknown>[]).length} field{(log.fieldChanges as Record<string, unknown>[]).length > 1 ? "s" : ""} changed
+                                        </span>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        {(log.fieldChanges as Record<string, unknown>[]).map(
+                                          (change: Record<string, unknown>, idx: number) => {
+                                            const rawKey = String(change.field || change.fieldId || "");
+                                            const fieldLabel = String(change.fieldLabel || formatFieldTitle(rawKey));
+                                            const isComplex =
+                                              typeof change.oldValue === "object" ||
+                                              typeof change.newValue === "object";
+                                            const diffs = extractDetailedDiffs(change.oldValue, change.newValue);
+
+                                            return (
+                                              <div
+                                                key={idx}
+                                                className="rounded-lg border border-border/60 bg-muted/30 p-2.5 space-y-1.5 text-xs"
+                                              >
+                                                {/* Field Label Header */}
+                                                <div className="flex items-center justify-between gap-2">
+                                                  <div className="flex items-center gap-1.5">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                                    <span className="font-semibold text-foreground text-[11px] font-sans">
+                                                      {fieldLabel}
+                                                    </span>
+                                                    {rawKey && rawKey !== fieldLabel && (
+                                                      <span className="text-[10px] font-mono text-muted-foreground">
+                                                        ({rawKey})
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  {isComplex && (
+                                                    <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/60">
+                                                      Structured Data
+                                                    </span>
+                                                  )}
+                                                </div>
+
+                                                {/* Visual Diff Badges */}
+                                                <div className="space-y-1.5">
+                                                  {diffs.map((diff, dIdx) => (
+                                                    <div
+                                                      key={dIdx}
+                                                      className="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-background/80 p-1.5 rounded border border-border/50 text-[11px] font-mono"
+                                                    >
+                                                      {diff.label && (
+                                                        <span className="text-muted-foreground font-medium text-[10px] sm:min-w-[110px] shrink-0">
+                                                          {diff.label}:
+                                                        </span>
+                                                      )}
+                                                      <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                                                        <span className="line-through text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
+                                                          {diff.oldDisplay}
+                                                        </span>
+                                                        <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                                                        <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
+                                                          {diff.newDisplay}
+                                                        </span>
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+
+                                                {/* Expandable formatted raw JSON for deep inspection */}
+                                                {isComplex && (
+                                                  <details className="text-[10px] font-mono pt-1 text-muted-foreground cursor-pointer group">
+                                                    <summary className="hover:text-foreground transition-colors select-none">
+                                                      View raw formatted JSON
+                                                    </summary>
+                                                    <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-card p-2 rounded border border-border">
+                                                      <div>
+                                                        <span className="block text-[9px] uppercase tracking-wider font-semibold text-rose-500 mb-1">
+                                                          Previous (Old)
+                                                        </span>
+                                                        <pre className="p-2 rounded bg-rose-500/5 text-rose-700 dark:text-rose-300 overflow-x-auto text-[10px] leading-tight border border-rose-500/10 max-h-48 overflow-y-auto">
+                                                          {JSON.stringify(cleanNoise(change.oldValue), null, 2)}
+                                                        </pre>
+                                                      </div>
+                                                      <div>
+                                                        <span className="block text-[9px] uppercase tracking-wider font-semibold text-emerald-500 mb-1">
+                                                          Updated (New)
+                                                        </span>
+                                                        <pre className="p-2 rounded bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 overflow-x-auto text-[10px] leading-tight border border-emerald-500/10 max-h-48 overflow-y-auto">
+                                                          {JSON.stringify(cleanNoise(change.newValue), null, 2)}
+                                                        </pre>
+                                                      </div>
+                                                    </div>
+                                                  </details>
+                                                )}
+                                              </div>
+                                            );
+                                          }
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalHistoryItems > 0 && (
+                  <div className="pt-4 border-t border-border/80 space-y-2">
+                    <Pagination className="w-full justify-center">
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (currentHistoryPage > 1) {
+                                setHistoryPage((p) => Math.max(1, p - 1));
+                              }
+                            }}
+                            className={
+                              currentHistoryPage <= 1
+                                ? "pointer-events-none opacity-50 cursor-not-allowed"
+                                : "cursor-pointer"
+                            }
+                          />
+                        </PaginationItem>
+
+                        {Array.from({ length: totalHistoryPages }).map((_, i) => {
+                          const pageNum = i + 1;
+                          return (
+                            <PaginationItem key={pageNum}>
+                              <PaginationLink
+                                href="#"
+                                isActive={currentHistoryPage === pageNum}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setHistoryPage(pageNum);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                {pageNum}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        })}
+
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (currentHistoryPage < totalHistoryPages) {
+                                setHistoryPage((p) => Math.min(totalHistoryPages, p + 1));
+                              }
+                            }}
+                            className={
+                              currentHistoryPage >= totalHistoryPages
+                                ? "pointer-events-none opacity-50 cursor-not-allowed"
+                                : "cursor-pointer"
+                            }
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                    <div className="text-[11px] text-muted-foreground text-center font-mono">
+                      Page {currentHistoryPage} of {totalHistoryPages} (Max {MAX_HISTORY_PAGES} pages) &bull; {totalHistoryItems} total records
+                    </div>
                   </div>
                 )}
               </div>
@@ -1227,7 +1780,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
               <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-between text-xs">
                 <span className="text-muted-foreground text-[11px] flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                  Append-only immutable record (21 CFR Part 11)
+                  History record &bull; Max {MAX_HISTORY_PAGES} pages
                 </span>
                 <button
                   type="button"

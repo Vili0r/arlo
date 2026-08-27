@@ -256,9 +256,6 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
             </BreadcrumbList>
           </Breadcrumb>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-[11px] font-mono">
-              21 CFR Part 11
-            </Badge>
             <Badge variant="secondary" className="text-[11px]">
               {orgSlug}
             </Badge>

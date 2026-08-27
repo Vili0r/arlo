@@ -67,6 +67,7 @@ import {
 import { useOrganization } from "@clerk/nextjs";
 import { FileUploader } from "@/components/file-uploader";
 import { ComplaintFormSchema, type ComplaintFormValues } from "@/lib/validations/complaint";
+import { StatusTransitionTracker } from "@/components/status-transition-tracker";
 
 interface CustomerCommunicationItem {
   id: string;
@@ -473,7 +474,7 @@ export function ComplaintEditForm({
   return (
     <div className="w-full flex justify-center py-6 px-4">
       {/* Centered Container */}
-      <div className="w-full max-w-4xl space-y-6">
+      <div className="w-full max-w-6xl space-y-6">
         {/* Navigation & Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <Breadcrumb>
@@ -487,16 +488,15 @@ export function ComplaintEditForm({
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs font-bold text-primary px-2.5 py-1 rounded bg-primary/10 border border-primary/20">
-              {complaint.complaintNumber}
-            </span>
-            <Badge variant="outline" className="text-[11px] font-mono">
-              21 CFR Part 11
-            </Badge>
-            <Badge variant="secondary" className="text-[11px]">
-              {orgSlug}
-            </Badge>
+          <div className="flex items-center gap-3">
+            <StatusTransitionTracker
+              entityType="Complaint"
+              entityId={complaint.id}
+              currentStatus={complaint.status}
+              onStatusChanged={() => {
+                router.refresh();
+              }}
+            />
           </div>
         </div>
 
@@ -618,22 +618,6 @@ export function ComplaintEditForm({
                           <option value={Priority.MEDIUM}>Medium</option>
                           <option value={Priority.HIGH}>High</option>
                           <option value={Priority.CRITICAL}>Critical</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="status" className="text-xs">
-                          Complaint Status <span className="text-destructive">*</span>
-                        </Label>
-                        <select
-                          id="status"
-                          {...register("status")}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          <option value={ComplaintStatus.OPEN}>Open</option>
-                          <option value={ComplaintStatus.UNDER_INVESTIGATION}>Under Investigation</option>
-                          <option value={ComplaintStatus.PENDING_REVIEW}>Pending Review</option>
-                          <option value={ComplaintStatus.CLOSED}>Closed</option>
                         </select>
                       </div>
 

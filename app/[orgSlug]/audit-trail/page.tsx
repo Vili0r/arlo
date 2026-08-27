@@ -32,9 +32,6 @@ export default async function AuditTrailPage({
             <h1 className="text-2xl font-bold tracking-tight">
               Electronic Audit Trail
             </h1>
-            <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-xs font-mono font-medium text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
-              <Lock className="h-3 w-3" /> 21 CFR Part 11 Compliant
-            </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             Immutable, append-only chronological record of all quality operations for{" "}

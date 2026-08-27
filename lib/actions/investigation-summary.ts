@@ -107,7 +107,7 @@ export async function signAndCompleteInvestigationSummary(data: SaveInvestigatio
         action: AuditAction.APPROVE_CLOSE,
         changedById: userId,
         newData: summary as unknown as Prisma.InputJsonValue,
-        reason: "Signed and Locked Investigation Summary (21 CFR Part 11)",
+        reason: "Signed and Locked Investigation Summary",
       },
     });
 

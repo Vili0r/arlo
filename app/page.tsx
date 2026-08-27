@@ -46,7 +46,7 @@ export default async function Home() {
             <div>
               <span className="text-base font-bold tracking-tight">Arlo</span>
               <span className="ml-2 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground uppercase">
-                PMS & 21 CFR Part 11
+                PMS
               </span>
             </div>
           </div>

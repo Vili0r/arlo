@@ -105,9 +105,6 @@ export function WorkspaceShell({
     if (cleanPath.endsWith("/capa") || cleanPath === "/capa" || cleanPath.includes("/capa/")) {
       return "CAPA Management";
     }
-    if (cleanPath.endsWith("/audit-trail") || cleanPath === "/audit-trail") {
-      return "Audit Trail (21 CFR Part 11)";
-    }
 
     // Fallback: parse segments excluding orgSlug
     const segments = cleanPath.split("/").filter(Boolean);
@@ -148,19 +145,10 @@ export function WorkspaceShell({
       icon: SlidersHorizontal,
     },
     {
-      title: "Audit Trail (21 CFR Part 11)",
-      href: "/audit-trail",
-      icon: History,
-      badge: "Validated",
-      badgeColor: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
-    },
-    {
       title: "Organization & Users",
       onClick: () => openOrganizationProfile(),
       href: "#",
       icon: Users,
-      badge: "Clerk Admin",
-      badgeColor: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
     },
   ];
 
@@ -254,12 +242,6 @@ export function WorkspaceShell({
                     <Icon className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
                     <span className="truncate">{item.title}</span>
                   </div>
-
-                  {item.badge && (
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-medium ${item.badgeColor}`}>
-                      {item.badge}
-                    </span>
-                  )}
                 </button>
               );
             }
@@ -284,12 +266,6 @@ export function WorkspaceShell({
                   />
                   <span className="truncate">{item.title}</span>
                 </div>
-
-                {item.badge && (
-                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-medium ${item.badgeColor}`}>
-                    {item.badge}
-                  </span>
-                )}
               </Link>
             );
           })}

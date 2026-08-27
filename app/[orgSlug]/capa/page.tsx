@@ -114,8 +114,8 @@ export default async function CapaPage({ params }: CapaPageProps) {
                     <td className="py-3.5 px-4 font-mono text-muted-foreground">
                       {capa.complaint?.complaintNumber || "Direct Quality Trigger"}
                     </td>
-                    <td className="py-3.5 px-4 text-muted-foreground font-mono">
-                      {new Date(capa.createdAt).toLocaleDateString()}
+                    <td className="py-3.5 px-4 text-muted-foreground font-mono" suppressHydrationWarning>
+                      {new Date(capa.createdAt).toLocaleDateString("en-US", { timeZone: "UTC" })}
                     </td>
                   </tr>
                 ))}

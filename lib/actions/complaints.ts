@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { requireOrgAuth, PERMISSIONS } from "@/lib/auth-guard";
 import { generateJsonDiff } from "@/lib/json-diff";
+import { generateAuditDiff } from "@/utils/auditDiff";
+import { revalidatePath } from "next/cache";
 import type { FormSchemaDefinition } from "@/lib/types/form-template.types";
 import {
   Priority,
@@ -411,7 +413,7 @@ export async function updateComplaintWithRelations(
 ) {
   const { userId, orgId } = await requireOrgAuth(PERMISSIONS.COMPLAINTS_CREATE);
 
-  return await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const existing = await tx.complaint.findUnique({
       where: { id: data.complaintId, orgId },
       include: {
@@ -544,6 +546,11 @@ export async function updateComplaintWithRelations(
     });
 
     // Create 21 CFR Part 11 AuditLog for UPDATE
+    const fieldChanges = generateAuditDiff(
+      existing as unknown as Record<string, unknown>,
+      fullyUpdated as unknown as Record<string, unknown>
+    );
+
     await tx.auditLog.create({
       data: {
         orgId,
@@ -554,12 +561,16 @@ export async function updateComplaintWithRelations(
         previousData: existing as unknown as Prisma.InputJsonValue,
         newData: fullyUpdated as unknown as Prisma.InputJsonValue,
         reason: `Updated complaint details (${updated.complaintNumber})`,
+        fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
         complaintId: data.complaintId,
       },
     });
 
     return fullyUpdated;
   });
+
+  revalidatePath("/[orgSlug]/complaints", "page");
+  return result;
 }
 
 export interface AddCustomerCommunicationInput {
