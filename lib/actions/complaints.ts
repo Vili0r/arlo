@@ -11,6 +11,7 @@ import {
   ComplaintStatus,
   Death,
   CommunicationDirection,
+  CommunicationStatus,
   SampleStatus,
   InvestigationStatus,
   VigilanceStatus,
@@ -287,7 +288,7 @@ export async function createComplaintWithRelations(
           complaintId: complaint.id,
           communicationDate: new Date(),
           direction: CommunicationDirection.INBOUND,
-          notes:
+          internalNotes:
             data.initialCommunicationNotes ||
             `Initial customer intake communication logged for ${data.customerName}.`,
           authorId: userId,
@@ -575,9 +576,14 @@ export async function updateComplaintWithRelations(
 
 export interface AddCustomerCommunicationInput {
   complaintId: string;
-  notes: string;
-  direction: CommunicationDirection;
+  notes?: string;
+  internalNotes?: string;
+  questionAsked?: string | null;
+  customerResponse?: string | null;
+  status?: CommunicationStatus;
+  direction?: CommunicationDirection;
   communicationDate?: Date | string;
+  attachments?: AttachmentInput[];
 }
 
 export async function addCustomerCommunication(
@@ -590,17 +596,36 @@ export async function addCustomerCommunication(
       data: {
         orgId,
         complaintId: data.complaintId,
-        notes: data.notes,
-        direction: data.direction,
+        internalNotes: data.internalNotes ?? data.notes ?? null,
+        questionAsked: data.questionAsked ?? null,
+        customerResponse: data.customerResponse ?? null,
+        status: data.status ?? "OPEN",
+        direction: data.direction ?? CommunicationDirection.INBOUND,
         communicationDate: data.communicationDate
           ? new Date(data.communicationDate)
           : new Date(),
         authorId: userId,
+        ...(data.attachments && data.attachments.length > 0
+          ? {
+              attachments: {
+                create: data.attachments.map((att) => ({
+                  orgId,
+                  complaintId: data.complaintId,
+                  fileUrl: att.fileUrl,
+                  fileName: att.fileName,
+                  fileSize: att.fileSize ?? null,
+                  mimeType: att.mimeType ?? null,
+                  uploadedById: userId,
+                })),
+              },
+            }
+          : {}),
       },
       include: {
         author: {
           select: { email: true, firstName: true, lastName: true },
         },
+        attachments: true,
       },
     });
 
@@ -612,7 +637,7 @@ export async function addCustomerCommunication(
         action: AuditAction.CREATE,
         changedById: userId,
         newData: communication as unknown as Prisma.InputJsonValue,
-        reason: `Logged ${data.direction} customer communication`,
+        reason: `Logged ${communication.direction} customer communication`,
         complaintId: data.complaintId,
       },
     });

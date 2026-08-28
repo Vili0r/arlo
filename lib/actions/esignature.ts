@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireOrgAuth } from "@/lib/auth-guard";
+import { requireOrgAuth, ROLES, PERMISSIONS } from "@/lib/auth-guard";
 import { generateAuditDiff } from "@/utils/auditDiff";
 import {
   isTransitionAllowed,
@@ -10,7 +10,7 @@ import {
   type EntityType,
 } from "@/lib/constants/status-transitions";
 import { AuditAction, Prisma } from "@prisma/client";
-import { clerkClient } from "@clerk/nextjs/server";
+import { clerkClient, auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import * as z from "zod";
 
@@ -23,7 +23,12 @@ import * as z from "zod";
 // =============================================================================
 
 const ExecuteStatusTransitionSchema = z.object({
-  entityType: z.enum(["Complaint", "Investigation", "Vigilance"]),
+  entityType: z.enum([
+    "Complaint",
+    "Investigation",
+    "Vigilance",
+    "CustomerCommunication",
+  ]),
   entityId: z.string().min(1, "Entity ID is required"),
   newStatus: z.string().min(1, "Target status is required"),
   password: z.string().min(1, "Password is required for electronic signature"),
@@ -162,6 +167,99 @@ export async function executeStatusTransition(
         );
       }
 
+      // 5b-1. Permission Guardrails for Final Approval and Reopening
+      if (
+        (entityType === "Investigation" || entityType === "Complaint") &&
+        (newStatus === "COMPLETED" ||
+          newStatus === "CLOSED" ||
+          currentStatus === "COMPLETED" ||
+          currentStatus === "CLOSED")
+      ) {
+        const authContext = await auth();
+        const isAdmin =
+          authContext.orgRole === ROLES.ADMIN ||
+          Boolean(authContext.has?.({ role: ROLES.ADMIN }));
+        const isQAManager =
+          authContext.orgRole === ROLES.QA_MANAGER ||
+          Boolean(authContext.has?.({ role: ROLES.QA_MANAGER }));
+        const hasApprovalPermission = Boolean(
+          authContext.has?.({
+            permission: PERMISSIONS.COMPLAINTS_APPROVE_CLOSE,
+          })
+        );
+
+        if (!isAdmin && !isQAManager && !hasApprovalPermission) {
+          const actionDesc =
+            newStatus === "COMPLETED" || newStatus === "CLOSED"
+              ? "approve and complete"
+              : "reopen / revert from completed";
+          throw new Error(
+            `403 Forbidden: Only QA Managers and Administrators have the required permissions to ${actionDesc} this ${entityType}.`
+          );
+        }
+      }
+
+      // 5b-2. Direct Linkages Closure Guard for Complaint Closure
+      if (entityType === "Complaint" && newStatus === "CLOSED") {
+        const fullComplaint = await tx.complaint.findUnique({
+          where: { id: entityId, orgId },
+          include: {
+            investigation: true,
+            vigilanceDecisionTree: true,
+            capas: {
+              where: { deletedAt: null },
+            },
+          },
+        });
+
+        if (!fullComplaint) {
+          throw new Error("Complaint not found.");
+        }
+
+        const blockingReasons: string[] = [];
+
+        // 1. Check Investigation linkage
+        if (
+          fullComplaint.investigation &&
+          fullComplaint.investigation.status !== "COMPLETED" &&
+          fullComplaint.investigation.status !== "NOT_REQUIRED"
+        ) {
+          blockingReasons.push(
+            `Investigation is still open (current status: ${fullComplaint.investigation.status.replace(/_/g, " ")})`
+          );
+        }
+
+        // 2. Check Vigilance Decision Tree linkage
+        if (
+          fullComplaint.vigilanceDecisionTree &&
+          fullComplaint.vigilanceDecisionTree.status !== "SUBMITTED" &&
+          fullComplaint.vigilanceDecisionTree.status !== "NOT_REPORTABLE"
+        ) {
+          blockingReasons.push(
+            `Vigilance Decision Tree assessment is not finalized (current status: ${fullComplaint.vigilanceDecisionTree.status.replace(/_/g, " ")})`
+          );
+        }
+
+        // 3. Check CAPAs linkage
+        if (fullComplaint.capas && fullComplaint.capas.length > 0) {
+          const openCapas = fullComplaint.capas.filter(
+            (c) => c.status !== "CLOSED"
+          );
+          if (openCapas.length > 0) {
+            const capaNumbers = openCapas.map((c) => c.capaNumber).join(", ");
+            blockingReasons.push(
+              `Active CAPA(s) are not closed: ${capaNumbers}`
+            );
+          }
+        }
+
+        if (blockingReasons.length > 0) {
+          throw new Error(
+            `Cannot close complaint: All direct linkages must be closed first:\n• ${blockingReasons.join("\n• ")}`
+          );
+        }
+      }
+
       const isRevert = isRevertTransition(
         entityType as EntityType,
         currentStatus,
@@ -276,6 +374,10 @@ async function fetchRecord(
       return tx.vigilanceDecisionTree.findUnique({
         where: { id: entityId, orgId },
       });
+    case "CustomerCommunication":
+      return tx.customerCommunication.findUnique({
+        where: { id: entityId, orgId },
+      });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);
   }
@@ -303,6 +405,11 @@ async function updateRecord(
       return tx.vigilanceDecisionTree.update({
         where: { id: entityId, orgId },
         data: { status: newStatus as Prisma.EnumVigilanceStatusFieldUpdateOperationsInput["set"] },
+      });
+    case "CustomerCommunication":
+      return tx.customerCommunication.update({
+        where: { id: entityId, orgId },
+        data: { status: newStatus as Prisma.EnumCommunicationStatusFieldUpdateOperationsInput["set"] },
       });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);

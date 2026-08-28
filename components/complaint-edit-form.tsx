@@ -27,6 +27,7 @@ import {
   Death,
   ComplaintStatus,
   CommunicationDirection,
+  CommunicationStatus,
   SampleStatus,
 } from "@prisma/client";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,11 @@ import { StatusTransitionTracker } from "@/components/status-transition-tracker"
 interface CustomerCommunicationItem {
   id: string;
   communicationDate: string;
-  notes: string;
+  status: CommunicationStatus;
+  questionAsked?: string | null;
+  customerResponse?: string | null;
+  internalNotes?: string | null;
+  notes?: string | null;
   direction: CommunicationDirection;
   authorId: string;
   author?: {
@@ -421,14 +426,18 @@ export function ComplaintEditForm({
     try {
       const created = await addCustomerCommunication({
         complaintId: complaint.id,
-        notes: newCommNotes,
+        internalNotes: newCommNotes,
         direction: newCommDirection,
       });
       setCommunications((prev) => [
         {
           id: created.id,
           communicationDate: created.communicationDate.toISOString(),
-          notes: created.notes,
+          status: created.status,
+          questionAsked: created.questionAsked,
+          customerResponse: created.customerResponse,
+          internalNotes: created.internalNotes,
+          notes: created.internalNotes || "",
           direction: created.direction,
           authorId: created.authorId,
           author: created.author,

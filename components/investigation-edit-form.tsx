@@ -403,17 +403,29 @@ export function InvestigationEditForm({
                       <span
                         className={cn(
                           "h-2 w-2 rounded-full",
-                          status === InvestigationStatus.COMPLETED
+                          (status as string) === "COMPLETED"
                             ? "bg-green-500"
-                            : status === InvestigationStatus.IN_PROGRESS
+                            : (status as string) === "UNDER_REVIEW"
+                            ? "bg-purple-500"
+                            : (status as string) === "IN_PROGRESS"
                             ? "bg-amber-500"
-                            : status === InvestigationStatus.NOT_REQUIRED
+                            : (status as string) === "NOT_REQUIRED"
                             ? "bg-zinc-400"
                             : "bg-blue-500"
                         )}
                       />
                       <span className="font-medium text-foreground">
-                        {status.replace(/_/g, " ")}
+                        {(status as string) === "IN_PROGRESS"
+                          ? "Under Investigation"
+                          : (status as string) === "UNDER_REVIEW"
+                          ? "Under Review"
+                          : (status as string) === "NOT_STARTED"
+                          ? "Not Started"
+                          : (status as string) === "NOT_REQUIRED"
+                          ? "Not Required"
+                          : (status as string) === "COMPLETED"
+                          ? "Completed"
+                          : String(status)}
                       </span>
                       <span className="text-[11px] text-muted-foreground ml-auto">
                         Managed via e-signature stepper

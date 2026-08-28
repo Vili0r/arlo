@@ -121,6 +121,8 @@ enum ComplaintStatus {
   OPEN
   UNDER_INVESTIGATION
   PENDING_REVIEW
+  IN_PROGRESS
+  PENDING_RESPONSE
   CLOSED
   REOPENED
 }
@@ -143,6 +145,12 @@ enum CommunicationDirection {
   OUTBOUND
 }
 
+enum CommunicationStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
 enum SampleStatus {
   PENDING
   RECEIVED
@@ -155,6 +163,7 @@ enum SampleStatus {
 enum InvestigationStatus {
   NOT_STARTED
   IN_PROGRESS
+  UNDER_REVIEW
   COMPLETED
   NOT_REQUIRED
 }
@@ -311,8 +320,11 @@ model CustomerCommunication {
   orgId             String // Multi-tenant isolation
   complaintId       String
   communicationDate DateTime               @default(now())
-  notes             String
+  status            CommunicationStatus    @default(OPEN)
   direction         CommunicationDirection @default(INBOUND)
+  questionAsked     String?
+  customerResponse  String?
+  internalNotes     String?
   authorId          String // Clerk User ID
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
@@ -320,6 +332,7 @@ model CustomerCommunication {
   organization Organization @relation(fields: [orgId], references: [id])
   complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
   author       User?        @relation(fields: [authorId], references: [id])
+  attachments  Attachment[]
 
   @@index([orgId])
   @@index([complaintId])
@@ -452,16 +465,16 @@ model VigilanceDecisionTree {
 }
 
 model Attachment {
-  id           String   @id @default(cuid())
-  orgId        String // Multi-tenant isolation
-  complaintId  String
-  fileUrl      String
-  fileName     String
-  fileSize     Int?
-  mimeType     String?
-  uploadedById String // Clerk User ID
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String                 @id @default(cuid())
+  orgId           String // Multi-tenant isolation
+  complaintId     String
+  fileUrl         String
+  fileName        String
+  fileSize        Int?
+  mimeType        String?
+  uploadedById    String // Clerk User ID
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   organization    Organization           @relation(fields: [orgId], references: [id])
   complaint       Complaint              @relation(fields: [complaintId], references: [id], onDelete: Cascade)
@@ -470,12 +483,15 @@ model Attachment {
   investigation   Investigation?         @relation(fields: [investigationId], references: [id], onDelete: Cascade)
   vigilanceId     String?
   vigilance       VigilanceDecisionTree? @relation(fields: [vigilanceId], references: [id], onDelete: Cascade)
+  communicationId String?
+  communication   CustomerCommunication? @relation(fields: [communicationId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
   @@index([complaintId])
   @@index([uploadedById])
   @@index([investigationId])
   @@index([vigilanceId])
+  @@index([communicationId])
 }
 
 // -------------------------------------------------------------

@@ -67,6 +67,7 @@ import {
   ContextMenuLabel,
 } from "@/components/ui/context-menu";
 import { AuditHistoryDrawer } from "@/components/audit/audit-history-drawer";
+import { cn } from "@/lib/utils";
 
 
 export interface RelatedProduct {
@@ -96,7 +97,11 @@ export interface RelatedPatient {
 export interface RelatedCommunication {
   id: string;
   communicationDate: Date | string;
-  notes: string;
+  status?: string;
+  questionAsked?: string | null;
+  customerResponse?: string | null;
+  internalNotes?: string | null;
+  notes?: string | null;
   direction: string;
   author?: {
     email: string;
@@ -543,31 +548,107 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
     }
   };
 
-  const getStatusBadge = (status: ComplaintStatus) => {
-    switch (status) {
+  const getStatusBadge = (status: ComplaintStatus | string) => {
+    switch (status as string) {
       case "CLOSED":
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
             <CheckCircle className="h-3 w-3" /> Closed
           </span>
         );
-      case "UNDER_INVESTIGATION":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-            <Clock className="h-3 w-3" /> Investigating
-          </span>
-        );
+      case "PENDING_RESPONSE":
       case "PENDING_REVIEW":
         return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2.5 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400 border border-purple-500/20">
-            Pending Review
+          <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400 border border-orange-500/20">
+            <Clock className="h-3 w-3" /> Pending Response
+          </span>
+        );
+      case "IN_PROGRESS":
+      case "UNDER_INVESTIGATION":
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 border border-amber-500/20">
+            <Clock className="h-3 w-3" /> In Progress
+          </span>
+        );
+      case "REOPENED":
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400 border border-rose-500/20">
+            Reopened
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 border border-amber-500/20">
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-500/20">
             Open
           </span>
+        );
+    }
+  };
+
+  const getInvestigationStatusBadge = (
+    status: InvestigationStatus | string,
+    className?: string
+  ) => {
+    switch (status as string) {
+      case "COMPLETED":
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+              className
+            )}
+          >
+            Completed
+          </Badge>
+        );
+      case "UNDER_REVIEW":
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-purple-500/10 text-purple-600 border-purple-500/20",
+              className
+            )}
+          >
+            Under Review
+          </Badge>
+        );
+      case "IN_PROGRESS":
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-indigo-500/10 text-indigo-600 border-indigo-500/20",
+              className
+            )}
+          >
+            Under Investigation
+          </Badge>
+        );
+      case "NOT_REQUIRED":
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-zinc-500/10 text-zinc-600 border-zinc-500/20",
+              className
+            )}
+          >
+            Not Required
+          </Badge>
+        );
+      default:
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-zinc-500/10 text-zinc-600 border-zinc-500/20",
+              className
+            )}
+          >
+            {String(status).replace(/_/g, " ")}
+          </Badge>
         );
     }
   };
@@ -913,10 +994,9 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                     entityType: "Investigation",
                                     href: `/${orgSlug}/complaints/${c.id}/investigation`,
                                     title: "Investigation",
-                                    badge: (
-                                      <Badge variant="outline" className="text-[10px] bg-indigo-500/10 text-indigo-600 border-indigo-500/20">
-                                        {investigation.status}
-                                      </Badge>
+                                    badge: getInvestigationStatusBadge(
+                                      investigation.status,
+                                      "text-[10px]"
                                     ),
                                     desc: investigation.rootCauseDesc || "Root cause investigation open / not started.",
                                     icon: <SearchCode className="h-3.5 w-3.5 text-indigo-500" />,
@@ -949,7 +1029,12 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                     {formatDate(comm.communicationDate)}
                                   </span>
                                 ),
-                                desc: comm.notes,
+                                desc:
+                                  comm.questionAsked ||
+                                  comm.customerResponse ||
+                                  comm.internalNotes ||
+                                  comm.notes ||
+                                  "",
                                 icon: <MessageSquare className="h-3.5 w-3.5 text-blue-500" />,
                               })),
                             ].filter(Boolean) as Array<{
@@ -1256,10 +1341,9 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             icon: <SearchCode className="h-3.5 w-3.5" />,
                                             iconColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
                                             title: "Formal Investigation Workflow",
-                                            badge: (
-                                              <Badge variant="outline" className="text-[9px] bg-indigo-500/10 text-indigo-600 border-indigo-500/20 py-0">
-                                                {investigation.status}
-                                              </Badge>
+                                            badge: getInvestigationStatusBadge(
+                                              investigation.status,
+                                              "text-[9px] py-0"
                                             ),
                                             desc: investigation.rootCauseDesc || "Investigation workflow initialized and open.",
                                             rightMeta: (
@@ -1307,7 +1391,12 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             {comm.direction}
                                           </Badge>
                                         ),
-                                        desc: comm.notes,
+                                        desc:
+                                           comm.questionAsked ||
+                                           comm.customerResponse ||
+                                           comm.internalNotes ||
+                                           comm.notes ||
+                                           "",
                                         rightMeta: (
                                           <span suppressHydrationWarning>{formatDateTime(comm.communicationDate)}</span>
                                         ),

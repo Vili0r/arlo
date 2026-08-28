@@ -193,14 +193,6 @@ export function StatusTransitionTracker({
         </div>
       )}
 
-      {/* Terminal state indicator (no forward or backward transitions) */}
-      {!hasActions && (
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground border-l pl-4 border-border">
-          <Lock className="h-3 w-3" />
-          Terminal Status
-        </div>
-      )}
-
       {/* E-Signature Modal */}
       {selectedTarget && (
         <ESignatureModal

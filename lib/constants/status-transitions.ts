@@ -2,6 +2,7 @@ import {
   ComplaintStatus,
   InvestigationStatus,
   VigilanceStatus,
+  CommunicationStatus,
 } from "@prisma/client";
 
 // =============================================================================
@@ -12,7 +13,11 @@ import {
 // must be validated and documented per ISO 13485 change control.
 // =============================================================================
 
-export type EntityType = "Complaint" | "Investigation" | "Vigilance";
+export type EntityType =
+  | "Complaint"
+  | "Investigation"
+  | "Vigilance"
+  | "CustomerCommunication";
 
 export interface StatusStepConfig {
   /** The enum value stored in the database */
@@ -34,7 +39,11 @@ export interface StatusStepConfig {
 export interface EntityStatusConfig {
   entityType: EntityType;
   /** Prisma model name used for DB queries */
-  modelName: "complaint" | "investigation" | "vigilanceDecisionTree";
+  modelName:
+    | "complaint"
+    | "investigation"
+    | "vigilanceDecisionTree"
+    | "customerCommunication";
   /** The field name that holds the status */
   statusField: "status";
   /** Ordered array of steps for the horizontal stepper */
@@ -56,9 +65,15 @@ export type SignatureMeaning = (typeof SIGNATURE_MEANINGS)[number];
 
 // -----------------------------------------------------------------------------
 // Complaint Lifecycle
-// OPEN → UNDER_INVESTIGATION → PENDING_REVIEW → CLOSED
-// REOPENED branches back into UNDER_INVESTIGATION
+// OPEN → IN_PROGRESS → PENDING_RESPONSE → CLOSED
+// REOPENED branches back into IN_PROGRESS
 // -----------------------------------------------------------------------------
+
+const COMPLAINT_IN_PROGRESS =
+  (ComplaintStatus as Record<string, string>).IN_PROGRESS || "IN_PROGRESS";
+const COMPLAINT_PENDING_RESPONSE =
+  (ComplaintStatus as Record<string, string>).PENDING_RESPONSE ||
+  "PENDING_RESPONSE";
 
 export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
   entityType: "Complaint",
@@ -68,46 +83,50 @@ export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
     {
       value: ComplaintStatus.OPEN,
       label: "Open",
-      description: "Complaint has been logged and is awaiting triage.",
+      description:
+        "Complaint has been logged and is awaiting triage and assignment.",
       color: "bg-blue-500",
-      allowedNextStatuses: [ComplaintStatus.UNDER_INVESTIGATION],
+      allowedNextStatuses: [COMPLAINT_IN_PROGRESS],
       allowedPreviousStatuses: [],
     },
     {
-      value: ComplaintStatus.UNDER_INVESTIGATION,
-      label: "Under Investigation",
+      value: COMPLAINT_IN_PROGRESS,
+      label: "In Progress",
       description:
-        "Investigation is actively underway by the assigned investigator.",
+        "Complaint workflows, investigations, and communications are actively underway.",
       color: "bg-amber-500",
-      allowedNextStatuses: [ComplaintStatus.PENDING_REVIEW],
+      allowedNextStatuses: [COMPLAINT_PENDING_RESPONSE],
       allowedPreviousStatuses: [ComplaintStatus.OPEN],
     },
     {
-      value: ComplaintStatus.PENDING_REVIEW,
-      label: "Pending Review",
+      value: COMPLAINT_PENDING_RESPONSE,
+      label: "Pending Response",
       description:
-        "Investigation is complete. Awaiting QA Manager review and sign-off.",
+        "Workflows completed. Awaiting final customer communication or regulatory sign-off.",
       color: "bg-orange-500",
       allowedNextStatuses: [ComplaintStatus.CLOSED],
-      allowedPreviousStatuses: [ComplaintStatus.UNDER_INVESTIGATION],
+      allowedPreviousStatuses: [COMPLAINT_IN_PROGRESS],
     },
     {
       value: ComplaintStatus.CLOSED,
       label: "Closed",
       description:
-        "Complaint has been resolved and closed with final disposition.",
+        "Complaint has been resolved and closed. All direct linkages are verified completed.",
       color: "bg-green-500",
       allowedNextStatuses: [ComplaintStatus.REOPENED],
-      allowedPreviousStatuses: [],
+      allowedPreviousStatuses: [
+        COMPLAINT_PENDING_RESPONSE,
+        COMPLAINT_IN_PROGRESS,
+      ],
     },
     {
       value: ComplaintStatus.REOPENED,
       label: "Reopened",
       description:
-        "Complaint was reopened due to new evidence or regulatory requirement.",
+        "Complaint was reopened due to new evidence, follow-up recurrence, or regulatory requirement.",
       color: "bg-red-500",
       isBranch: true,
-      allowedNextStatuses: [ComplaintStatus.UNDER_INVESTIGATION],
+      allowedNextStatuses: [COMPLAINT_IN_PROGRESS],
       allowedPreviousStatuses: [ComplaintStatus.CLOSED],
     },
   ],
@@ -115,9 +134,12 @@ export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
 
 // -----------------------------------------------------------------------------
 // Investigation Lifecycle
-// NOT_STARTED → IN_PROGRESS → COMPLETED
+// NOT_STARTED → IN_PROGRESS → UNDER_REVIEW → COMPLETED
 // NOT_REQUIRED is an alternative terminal branch from NOT_STARTED
 // -----------------------------------------------------------------------------
+
+const STATUS_UNDER_REVIEW =
+  (InvestigationStatus as Record<string, string>).UNDER_REVIEW || "UNDER_REVIEW";
 
 export const INVESTIGATION_STATUS_CONFIG: EntityStatusConfig = {
   entityType: "Investigation",
@@ -137,21 +159,33 @@ export const INVESTIGATION_STATUS_CONFIG: EntityStatusConfig = {
     },
     {
       value: InvestigationStatus.IN_PROGRESS,
-      label: "In Progress",
+      label: "Under Investigation",
       description:
         "Active investigation — sample analysis, risk review, or data collection underway.",
       color: "bg-amber-500",
-      allowedNextStatuses: [InvestigationStatus.COMPLETED],
+      allowedNextStatuses: [STATUS_UNDER_REVIEW],
       allowedPreviousStatuses: [InvestigationStatus.NOT_STARTED],
+    },
+    {
+      value: STATUS_UNDER_REVIEW,
+      label: "Under Review",
+      description:
+        "Investigation is submitted and awaiting formal review and sign-off by Quality Assurance.",
+      color: "bg-purple-500",
+      allowedNextStatuses: [InvestigationStatus.COMPLETED],
+      allowedPreviousStatuses: [InvestigationStatus.IN_PROGRESS],
     },
     {
       value: InvestigationStatus.COMPLETED,
       label: "Completed",
       description:
-        "Investigation is complete with summary signed and locked.",
+        "Investigation is complete with summary signed, approved, and locked.",
       color: "bg-green-500",
       allowedNextStatuses: [],
-      allowedPreviousStatuses: [InvestigationStatus.IN_PROGRESS],
+      allowedPreviousStatuses: [
+        STATUS_UNDER_REVIEW,
+        InvestigationStatus.IN_PROGRESS,
+      ],
     },
     {
       value: InvestigationStatus.NOT_REQUIRED,
@@ -220,6 +254,52 @@ export const VIGILANCE_STATUS_CONFIG: EntityStatusConfig = {
 };
 
 // -----------------------------------------------------------------------------
+// Customer Communication Lifecycle
+// OPEN → IN_PROGRESS → CLOSED
+// -----------------------------------------------------------------------------
+
+export const CUSTOMER_COMMUNICATION_STATUS_CONFIG: EntityStatusConfig = {
+  entityType: "CustomerCommunication",
+  modelName: "customerCommunication",
+  statusField: "status",
+  steps: [
+    {
+      value: CommunicationStatus.OPEN,
+      label: "Open",
+      description:
+        "Customer inquiry or clarification request has been logged and is pending action.",
+      color: "bg-amber-500",
+      allowedNextStatuses: [
+        CommunicationStatus.IN_PROGRESS,
+        CommunicationStatus.CLOSED,
+      ],
+      allowedPreviousStatuses: [],
+    },
+    {
+      value: CommunicationStatus.IN_PROGRESS,
+      label: "In Progress",
+      description:
+        "Inquiries dispatched to customer or customer response is actively being processed.",
+      color: "bg-purple-500",
+      allowedNextStatuses: [CommunicationStatus.CLOSED],
+      allowedPreviousStatuses: [CommunicationStatus.OPEN],
+    },
+    {
+      value: CommunicationStatus.CLOSED,
+      label: "Closed",
+      description:
+        "Customer communication completed, clarification received and documented.",
+      color: "bg-green-500",
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [
+        CommunicationStatus.IN_PROGRESS,
+        CommunicationStatus.OPEN,
+      ],
+    },
+  ],
+};
+
+// -----------------------------------------------------------------------------
 // Lookup helpers
 // -----------------------------------------------------------------------------
 
@@ -227,6 +307,7 @@ const CONFIG_MAP: Record<EntityType, EntityStatusConfig> = {
   Complaint: COMPLAINT_STATUS_CONFIG,
   Investigation: INVESTIGATION_STATUS_CONFIG,
   Vigilance: VIGILANCE_STATUS_CONFIG,
+  CustomerCommunication: CUSTOMER_COMMUNICATION_STATUS_CONFIG,
 };
 
 export function getStatusConfig(entityType: EntityType): EntityStatusConfig {
@@ -237,7 +318,46 @@ export function getStepConfig(
   entityType: EntityType,
   status: string
 ): StatusStepConfig | undefined {
-  return CONFIG_MAP[entityType].steps.find((s) => s.value === status);
+  const config = CONFIG_MAP[entityType];
+  if (!config) return undefined;
+
+  // Exact match
+  const exact = config.steps.find((s) => s.value === status);
+  if (exact) return exact;
+
+  // Case-insensitive match
+  const caseMatch = config.steps.find(
+    (s) => s.value.toLowerCase() === (status || "").toLowerCase()
+  );
+  if (caseMatch) return caseMatch;
+
+  // Fallback aliases for Complaint
+  if (entityType === "Complaint") {
+    if (status === "UNDER_INVESTIGATION" || status === "IN_PROGRESS") {
+      return (
+        config.steps.find((s) => s.value === "IN_PROGRESS") ||
+        config.steps.find((s) => s.value === "UNDER_INVESTIGATION")
+      );
+    }
+    if (status === "PENDING_REVIEW" || status === "PENDING_RESPONSE") {
+      return (
+        config.steps.find((s) => s.value === "PENDING_RESPONSE") ||
+        config.steps.find((s) => s.value === "PENDING_REVIEW")
+      );
+    }
+  }
+
+  // Fallback for Investigation
+  if (entityType === "Investigation") {
+    if (status === "IN_PROGRESS" || status === "UNDER_INVESTIGATION") {
+      return config.steps.find((s) => s.value === "IN_PROGRESS");
+    }
+    if (status === "UNDER_REVIEW" || status === "IN_REVIEW") {
+      return config.steps.find((s) => s.value === "UNDER_REVIEW");
+    }
+  }
+
+  return undefined;
 }
 
 export function isTransitionAllowed(
@@ -267,11 +387,15 @@ export function getNextStatuses(
   currentStatus: string
 ): StatusStepConfig[] {
   const step = getStepConfig(entityType, currentStatus);
-  if (!step) return [];
-  const config = getStatusConfig(entityType);
-  return config.steps.filter((s) =>
-    step.allowedNextStatuses.includes(s.value)
-  );
+  if (!step || !step.allowedNextStatuses) return [];
+  const seen = new Set<string>();
+  return step.allowedNextStatuses
+    .map((targetVal) => getStepConfig(entityType, targetVal))
+    .filter((s): s is StatusStepConfig => {
+      if (!s || seen.has(s.value)) return false;
+      seen.add(s.value);
+      return true;
+    });
 }
 
 export function getPreviousStatuses(
@@ -280,8 +404,12 @@ export function getPreviousStatuses(
 ): StatusStepConfig[] {
   const step = getStepConfig(entityType, currentStatus);
   if (!step || !step.allowedPreviousStatuses) return [];
-  const config = getStatusConfig(entityType);
-  return config.steps.filter((s) =>
-    step.allowedPreviousStatuses?.includes(s.value)
-  );
+  const seen = new Set<string>();
+  return step.allowedPreviousStatuses
+    .map((targetVal) => getStepConfig(entityType, targetVal))
+    .filter((s): s is StatusStepConfig => {
+      if (!s || seen.has(s.value)) return false;
+      seen.add(s.value);
+      return true;
+    });
 }
