@@ -58,6 +58,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuLabel,
+} from "@/components/ui/context-menu";
+import { AuditHistoryDrawer } from "@/components/audit/audit-history-drawer";
+
 
 export interface RelatedProduct {
   id: string;
@@ -132,6 +142,8 @@ export interface RelatedSample {
 
 export interface RelatedAuditLog {
   id: string;
+  entityType?: string;
+  entityId?: string;
   action: AuditAction;
   timestamp: Date | string;
   reason: string | null;
@@ -209,9 +221,14 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const [activeHistoryComplaint, setActiveHistoryComplaint] =
     React.useState<ComplaintRecord | null>(null);
-  const [drawerTab, setDrawerTab] = React.useState<
-    "all" | "communications" | "audit"
-  >("all");
+  const [activeSubWorkflowHistory, setActiveSubWorkflowHistory] =
+    React.useState<{
+      entityType: string;
+      entityId: string;
+      title: string;
+      subtitle?: string;
+      identifier?: string;
+    } | null>(null);
   const [historyPage, setHistoryPage] = React.useState(1);
   const [complaintsPage, setComplaintsPage] = React.useState(1);
 
@@ -220,10 +237,10 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
     setComplaintsPage(1);
   }, [searchQuery]);
 
-  // Reset history page when complaint or tab changes
+  // Reset history page when active complaint changes
   React.useEffect(() => {
     setHistoryPage(1);
-  }, [activeHistoryComplaint?.id, drawerTab]);
+  }, [activeHistoryComplaint?.id]);
 
   // Copy helper with temporary check indicator
   const copyToClipboard = (text: string) => {
@@ -593,52 +610,21 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
   const MAX_HISTORY_PAGES = 5;
   const HISTORY_ITEMS_PER_PAGE = 5;
 
-  type HistoryTimelineItem =
-    | {
-        type: "communication";
-        id: string;
-        timestamp: number;
-        data: RelatedCommunication;
-      }
-    | {
-        type: "audit";
-        id: string;
-        timestamp: number;
-        logIndex: number;
-        data: RelatedAuditLog;
-      };
-
-  const activeHistoryItems = React.useMemo<HistoryTimelineItem[]>(() => {
+  const activeHistoryItems = React.useMemo<RelatedAuditLog[]>(() => {
     if (!activeHistoryComplaint) return [];
 
-    const items: HistoryTimelineItem[] = [];
+    // Filter strictly to Complaint-level audit logs
+    const complaintLogs = (activeHistoryComplaint.auditLogs || []).filter(
+      (log) =>
+        log.entityType === "Complaint" ||
+        (!log.entityType && log.entityId === activeHistoryComplaint.id)
+    );
 
-    if (drawerTab === "all" || drawerTab === "communications") {
-      (activeHistoryComplaint.customerCommunications || []).forEach((comm) => {
-        items.push({
-          type: "communication",
-          id: comm.id,
-          timestamp: new Date(comm.communicationDate).getTime() || 0,
-          data: comm,
-        });
-      });
-    }
-
-    if (drawerTab === "all" || drawerTab === "audit") {
-      const logs = activeHistoryComplaint.auditLogs || [];
-      logs.forEach((log, index) => {
-        items.push({
-          type: "audit",
-          id: log.id,
-          timestamp: new Date(log.timestamp).getTime() || 0,
-          logIndex: logs.length - index,
-          data: log,
-        });
-      });
-    }
-
-    return items.sort((a, b) => b.timestamp - a.timestamp);
-  }, [activeHistoryComplaint, drawerTab]);
+    return complaintLogs.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [activeHistoryComplaint]);
 
   const totalHistoryItems = activeHistoryItems.length;
   const totalHistoryPages = Math.min(
@@ -916,71 +902,163 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                           </span>
                         </div>
 
-                        {/* Vertical Tree Connector */}
-                        <div className="relative pl-5 ml-2 border-l-2 border-primary/30 space-y-2.5">
-                          {/* 1. Investigation */}
-                          {investigation && (
-                            <div className="relative group text-xs">
-                              {/* Horizontal branch line */}
-                              <div className="absolute -left-5 top-3 w-4 h-0.5 bg-primary/30" />
-                              <Link href={`/complaints/${c.id}/investigation`} className="block rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
-                                    <SearchCode className="h-3.5 w-3.5 text-indigo-500" />
-                                    Investigation
-                                  </span>
-                                  <Badge variant="outline" className="text-[10px] bg-indigo-500/10 text-indigo-600 border-indigo-500/20">
-                                    {investigation.status}
-                                  </Badge>
-                                </div>
-                                <p className="text-[11px] text-muted-foreground truncate">
-                                  {investigation.rootCauseDesc || "Root cause investigation open / not started."}
-                                </p>
-                              </Link>
-                            </div>
-                          )}
-
-                          {/* 2. Vigilance Decision Tree */}
-                          {vigilance && (
-                            <div className="relative group text-xs">
-                              <div className="absolute -left-5 top-3 w-4 h-0.5 bg-primary/30" />
-                              <Link href={`/complaints/${c.id}/vigilance`} className="block rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
-                                    <ShieldAlert className="h-3.5 w-3.5 text-purple-500" />
-                                    Vigilance Decision Tree
-                                  </span>
-                                  <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-600 border-purple-500/20">
-                                    {vigilance.status}
-                                  </Badge>
-                                </div>
-                                <p className="text-[11px] text-muted-foreground truncate">
-                                  {vigilance.reportable ? "🚨 Reportable Incident" : "🛡️ Non-Reportable Evaluation"} • {vigilance.rationale || "Initial decision tree pending."}
-                                </p>
-                              </Link>
-                            </div>
-                          )}
-
-                          {/* 3. Customer Communication */}
-                          {communications.map((comm) => (
-                            <div key={comm.id} className="relative group text-xs">
-                              <div className="absolute -left-5 top-3 w-4 h-0.5 bg-primary/30" />
-                              <Link href={`/complaints/${c.id}/communications/${comm.id}`} className="block rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
-                                    <MessageSquare className="h-3.5 w-3.5 text-blue-500" />
-                                    Customer Follow-up ({comm.direction})
-                                  </span>
+                        {/* YouTube-style Curved Tree Connectors */}
+                        <div className="relative pl-2 space-y-2.5 pt-1">
+                          {(() => {
+                            const records = [
+                              investigation
+                                ? {
+                                    id: `inv-${investigation.id}`,
+                                    rawId: investigation.id,
+                                    entityType: "Investigation",
+                                    href: `/${orgSlug}/complaints/${c.id}/investigation`,
+                                    title: "Investigation",
+                                    badge: (
+                                      <Badge variant="outline" className="text-[10px] bg-indigo-500/10 text-indigo-600 border-indigo-500/20">
+                                        {investigation.status}
+                                      </Badge>
+                                    ),
+                                    desc: investigation.rootCauseDesc || "Root cause investigation open / not started.",
+                                    icon: <SearchCode className="h-3.5 w-3.5 text-indigo-500" />,
+                                  }
+                                : null,
+                              vigilance
+                                ? {
+                                    id: `vig-${vigilance.id}`,
+                                    rawId: vigilance.id,
+                                    entityType: "VigilanceDecisionTree",
+                                    href: `/${orgSlug}/complaints/${c.id}/vigilance`,
+                                    title: "Vigilance Decision Tree",
+                                    badge: (
+                                      <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-600 border-purple-500/20">
+                                        {vigilance.status}
+                                      </Badge>
+                                    ),
+                                    desc: `${vigilance.reportable ? "🚨 Reportable Incident" : "🛡️ Non-Reportable Evaluation"} • ${vigilance.rationale || "Initial decision tree pending."}`,
+                                    icon: <ShieldAlert className="h-3.5 w-3.5 text-purple-500" />,
+                                  }
+                                : null,
+                              ...communications.map((comm) => ({
+                                id: `comm-${comm.id}`,
+                                rawId: comm.id,
+                                entityType: "CustomerCommunication",
+                                href: `/${orgSlug}/complaints/${c.id}/communications/${comm.id}`,
+                                title: `Customer Follow-up (${comm.direction})`,
+                                badge: (
                                   <span className="text-[10px] text-muted-foreground font-mono" suppressHydrationWarning>
                                     {formatDate(comm.communicationDate)}
                                   </span>
-                                </div>
-                                <p className="text-[11px] text-muted-foreground truncate">
-                                  {comm.notes}
-                                </p>
-                              </Link>
-                            </div>
-                          ))}
+                                ),
+                                desc: comm.notes,
+                                icon: <MessageSquare className="h-3.5 w-3.5 text-blue-500" />,
+                              })),
+                            ].filter(Boolean) as Array<{
+                              id: string;
+                              rawId: string;
+                              entityType: string;
+                              href: string;
+                              title: string;
+                              badge: React.ReactNode;
+                              desc: string;
+                              icon: React.ReactNode;
+                            }>;
+
+                            return records.map((rec, idx) => {
+                              const isLast = idx === records.length - 1;
+
+                              return (
+                                <ContextMenu key={rec.id}>
+                                  <ContextMenuTrigger asChild>
+                                    <div className="relative pl-6 group text-xs">
+                                      {/* YouTube-style curved L-line */}
+                                      <div
+                                        className="absolute left-0 top-0 w-5 h-[20px] border-l-2 border-b-2 border-border/80 dark:border-border/60 rounded-bl-xl pointer-events-none"
+                                        aria-hidden="true"
+                                      />
+                                      {/* Vertical continuous spine for non-last items */}
+                                      {!isLast && (
+                                        <div
+                                          className="absolute left-0 top-[20px] -bottom-2.5 w-0 border-l-2 border-border/80 dark:border-border/60 pointer-events-none"
+                                          aria-hidden="true"
+                                        />
+                                      )}
+                                      {/* Top connector entry for first item */}
+                                      {idx === 0 && (
+                                        <div
+                                          className="absolute left-0 -top-2.5 h-2.5 w-0 border-l-2 border-border/80 dark:border-border/60 pointer-events-none"
+                                          aria-hidden="true"
+                                        />
+                                      )}
+
+                                      <div
+                                        className="block rounded-lg bg-muted/40 hover:bg-muted/70 p-2.5 border border-border/80 transition-colors space-y-1 cursor-default"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <Link
+                                            href={rec.href}
+                                            className="font-semibold text-foreground flex items-center gap-1.5 text-[11px] hover:underline cursor-pointer"
+                                          >
+                                            {rec.icon}
+                                            <span>{rec.title}</span>
+                                          </Link>
+                                          {rec.badge}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground truncate select-none">
+                                          {rec.desc}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </ContextMenuTrigger>
+
+                                  <ContextMenuContent className="w-56">
+                                    <ContextMenuLabel>
+                                      {rec.title}
+                                    </ContextMenuLabel>
+                                    <ContextMenuItem asChild>
+                                      <Link
+                                        href={rec.href}
+                                        className="flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <Eye className="h-3.5 w-3.5 text-primary" />
+                                        <span>View / Edit Details</span>
+                                      </Link>
+                                    </ContextMenuItem>
+                                    <ContextMenuItem
+                                      onClick={() =>
+                                        setActiveSubWorkflowHistory({
+                                          entityType: rec.entityType,
+                                          entityId: rec.rawId,
+                                          title: rec.title,
+                                          subtitle: rec.desc,
+                                          identifier: rec.rawId,
+                                        })
+                                      }
+                                      className="flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <History className="h-3.5 w-3.5 text-amber-500" />
+                                      <span>View History</span>
+                                    </ContextMenuItem>
+                                    <ContextMenuSeparator />
+                                    <ContextMenuItem
+                                      onClick={() => copyToClipboard(rec.rawId)}
+                                      className="flex items-center gap-2 cursor-pointer"
+                                    >
+                                      {copiedId === rec.rawId ? (
+                                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                      ) : (
+                                        <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                      )}
+                                      <span>
+                                        {copiedId === rec.rawId
+                                          ? "Copied ID!"
+                                          : "Copy Identifier"}
+                                      </span>
+                                    </ContextMenuItem>
+                                  </ContextMenuContent>
+                                </ContextMenu>
+                              );
+                            });
+                          })()}
                         </div>
                       </div>
                     )}
@@ -1064,11 +1142,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                       : "Expand related records"
                                   }
                                 >
-                                  <ChevronRight
-                                    className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                                      isExpanded ? "rotate-90 text-primary" : ""
-                                    }`}
-                                  />
+                                  <GitMerge className="h-3.5 w-3.5" />
                                 </button>
                               )}
                             </div>
@@ -1164,117 +1238,197 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                         {isExpanded && totalRelations > 0 && (
                           <tr className="bg-muted/15">
                             <td colSpan={9} className="p-0 border-b border-border/80">
-                              <div className="py-3 px-6 pl-12 space-y-2 border-l-2 border-primary/50 ml-6 my-2">
-                                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                                  Related Workflows &amp; Direct Linkages:
+                              <div className="py-4 px-6 pl-1 ml-6 my-2 space-y-3">
+                                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                  <span>Related Workflows &amp; Direct Linkages:</span>
+                                  <span className="font-mono text-primary font-bold">({totalRelations})</span>
                                 </div>
-                                <div className="space-y-1.5">
-                                  {/* 1. Investigation Workflow Sub-Row */}
-                                  {investigation && (
-                                    <Link
-                                      href={`/complaints/${c.id}/investigation`}
-                                      className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block"
-                                    >
-                                      <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-5 h-0.5 bg-primary/40" />
 
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex h-6 w-6 items-center justify-center rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
-                                          <SearchCode className="h-3.5 w-3.5" />
-                                        </div>
-                                        <div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-foreground text-xs">
-                                              Formal Investigation Workflow
-                                            </span>
-                                            <Badge variant="outline" className="text-[9px] bg-indigo-500/10 text-indigo-600 border-indigo-500/20 py-0">
-                                              {investigation.status}
-                                            </Badge>
-                                          </div>
-                                          <span className="text-[11px] text-muted-foreground">
-                                            {investigation.rootCauseDesc || "Investigation workflow initialized and open."}
-                                          </span>
-                                        </div>
-                                      </div>
+                                <div className="space-y-2">
+                                  {(() => {
+                                    const tableRecords = [
+                                      investigation
+                                        ? {
+                                            id: `table-inv-${investigation.id}`,
+                                            rawId: investigation.id,
+                                            entityType: "Investigation",
+                                            href: `/${orgSlug}/complaints/${c.id}/investigation`,
+                                            icon: <SearchCode className="h-3.5 w-3.5" />,
+                                            iconColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+                                            title: "Formal Investigation Workflow",
+                                            badge: (
+                                              <Badge variant="outline" className="text-[9px] bg-indigo-500/10 text-indigo-600 border-indigo-500/20 py-0">
+                                                {investigation.status}
+                                              </Badge>
+                                            ),
+                                            desc: investigation.rootCauseDesc || "Investigation workflow initialized and open.",
+                                            rightMeta: (
+                                              <span>
+                                                Investigator:{" "}
+                                                <strong className="text-foreground font-medium">
+                                                  {investigation.investigator?.email || "Unassigned"}
+                                                </strong>
+                                              </span>
+                                            ),
+                                          }
+                                        : null,
+                                      vigilance
+                                        ? {
+                                            id: `table-vig-${vigilance.id}`,
+                                            rawId: vigilance.id,
+                                            entityType: "VigilanceDecisionTree",
+                                            href: `/${orgSlug}/complaints/${c.id}/vigilance`,
+                                            icon: <ShieldAlert className="h-3.5 w-3.5" />,
+                                            iconColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+                                            title: "Vigilance Decision Tree (MDR / FDA)",
+                                            badge: (
+                                              <Badge variant="outline" className="text-[9px] bg-purple-500/10 text-purple-600 border-purple-500/20 py-0">
+                                                {vigilance.status}
+                                              </Badge>
+                                            ),
+                                            desc: `${vigilance.reportable ? "🚨 Reportable Incident (Adverse Event)" : "🛡️ Non-Reportable"} • ${vigilance.rationale || "Evaluation pending."}`,
+                                            rightMeta: (
+                                              <span className="font-mono text-[10px]">
+                                                Decision Tree #{vigilance.id.slice(-6)}
+                                              </span>
+                                            ),
+                                          }
+                                        : null,
+                                      ...communications.map((comm) => ({
+                                        id: `table-comm-${comm.id}`,
+                                        rawId: comm.id,
+                                        entityType: "CustomerCommunication",
+                                        href: `/${orgSlug}/complaints/${c.id}/communications/${comm.id}`,
+                                        icon: <MessageSquare className="h-3.5 w-3.5" />,
+                                        iconColor: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+                                        title: "Customer Follow-up Log",
+                                        badge: (
+                                          <Badge variant="secondary" className="text-[9px] py-0 font-mono">
+                                            {comm.direction}
+                                          </Badge>
+                                        ),
+                                        desc: comm.notes,
+                                        rightMeta: (
+                                          <span suppressHydrationWarning>{formatDateTime(comm.communicationDate)}</span>
+                                        ),
+                                      })),
+                                    ].filter(Boolean) as Array<{
+                                      id: string;
+                                      rawId: string;
+                                      entityType: string;
+                                      href: string;
+                                      icon: React.ReactNode;
+                                      iconColor: string;
+                                      title: string;
+                                      badge: React.ReactNode;
+                                      desc: string;
+                                      rightMeta: React.ReactNode;
+                                    }>;
 
-                                      <div className="flex items-center gap-4 text-[11px] text-muted-foreground shrink-0">
-                                        <span>
-                                          Investigator:{" "}
-                                          <strong className="text-foreground font-medium">
-                                            {investigation.investigator?.email || "Unassigned"}
-                                          </strong>
-                                        </span>
-                                      </div>
-                                    </Link>
-                                  )}
+                                    return tableRecords.map((item, idx) => {
+                                      const isLast = idx === tableRecords.length - 1;
 
-                                  {/* 2. Vigilance Decision Tree Sub-Row */}
-                                  {vigilance && (
-                                    <Link
-                                      href={`/complaints/${c.id}/vigilance`}
-                                      className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block"
-                                    >
-                                      <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-5 h-0.5 bg-primary/40" />
+                                      return (
+                                        <ContextMenu key={item.id}>
+                                          <ContextMenuTrigger asChild>
+                                            <div className="relative pl-7 group">
+                                              {/* YouTube-style curved L-connector */}
+                                              <div
+                                                className="absolute left-0 top-0 w-6 h-[22px] border-l-2 border-b-2 border-border/80 dark:border-border/60 rounded-bl-xl pointer-events-none"
+                                                aria-hidden="true"
+                                              />
+                                              {/* Continuing vertical spine (for all items except the last) */}
+                                              {!isLast && (
+                                                <div
+                                                  className="absolute left-0 top-[22px] -bottom-2 w-0 border-l-2 border-border/80 dark:border-border/60 pointer-events-none"
+                                                  aria-hidden="true"
+                                                />
+                                              )}
+                                              {/* Top spine entry for the first item */}
+                                              {idx === 0 && (
+                                                <div
+                                                  className="absolute left-0 -top-3 h-3 w-0 border-l-2 border-border/80 dark:border-border/60 pointer-events-none"
+                                                  aria-hidden="true"
+                                                />
+                                              )}
 
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex h-6 w-6 items-center justify-center rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0">
-                                          <ShieldAlert className="h-3.5 w-3.5" />
-                                        </div>
-                                        <div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-foreground text-xs">
-                                              Vigilance Decision Tree (MDR / FDA)
-                                            </span>
-                                            <Badge variant="outline" className="text-[9px] bg-purple-500/10 text-purple-600 border-purple-500/20 py-0">
-                                              {vigilance.status}
-                                            </Badge>
-                                          </div>
-                                          <span className="text-[11px] text-muted-foreground">
-                                            {vigilance.reportable ? "🚨 Reportable Incident (Adverse Event)" : "🛡️ Non-Reportable"} &bull; {vigilance.rationale || "Evaluation pending."}
-                                          </span>
-                                        </div>
-                                      </div>
+                                              <div className="flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group shadow-2xs cursor-default">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                  <div className={`flex h-6 w-6 items-center justify-center rounded ${item.iconColor} shrink-0`}>
+                                                    {item.icon}
+                                                  </div>
+                                                  <div className="min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                      <Link
+                                                        href={item.href}
+                                                        className="font-semibold text-foreground text-xs hover:underline cursor-pointer"
+                                                      >
+                                                        {item.title}
+                                                      </Link>
+                                                      {item.badge}
+                                                    </div>
+                                                    <span className="text-[11px] text-muted-foreground truncate block">
+                                                      {item.desc}
+                                                    </span>
+                                                  </div>
+                                                </div>
 
-                                      <div className="flex items-center gap-4 text-[11px] text-muted-foreground shrink-0">
-                                        <span className="font-mono text-[10px]">
-                                          Decision Tree #{vigilance.id.slice(-6)}
-                                        </span>
-                                      </div>
-                                    </Link>
-                                  )}
+                                                <div className="flex items-center gap-4 text-[11px] text-muted-foreground shrink-0 pl-3">
+                                                  {item.rightMeta}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </ContextMenuTrigger>
 
-                                  {/* 3. Customer Communications Sub-Row */}
-                                  {communications.map((comm) => (
-                                    <Link
-                                      key={comm.id}
-                                      href={`/complaints/${c.id}/communications/${comm.id}`}
-                                      className="relative flex items-center justify-between bg-card/90 hover:bg-card border border-border/80 rounded-lg p-2.5 transition-colors group block"
-                                    >
-                                      <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-5 h-0.5 bg-primary/40" />
-
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex h-6 w-6 items-center justify-center rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
-                                          <MessageSquare className="h-3.5 w-3.5" />
-                                        </div>
-                                        <div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-foreground text-xs">
-                                              Customer Follow-up Log
-                                            </span>
-                                            <Badge variant="secondary" className="text-[9px] py-0 font-mono">
-                                              {comm.direction}
-                                            </Badge>
-                                          </div>
-                                          <span className="text-[11px] text-muted-foreground">
-                                            {comm.notes}
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      <div className="flex items-center gap-4 text-[11px] text-muted-foreground font-mono shrink-0">
-                                        <span suppressHydrationWarning>{formatDateTime(comm.communicationDate)}</span>
-                                      </div>
-                                    </Link>
-                                  ))}
+                                          <ContextMenuContent className="w-56">
+                                            <ContextMenuLabel>
+                                              {item.title}
+                                            </ContextMenuLabel>
+                                            <ContextMenuItem asChild>
+                                              <Link
+                                                href={item.href}
+                                                className="flex items-center gap-2 cursor-pointer"
+                                              >
+                                                <Eye className="h-3.5 w-3.5 text-primary" />
+                                                <span>View / Edit Details</span>
+                                              </Link>
+                                            </ContextMenuItem>
+                                            <ContextMenuItem
+                                              onClick={() =>
+                                                setActiveSubWorkflowHistory({
+                                                  entityType: item.entityType,
+                                                  entityId: item.rawId,
+                                                  title: item.title,
+                                                  subtitle: item.desc,
+                                                  identifier: item.rawId,
+                                                })
+                                              }
+                                              className="flex items-center gap-2 cursor-pointer"
+                                            >
+                                              <History className="h-3.5 w-3.5 text-amber-500" />
+                                              <span>View History</span>
+                                            </ContextMenuItem>
+                                            <ContextMenuSeparator />
+                                            <ContextMenuItem
+                                              onClick={() => copyToClipboard(item.rawId)}
+                                              className="flex items-center gap-2 cursor-pointer"
+                                            >
+                                              {copiedId === item.rawId ? (
+                                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                              ) : (
+                                                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                              )}
+                                              <span>
+                                                {copiedId === item.rawId
+                                                  ? "Copied ID!"
+                                                  : "Copy Identifier"}
+                                              </span>
+                                            </ContextMenuItem>
+                                          </ContextMenuContent>
+                                        </ContextMenu>
+                                      );
+                                    });
+                                  })()}
                                 </div>
                               </div>
                             </td>
@@ -1418,50 +1572,12 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                   </button>
                 </div>
 
-                {/* Sub-tab Filter Selector */}
-                <div className="flex items-center gap-1.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setDrawerTab("all")}
-                    className={`px-2.5 py-1 text-xs rounded-md transition-colors cursor-pointer ${
-                      drawerTab === "all"
-                        ? "font-bold text-foreground bg-muted"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    All History (
-                    {(activeHistoryComplaint.customerCommunications?.length || 0) +
-                      (activeHistoryComplaint.auditLogs?.length || 0)}
-                    )
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDrawerTab("communications")}
-                    className={`px-2.5 py-1 text-xs rounded-md transition-colors cursor-pointer flex items-center gap-1.5 ${
-                      drawerTab === "communications"
-                        ? "font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <MessageSquare className="h-3 w-3" />
-                    Follow-ups (
-                    {activeHistoryComplaint.customerCommunications?.length || 0}
-                    )
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDrawerTab("audit")}
-                    className={`px-2.5 py-1 text-xs rounded-md transition-colors cursor-pointer flex items-center gap-1.5 ${
-                      drawerTab === "audit"
-                        ? "font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <History className="h-3 w-3" />
-                    Audit Logs (
-                    {activeHistoryComplaint.auditLogs?.length || 0}
-                    )
-                  </button>
+                {/* Stats badge */}
+                <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+                  <div className="px-2.5 py-1 text-xs rounded-md bg-amber-500/10 font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5 border border-amber-500/20">
+                    <History className="h-3 w-3 text-amber-500" />
+                    <span>Complaint Audit Trail ({totalHistoryItems} records)</span>
+                  </div>
                 </div>
               </div>
 
@@ -1470,22 +1586,8 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between text-xs text-muted-foreground border-b border-border/80 pb-2">
                     <span className="font-semibold uppercase tracking-wider text-[10px] flex items-center gap-1.5 text-foreground">
-                      {drawerTab === "communications" ? (
-                        <>
-                          <MessageSquare className="h-3.5 w-3.5 text-blue-500" />
-                          Customer Communications ({activeHistoryComplaint.customerCommunications?.length || 0})
-                        </>
-                      ) : drawerTab === "audit" ? (
-                        <>
-                          <History className="h-3.5 w-3.5 text-amber-500" />
-                          Electronic Audit Trail ({activeHistoryComplaint.auditLogs?.length || 0})
-                        </>
-                      ) : (
-                        <>
-                          <History className="h-3.5 w-3.5 text-primary" />
-                          Activity Timeline ({totalHistoryItems})
-                        </>
-                      )}
+                      <History className="h-3.5 w-3.5 text-amber-500" />
+                      Electronic Audit Trail ({totalHistoryItems})
                     </span>
                     {totalHistoryPages > 1 && (
                       <span className="text-[11px] font-mono text-muted-foreground">
@@ -1496,215 +1598,157 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
 
                   {paginatedHistoryItems.length === 0 ? (
                     <div className="text-center py-10 text-muted-foreground text-xs bg-muted/20 rounded-lg border border-dashed border-border/80">
-                      {drawerTab === "communications" ? (
-                        <>
-                          <MessageSquare className="h-7 w-7 mx-auto mb-2 opacity-40 text-blue-500" />
-                          <p>No customer communications logged yet.</p>
-                        </>
-                      ) : drawerTab === "audit" ? (
-                        <>
-                          <History className="h-7 w-7 mx-auto mb-2 opacity-40 text-amber-500" />
-                          <p>No audit events recorded yet.</p>
-                        </>
-                      ) : (
-                        <>
-                          <History className="h-7 w-7 mx-auto mb-2 opacity-40" />
-                          <p>No history or audit events recorded yet.</p>
-                        </>
-                      )}
+                      <History className="h-7 w-7 mx-auto mb-2 opacity-40 text-amber-500" />
+                      <p>No audit events recorded for this complaint yet.</p>
                     </div>
                   ) : (
                     <div className="relative pl-5 border-l-2 border-border space-y-4">
-                      {paginatedHistoryItems.map((item) => {
-                        if (item.type === "communication") {
-                          const comm = item.data;
-                          return (
-                            <div key={`comm-${comm.id}`} className="relative group">
-                              {/* Bullet dot */}
-                              <div className="absolute -left-[27px] top-1.5 h-3.5 w-3.5 rounded-full bg-card border-2 border-blue-500 ring-4 ring-background" />
+                      {paginatedHistoryItems.map((log, index) => {
+                        const logIndex =
+                          totalHistoryItems -
+                          ((currentHistoryPage - 1) * HISTORY_ITEMS_PER_PAGE + index);
 
-                              <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 shadow-xs hover:border-blue-500/30 transition-colors">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Badge
-                                      variant={comm.direction === "INBOUND" ? "secondary" : "outline"}
-                                      className="text-[10px] font-mono"
-                                    >
-                                      {comm.direction === "INBOUND" ? "📥 INBOUND" : "📤 OUTBOUND"}
-                                    </Badge>
-                                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                      <MessageSquare className="h-3 w-3 text-blue-500" />
-                                      Customer Contact
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] font-mono text-muted-foreground" suppressHydrationWarning>
-                                    {formatDateTime(comm.communicationDate)}
+                        return (
+                          <div key={`audit-${log.id}`} className="relative group">
+                            {/* Bullet point on timeline */}
+                            <div className="absolute -left-[27px] top-1.5 h-3.5 w-3.5 rounded-full bg-card border-2 border-amber-500 ring-4 ring-background" />
+
+                            <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 shadow-xs hover:border-amber-500/30 transition-colors">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {getAuditActionBadge(log.action)}
+                                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                    <History className="h-3 w-3 text-amber-500" />
+                                    {log.reason || "Record Action"}
                                   </span>
                                 </div>
-
-                                <div className="text-[11px] text-muted-foreground">
-                                  Logged by:{" "}
-                                  <strong className="text-foreground font-sans font-medium">
-                                    {comm.author?.firstName
-                                      ? `${comm.author.firstName} ${comm.author.lastName ?? ""}`
-                                      : comm.author?.email || "System"}
-                                  </strong>
-                                </div>
-
-                                <div className="rounded-lg bg-muted/40 p-2.5 text-xs text-foreground leading-relaxed whitespace-pre-wrap border border-border/40">
-                                  {comm.notes}
-                                </div>
+                                <span className="text-[10px] font-mono text-muted-foreground">
+                                  #{logIndex}
+                                </span>
                               </div>
-                            </div>
-                          );
-                        }
 
-                        if (item.type === "audit") {
-                          const log = item.data;
-                          return (
-                            <div key={`audit-${log.id}`} className="relative group">
-                              {/* Bullet point on timeline */}
-                              <div className="absolute -left-[27px] top-1.5 h-3.5 w-3.5 rounded-full bg-card border-2 border-amber-500 ring-4 ring-background" />
+                              <div className="text-[11px] text-muted-foreground flex items-center justify-between font-mono">
+                                <span>
+                                  By:{" "}
+                                  <strong className="text-foreground font-sans font-medium">
+                                    {log.changedBy?.firstName
+                                      ? `${log.changedBy.firstName} ${log.changedBy.lastName ?? ""}`
+                                      : log.changedBy?.email || log.changedById}
+                                  </strong>
+                                </span>
+                                <span suppressHydrationWarning>{formatDateTime(log.timestamp)}</span>
+                              </div>
 
-                              <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 shadow-xs hover:border-amber-500/30 transition-colors">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    {getAuditActionBadge(log.action)}
-                                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                      <History className="h-3 w-3 text-amber-500" />
-                                      {log.reason || "Record Action"}
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] font-mono text-muted-foreground">
-                                    #{item.logIndex}
-                                  </span>
-                                </div>
+                              {/* Technical details or diff preview */}
+                              {Boolean(log.fieldChanges) &&
+                                Array.isArray(log.fieldChanges) &&
+                                (log.fieldChanges as Record<string, unknown>[]).length > 0 && (
+                                  <div className="pt-2 border-t border-border/80 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                                        Field Modifications:
+                                      </span>
+                                      <span className="text-[10px] font-mono text-muted-foreground">
+                                        {(log.fieldChanges as Record<string, unknown>[]).length} field{(log.fieldChanges as Record<string, unknown>[]).length > 1 ? "s" : ""} changed
+                                      </span>
+                                    </div>
 
-                                <div className="text-[11px] text-muted-foreground flex items-center justify-between font-mono">
-                                  <span>
-                                    By:{" "}
-                                    <strong className="text-foreground font-sans font-medium">
-                                      {log.changedBy?.firstName
-                                        ? `${log.changedBy.firstName} ${log.changedBy.lastName ?? ""}`
-                                        : log.changedBy?.email || log.changedById}
-                                    </strong>
-                                  </span>
-                                  <span suppressHydrationWarning>{formatDateTime(log.timestamp)}</span>
-                                </div>
+                                    <div className="space-y-2">
+                                      {(log.fieldChanges as Record<string, unknown>[]).map(
+                                        (change: Record<string, unknown>, idx: number) => {
+                                          const rawKey = String(change.field || change.fieldId || "");
+                                          const fieldLabel = String(change.fieldLabel || formatFieldTitle(rawKey));
+                                          const isComplex =
+                                            typeof change.oldValue === "object" ||
+                                            typeof change.newValue === "object";
+                                          const diffs = extractDetailedDiffs(change.oldValue, change.newValue);
 
-                                {/* Technical details or diff preview */}
-                                {Boolean(log.fieldChanges) &&
-                                  Array.isArray(log.fieldChanges) &&
-                                  (log.fieldChanges as Record<string, unknown>[]).length > 0 && (
-                                    <div className="pt-2 border-t border-border/80 space-y-2">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                                          Field Modifications:
-                                        </span>
-                                        <span className="text-[10px] font-mono text-muted-foreground">
-                                          {(log.fieldChanges as Record<string, unknown>[]).length} field{(log.fieldChanges as Record<string, unknown>[]).length > 1 ? "s" : ""} changed
-                                        </span>
-                                      </div>
-
-                                      <div className="space-y-2">
-                                        {(log.fieldChanges as Record<string, unknown>[]).map(
-                                          (change: Record<string, unknown>, idx: number) => {
-                                            const rawKey = String(change.field || change.fieldId || "");
-                                            const fieldLabel = String(change.fieldLabel || formatFieldTitle(rawKey));
-                                            const isComplex =
-                                              typeof change.oldValue === "object" ||
-                                              typeof change.newValue === "object";
-                                            const diffs = extractDetailedDiffs(change.oldValue, change.newValue);
-
-                                            return (
-                                              <div
-                                                key={idx}
-                                                className="rounded-lg border border-border/60 bg-muted/30 p-2.5 space-y-1.5 text-xs"
-                                              >
-                                                {/* Field Label Header */}
-                                                <div className="flex items-center justify-between gap-2">
-                                                  <div className="flex items-center gap-1.5">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                                    <span className="font-semibold text-foreground text-[11px] font-sans">
-                                                      {fieldLabel}
-                                                    </span>
-                                                    {rawKey && rawKey !== fieldLabel && (
-                                                      <span className="text-[10px] font-mono text-muted-foreground">
-                                                        ({rawKey})
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                  {isComplex && (
-                                                    <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/60">
-                                                      Structured Data
+                                          return (
+                                            <div
+                                              key={idx}
+                                              className="rounded-lg border border-border/60 bg-muted/30 p-2.5 space-y-1.5 text-xs"
+                                            >
+                                              {/* Field Label Header */}
+                                              <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                                  <span className="font-semibold text-foreground text-[11px] font-sans">
+                                                    {fieldLabel}
+                                                  </span>
+                                                  {rawKey && rawKey !== fieldLabel && (
+                                                    <span className="text-[10px] font-mono text-muted-foreground">
+                                                      ({rawKey})
                                                     </span>
                                                   )}
                                                 </div>
-
-                                                {/* Visual Diff Badges */}
-                                                <div className="space-y-1.5">
-                                                  {diffs.map((diff, dIdx) => (
-                                                    <div
-                                                      key={dIdx}
-                                                      className="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-background/80 p-1.5 rounded border border-border/50 text-[11px] font-mono"
-                                                    >
-                                                      {diff.label && (
-                                                        <span className="text-muted-foreground font-medium text-[10px] sm:min-w-[110px] shrink-0">
-                                                          {diff.label}:
-                                                        </span>
-                                                      )}
-                                                      <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-                                                        <span className="line-through text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
-                                                          {diff.oldDisplay}
-                                                        </span>
-                                                        <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                                                        <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
-                                                          {diff.newDisplay}
-                                                        </span>
-                                                      </div>
-                                                    </div>
-                                                  ))}
-                                                </div>
-
-                                                {/* Expandable formatted raw JSON for deep inspection */}
                                                 {isComplex && (
-                                                  <details className="text-[10px] font-mono pt-1 text-muted-foreground cursor-pointer group">
-                                                    <summary className="hover:text-foreground transition-colors select-none">
-                                                      View raw formatted JSON
-                                                    </summary>
-                                                    <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-card p-2 rounded border border-border">
-                                                      <div>
-                                                        <span className="block text-[9px] uppercase tracking-wider font-semibold text-rose-500 mb-1">
-                                                          Previous (Old)
-                                                        </span>
-                                                        <pre className="p-2 rounded bg-rose-500/5 text-rose-700 dark:text-rose-300 overflow-x-auto text-[10px] leading-tight border border-rose-500/10 max-h-48 overflow-y-auto">
-                                                          {JSON.stringify(cleanNoise(change.oldValue), null, 2)}
-                                                        </pre>
-                                                      </div>
-                                                      <div>
-                                                        <span className="block text-[9px] uppercase tracking-wider font-semibold text-emerald-500 mb-1">
-                                                          Updated (New)
-                                                        </span>
-                                                        <pre className="p-2 rounded bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 overflow-x-auto text-[10px] leading-tight border border-emerald-500/10 max-h-48 overflow-y-auto">
-                                                          {JSON.stringify(cleanNoise(change.newValue), null, 2)}
-                                                        </pre>
-                                                      </div>
-                                                    </div>
-                                                  </details>
+                                                  <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/60">
+                                                    Structured Data
+                                                  </span>
                                                 )}
                                               </div>
-                                            );
-                                          }
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-                              </div>
-                            </div>
-                          );
-                        }
 
-                        return null;
+                                              {/* Visual Diff Badges */}
+                                              <div className="space-y-1.5">
+                                                {diffs.map((diff, dIdx) => (
+                                                  <div
+                                                    key={dIdx}
+                                                    className="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-background/80 p-1.5 rounded border border-border/50 text-[11px] font-mono"
+                                                  >
+                                                    {diff.label && (
+                                                      <span className="text-muted-foreground font-medium text-[10px] sm:min-w-[110px] shrink-0">
+                                                        {diff.label}:
+                                                      </span>
+                                                    )}
+                                                    <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                                                      <span className="line-through text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
+                                                        {diff.oldDisplay}
+                                                      </span>
+                                                      <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                                                      <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
+                                                        {diff.newDisplay}
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+
+                                              {/* Expandable formatted raw JSON for deep inspection */}
+                                              {isComplex && (
+                                                <details className="text-[10px] font-mono pt-1 text-muted-foreground cursor-pointer group">
+                                                  <summary className="hover:text-foreground transition-colors select-none">
+                                                    View raw formatted JSON
+                                                  </summary>
+                                                  <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-card p-2 rounded border border-border">
+                                                    <div>
+                                                      <span className="block text-[9px] uppercase tracking-wider font-semibold text-rose-500 mb-1">
+                                                        Previous (Old)
+                                                      </span>
+                                                      <pre className="p-2 rounded bg-rose-500/5 text-rose-700 dark:text-rose-300 overflow-x-auto text-[10px] leading-tight border border-rose-500/10 max-h-48 overflow-y-auto">
+                                                        {JSON.stringify(cleanNoise(change.oldValue), null, 2)}
+                                                      </pre>
+                                                    </div>
+                                                    <div>
+                                                      <span className="block text-[9px] uppercase tracking-wider font-semibold text-emerald-500 mb-1">
+                                                        Updated (New)
+                                                      </span>
+                                                      <pre className="p-2 rounded bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 overflow-x-auto text-[10px] leading-tight border border-emerald-500/10 max-h-48 overflow-y-auto">
+                                                        {JSON.stringify(cleanNoise(change.newValue), null, 2)}
+                                                      </pre>
+                                                    </div>
+                                                  </div>
+                                                </details>
+                                              )}
+                                            </div>
+                                          );
+                                        }
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                            </div>
+                          </div>
+                        );
                       })}
                     </div>
                   )}
@@ -1794,6 +1838,20 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
           </div>
         </div>
       )}
+
+      {/* Sub-Workflow Granular Audit History Drawer */}
+      {activeSubWorkflowHistory && (
+        <AuditHistoryDrawer
+          isOpen={Boolean(activeSubWorkflowHistory)}
+          onClose={() => setActiveSubWorkflowHistory(null)}
+          entityType={activeSubWorkflowHistory.entityType}
+          entityId={activeSubWorkflowHistory.entityId}
+          title={activeSubWorkflowHistory.title}
+          subtitle={activeSubWorkflowHistory.subtitle}
+          identifier={activeSubWorkflowHistory.identifier}
+        />
+      )}
     </div>
   );
 }
+

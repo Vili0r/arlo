@@ -40,9 +40,10 @@ export function DialogTrigger({ children, asChild }: { children: React.ReactNode
   const { onOpenChange } = React.useContext(DialogContext);
   
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement, {
+    const child = children as React.ReactElement<any>;
+    return React.cloneElement(child, {
       onClick: (e: any) => {
-        if (children.props.onClick) children.props.onClick(e);
+        if (child.props?.onClick) child.props.onClick(e);
         onOpenChange(true);
       },
     });

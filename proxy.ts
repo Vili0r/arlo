@@ -54,8 +54,13 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     }
 
     // Internally rewrite to /[orgSlug]/...
+    // Prevent double prefixing if pathname already starts with /${orgIdentifier}
+    const targetPath = pathname.startsWith(`/${orgIdentifier}`)
+      ? pathname
+      : `/${orgIdentifier}${pathname}`;
+
     return NextResponse.rewrite(
-      new URL(`/${orgIdentifier}${pathname}${search}`, req.url)
+      new URL(`${targetPath}${search}`, req.url)
     );
   }
 

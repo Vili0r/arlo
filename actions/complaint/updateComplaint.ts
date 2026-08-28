@@ -42,7 +42,7 @@ export async function updateComplaint(
     // Update the record
     const updatedRecord = await tx.complaint.update({
       where: { id: complaintId, orgId },
-      data: newData,
+      data: newData as any,
     });
 
     // Create the AuditLog row

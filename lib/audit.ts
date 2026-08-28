@@ -3,7 +3,18 @@ import { AuditAction, Prisma } from "@prisma/client";
 
 export interface CreateAuditLogParams {
   orgId: string;
-  entityType: "Complaint" | "Capa" | "User" | "Organization" | "OrganizationMember";
+  entityType:
+    | "Complaint"
+    | "Capa"
+    | "User"
+    | "Organization"
+    | "OrganizationMember"
+    | "Investigation"
+    | "VigilanceDecisionTree"
+    | "CustomerCommunication"
+    | "SampleManagement"
+    | "InvestigationSummary"
+    | (string & {});
   entityId: string;
   action: AuditAction;
   changedById: string;

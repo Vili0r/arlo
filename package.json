@@ -18,6 +18,7 @@
     "@clerk/ui": "^1.30.6",
     "@hookform/resolvers": "^5.9.1",
     "@prisma/client": "^6.19.3",
+    "@radix-ui/react-context-menu": "^2.3.7",
     "@vercel/blob": "^2.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -6,18 +6,19 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldCheck, Loader2, AlertTriangle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ShieldCheck, Loader2, AlertTriangle, RotateCcw } from "lucide-react";
 import { SIGNATURE_MEANINGS } from "@/lib/constants/status-transitions";
 import {
   executeStatusTransition,
   type StatusTransitionResult,
 } from "@/lib/actions/esignature";
 import type { EntityType } from "@/lib/constants/status-transitions";
+import { cn } from "@/lib/utils";
 
 interface ESignatureModalProps {
   open: boolean;
@@ -27,6 +28,7 @@ interface ESignatureModalProps {
   currentStatus: string;
   targetStatus: string;
   targetStatusLabel: string;
+  isRevert?: boolean;
   onSuccess?: (newStatus: string) => void;
 }
 
@@ -38,6 +40,7 @@ export function ESignatureModal({
   currentStatus,
   targetStatus,
   targetStatusLabel,
+  isRevert = false,
   onSuccess,
 }: ESignatureModalProps) {
   const [state, setState] = React.useState<StatusTransitionResult | null>(null);
@@ -86,30 +89,60 @@ export function ESignatureModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-              <ShieldCheck className="h-5 w-5 text-primary" />
+            <div
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-full",
+                isRevert
+                  ? "bg-muted text-muted-foreground"
+                  : "bg-primary/10 text-primary"
+              )}
+            >
+              {isRevert ? (
+                <RotateCcw className="h-5 w-5" />
+              ) : (
+                <ShieldCheck className="h-5 w-5" />
+              )}
             </div>
             <div>
               <DialogTitle className="text-base font-semibold">
-                Electronic Signature Required
+                {isRevert
+                  ? "Stage Reversion — Electronic Signature"
+                  : "Electronic Signature Required"}
               </DialogTitle>
             </div>
           </div>
         </DialogHeader>
 
         {/* Action description */}
-        <div className="rounded-md bg-muted/50 border px-4 py-3 mt-2">
+        <div className="rounded-md border px-4 py-3 mt-2 bg-muted/50 border-border">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            You are approving a status change on this{" "}
-            <span className="font-medium text-foreground">{entityType}</span>{" "}
-            record:
+            {isRevert ? (
+              <span className="font-semibold text-foreground">
+                You are reverting this {entityType} stage:
+              </span>
+            ) : (
+              <>
+                You are approving a status change on this{" "}
+                <span className="font-medium text-foreground">
+                  {entityType}
+                </span>{" "}
+                record:
+              </>
+            )}
           </p>
           <div className="flex items-center gap-2 mt-2">
             <span className="inline-flex items-center rounded-md bg-background px-2.5 py-1 text-xs font-medium border shadow-sm">
               {currentStatus.replace(/_/g, " ")}
             </span>
             <span className="text-muted-foreground text-xs">→</span>
-            <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary border border-primary/20 shadow-sm">
+            <span
+              className={cn(
+                "inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium border shadow-sm",
+                isRevert
+                  ? "bg-muted text-foreground border-border"
+                  : "bg-primary/10 text-primary border-primary/20"
+              )}
+            >
               {targetStatusLabel}
             </span>
           </div>
@@ -161,6 +194,27 @@ export function ESignatureModal({
             </select>
           </div>
 
+          {/* Rationale / Justification */}
+          <div className="space-y-2">
+            <Label htmlFor="rationale" className="text-xs">
+              {isRevert ? "Rationale for Reversion" : "Rationale (Optional)"}{" "}
+              {isRevert && <span className="text-destructive">*</span>}
+            </Label>
+            <Textarea
+              id="rationale"
+              name="rationale"
+              required={isRevert}
+              disabled={isPending || state?.success === true}
+              placeholder={
+                isRevert
+                  ? "Document the specific reason for reverting this stage (e.g., additional investigation requested by QA, new clinical data received)..."
+                  : "Optional rationale or change summary..."
+              }
+              rows={2}
+              className="text-xs resize-none"
+            />
+          </div>
+
           {/* Password */}
           <div className="space-y-2">
             <Label htmlFor="password" className="text-xs">
@@ -178,7 +232,7 @@ export function ESignatureModal({
             />
             <p className="text-[10px] text-muted-foreground leading-relaxed">
               Your password is used solely for identity verification and is not
-              stored. This constitutes an electronic signature.
+              stored. This constitutes an electronic signature under 21 CFR Part 11.
             </p>
           </div>
 
@@ -195,6 +249,7 @@ export function ESignatureModal({
             <Button
               type="submit"
               disabled={isPending || state?.success === true}
+              variant="default"
               className="gap-2"
             >
               {isPending ? (
@@ -206,6 +261,11 @@ export function ESignatureModal({
                 <>
                   <ShieldCheck className="h-4 w-4" />
                   Signed
+                </>
+              ) : isRevert ? (
+                <>
+                  <RotateCcw className="h-4 w-4" />
+                  Sign & Revert Stage
                 </>
               ) : (
                 <>

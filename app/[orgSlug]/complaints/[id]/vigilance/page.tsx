@@ -24,20 +24,35 @@ export default async function VigilancePage({
     }
   });
 
-  if (!complaint || !complaint.vigilanceDecisionTree) {
+  if (!complaint) {
     notFound();
   }
 
-  const vigilance = complaint.vigilanceDecisionTree;
+  let vigilance = complaint.vigilanceDecisionTree;
+
+  if (!vigilance) {
+    vigilance = await prisma.vigilanceDecisionTree.create({
+      data: {
+        complaintId: complaint.id,
+        orgId,
+        status: "PENDING",
+      },
+      include: {
+        attachments: true,
+      },
+    });
+  }
+
+  const activeVigilance = vigilance;
 
   return (
     <VigilanceEditForm
       orgSlug={orgSlug}
       complaintNumber={complaint.complaintNumber}
       vigilance={{
-        ...vigilance,
-        awarenessDate: vigilance.awarenessDate?.toISOString() || null,
-        dueDate: vigilance.dueDate?.toISOString() || null,
+        ...activeVigilance,
+        awarenessDate: activeVigilance.awarenessDate?.toISOString() || null,
+        dueDate: activeVigilance.dueDate?.toISOString() || null,
       }}
     />
   );

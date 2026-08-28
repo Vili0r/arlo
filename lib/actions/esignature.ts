@@ -5,6 +5,7 @@ import { requireOrgAuth } from "@/lib/auth-guard";
 import { generateAuditDiff } from "@/utils/auditDiff";
 import {
   isTransitionAllowed,
+  isRevertTransition,
   getStatusConfig,
   type EntityType,
 } from "@/lib/constants/status-transitions";
@@ -27,6 +28,7 @@ const ExecuteStatusTransitionSchema = z.object({
   newStatus: z.string().min(1, "Target status is required"),
   password: z.string().min(1, "Password is required for electronic signature"),
   meaningOfSignature: z.string().min(1, "Meaning of signature is required"),
+  rationale: z.string().optional().nullable(),
 });
 
 export type ExecuteStatusTransitionInput = z.infer<
@@ -52,6 +54,7 @@ export async function executeStatusTransition(
     newStatus: formData.get("newStatus") as string,
     password: formData.get("password") as string,
     meaningOfSignature: formData.get("meaningOfSignature") as string,
+    rationale: formData.get("rationale") as string | null,
   };
 
   const parsed = ExecuteStatusTransitionSchema.safeParse(raw);
@@ -62,7 +65,7 @@ export async function executeStatusTransition(
     };
   }
 
-  const { entityType, entityId, newStatus, password, meaningOfSignature } =
+  const { entityType, entityId, newStatus, password, meaningOfSignature, rationale } =
     parsed.data;
 
   // -------------------------------------------------------------------------
@@ -159,6 +162,18 @@ export async function executeStatusTransition(
         );
       }
 
+      const isRevert = isRevertTransition(
+        entityType as EntityType,
+        currentStatus,
+        newStatus
+      );
+
+      if (isRevert && (!rationale || rationale.trim().length === 0)) {
+        throw new Error(
+          `A documented rationale is mandatory when reverting a stage (${currentStatus} → ${newStatus}).`
+        );
+      }
+
       // 5c. Build the proposed record for diffing
       const proposedRecord = {
         ...(oldRecord as Record<string, unknown>),
@@ -181,8 +196,11 @@ export async function executeStatusTransition(
 
       // 5e. Write immutable audit log with e-signature details
       const signatureReason = [
-        `E-SIGNATURE STATUS CHANGE: ${currentStatus} → ${newStatus}`,
+        isRevert
+          ? `E-SIGNATURE STAGE REVERSION: ${currentStatus} → ${newStatus}`
+          : `E-SIGNATURE STATUS CHANGE: ${currentStatus} → ${newStatus}`,
         `Meaning: ${meaningOfSignature}`,
+        ...(rationale?.trim() ? [`Rationale: ${rationale.trim()}`] : []),
         `Signed by: ${userId}`,
         `Timestamp: ${new Date().toISOString()}`,
       ].join(" | ");
@@ -205,7 +223,11 @@ export async function executeStatusTransition(
               : Prisma.JsonNull,
           changedById: userId,
           // Link to complaint if applicable
-          ...(entityType === "Complaint" ? { complaintId: entityId } : {}),
+          ...(entityType === "Complaint"
+            ? { complaintId: entityId }
+            : (oldRecord as Record<string, unknown>).complaintId
+            ? { complaintId: (oldRecord as Record<string, unknown>).complaintId as string }
+            : {}),
         },
       });
 

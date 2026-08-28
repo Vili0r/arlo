@@ -53,6 +53,8 @@ import { updateInvestigation, type AttachmentInput } from "@/lib/actions/investi
 import { useOrganization } from "@clerk/nextjs";
 import { FileUploader } from "@/components/file-uploader";
 import { CustomInvestigationSection } from "@/components/custom-investigation-section";
+import { StatusTransitionTracker } from "@/components/status-transition-tracker";
+import { cn } from "@/lib/utils";
 import {
   IMDRF_ANNEX_B_CATEGORIES,
   IMDRF_ANNEX_B_SUBCAT_MAP,
@@ -71,7 +73,7 @@ interface ImdrfCodeInput {
   category?: string;
   code: string;
   term: string;
-  notes?: string;
+  notes?: string | null;
 }
 
 interface InvestigationEditFormProps {
@@ -338,13 +340,26 @@ export function InvestigationEditForm({
           </Breadcrumb>
         </div>
 
-        <div className="flex items-center gap-3 border-b border-border pb-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600">
-            <SearchCode className="h-6 w-6" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600">
+              <SearchCode className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Investigation: {complaintNumber}</h1>
+              <p className="text-sm text-muted-foreground mt-1">Manage all investigation tasks and CAPA assignments</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Investigation: {complaintNumber}</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage all investigation tasks and CAPA assignments</p>
+          <div className="flex items-center">
+            <StatusTransitionTracker
+              entityType="Investigation"
+              entityId={investigation.id}
+              currentStatus={status}
+              onStatusChanged={(newStatus) => {
+                setStatus(newStatus as InvestigationStatus);
+                router.refresh();
+              }}
+            />
           </div>
         </div>
 
@@ -384,16 +399,26 @@ export function InvestigationEditForm({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Status</Label>
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as InvestigationStatus)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring"
-                    >
-                      <option value={InvestigationStatus.NOT_STARTED}>Not Started</option>
-                      <option value={InvestigationStatus.IN_PROGRESS}>In Progress</option>
-                      <option value={InvestigationStatus.COMPLETED}>Completed</option>
-                      <option value={InvestigationStatus.NOT_REQUIRED}>Not Required</option>
-                    </select>
+                    <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted/40 text-sm gap-2">
+                      <span
+                        className={cn(
+                          "h-2 w-2 rounded-full",
+                          status === InvestigationStatus.COMPLETED
+                            ? "bg-green-500"
+                            : status === InvestigationStatus.IN_PROGRESS
+                            ? "bg-amber-500"
+                            : status === InvestigationStatus.NOT_REQUIRED
+                            ? "bg-zinc-400"
+                            : "bg-blue-500"
+                        )}
+                      />
+                      <span className="font-medium text-foreground">
+                        {status.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground ml-auto">
+                        Managed via e-signature stepper
+                      </span>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Investigator</Label>

@@ -39,16 +39,45 @@ export default async function InvestigationPage({
     }
   });
 
-  if (!complaint || !complaint.investigation) {
+  if (!complaint) {
     notFound();
   }
 
-  const investigation = complaint.investigation;
+  let investigation = complaint.investigation;
+
+  if (!investigation) {
+    investigation = await prisma.investigation.create({
+      data: {
+        complaintId: complaint.id,
+        orgId,
+        status: "NOT_STARTED",
+      },
+      include: {
+        investigator: {
+          select: { email: true, firstName: true, lastName: true },
+        },
+        riskReviewCompletedBy: {
+          select: { email: true, firstName: true, lastName: true },
+        },
+        summary: {
+          include: {
+            completedBy: {
+              select: { email: true, firstName: true, lastName: true },
+            },
+            imdrfCodes: true,
+          },
+        },
+        attachments: true,
+      },
+    });
+  }
+
+  const activeInvestigation = investigation;
 
   // Initialize any new active custom section templates for this investigation
   const { initializeCustomSections, getCustomSections } = await import("@/lib/actions/investigation-templates");
-  await initializeCustomSections(investigation.id, orgId);
-  const customSections = await getCustomSections(investigation.id);
+  await initializeCustomSections(activeInvestigation.id, orgId);
+  const customSections = await getCustomSections(activeInvestigation.id);
 
   return (
     <InvestigationEditForm
@@ -57,22 +86,22 @@ export default async function InvestigationPage({
       customSections={customSections}
       productInformation={complaint.productInformation || []}
       investigation={{
-        ...investigation,
-        sampleAnalysisAssignedDate: investigation.sampleAnalysisAssignedDate?.toISOString() || null,
-        sampleAnalysisCompleteDate: investigation.sampleAnalysisCompleteDate?.toISOString() || null,
-        decontaminatedAt: investigation.decontaminatedAt?.toISOString() || null,
-        sampleReceivedDate: investigation.sampleReceivedDate?.toISOString() || null,
-        riskReviewCompletedAt: investigation.riskReviewCompletedAt?.toISOString() || null,
-        investigationSummaryCompletedAt: investigation.summary?.completedAt?.toISOString() || null,
-        investigationSummaryCompletedById: investigation.summary?.completedById || null,
-        summaryText: investigation.summary?.summary || null, // renamed from summary to avoid conflict with relation
-        report: investigation.summary?.report || null,
-        capaRationale: investigation.summary?.capaRationale || null,
-        capaRequired: investigation.summary?.capaRequired || false,
-        capaRef: investigation.summary?.capaRef || null,
-        notes: investigation.summary?.notes || null,
-        reportabilityReviewRequired: investigation.summary?.reportabilityReviewRequired || false,
-        imdrfCodes: investigation.summary?.imdrfCodes || [],
+        ...activeInvestigation,
+        sampleAnalysisAssignedDate: activeInvestigation.sampleAnalysisAssignedDate?.toISOString() || null,
+        sampleAnalysisCompleteDate: activeInvestigation.sampleAnalysisCompleteDate?.toISOString() || null,
+        decontaminatedAt: activeInvestigation.decontaminatedAt?.toISOString() || null,
+        sampleReceivedDate: activeInvestigation.sampleReceivedDate?.toISOString() || null,
+        riskReviewCompletedAt: activeInvestigation.riskReviewCompletedAt?.toISOString() || null,
+        investigationSummaryCompletedAt: activeInvestigation.summary?.completedAt?.toISOString() || null,
+        investigationSummaryCompletedById: activeInvestigation.summary?.completedById || null,
+        summaryText: activeInvestigation.summary?.summary || null, // renamed from summary to avoid conflict with relation
+        report: activeInvestigation.summary?.report || null,
+        capaRationale: activeInvestigation.summary?.capaRationale || null,
+        capaRequired: activeInvestigation.summary?.capaRequired || false,
+        capaRef: activeInvestigation.summary?.capaRef || null,
+        notes: activeInvestigation.summary?.notes || null,
+        reportabilityReviewRequired: activeInvestigation.summary?.reportabilityReviewRequired || false,
+        imdrfCodes: activeInvestigation.summary?.imdrfCodes || [],
       }}
     />
   );

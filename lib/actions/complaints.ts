@@ -607,10 +607,11 @@ export async function addCustomerCommunication(
     await tx.auditLog.create({
       data: {
         orgId,
-        entityType: "Complaint",
-        entityId: data.complaintId,
-        action: AuditAction.UPDATE,
+        entityType: "CustomerCommunication",
+        entityId: communication.id,
+        action: AuditAction.CREATE,
         changedById: userId,
+        newData: communication as unknown as Prisma.InputJsonValue,
         reason: `Logged ${data.direction} customer communication`,
         complaintId: data.complaintId,
       },
@@ -634,6 +635,10 @@ export async function updateSampleManagement(
   const { userId, orgId } = await requireOrgAuth(PERMISSIONS.COMPLAINTS_CREATE);
 
   return await prisma.$transaction(async (tx) => {
+    const existing = await tx.sampleManagement.findUnique({
+      where: { complaintId: data.complaintId },
+    });
+
     const sample = await tx.sampleManagement.upsert({
       where: { complaintId: data.complaintId },
       create: {
@@ -655,10 +660,12 @@ export async function updateSampleManagement(
     await tx.auditLog.create({
       data: {
         orgId,
-        entityType: "Complaint",
-        entityId: data.complaintId,
-        action: AuditAction.UPDATE,
+        entityType: "SampleManagement",
+        entityId: sample.id,
+        action: existing ? AuditAction.UPDATE : AuditAction.CREATE,
         changedById: userId,
+        previousData: existing ? (existing as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+        newData: sample as unknown as Prisma.InputJsonValue,
         reason: `Updated sample management status to ${data.status}`,
         complaintId: data.complaintId,
       },

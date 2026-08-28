@@ -25,6 +25,10 @@ export interface StatusStepConfig {
   color: string;
   /** Which statuses this status can transition TO */
   allowedNextStatuses: string[];
+  /** Which statuses this status can REVERT back to */
+  allowedPreviousStatuses?: string[];
+  /** Optional flag indicating if this is a branch/alternative status outside the main linear path */
+  isBranch?: boolean;
 }
 
 export interface EntityStatusConfig {
@@ -67,6 +71,7 @@ export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
       description: "Complaint has been logged and is awaiting triage.",
       color: "bg-blue-500",
       allowedNextStatuses: [ComplaintStatus.UNDER_INVESTIGATION],
+      allowedPreviousStatuses: [],
     },
     {
       value: ComplaintStatus.UNDER_INVESTIGATION,
@@ -75,6 +80,7 @@ export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
         "Investigation is actively underway by the assigned investigator.",
       color: "bg-amber-500",
       allowedNextStatuses: [ComplaintStatus.PENDING_REVIEW],
+      allowedPreviousStatuses: [ComplaintStatus.OPEN],
     },
     {
       value: ComplaintStatus.PENDING_REVIEW,
@@ -82,10 +88,8 @@ export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
       description:
         "Investigation is complete. Awaiting QA Manager review and sign-off.",
       color: "bg-orange-500",
-      allowedNextStatuses: [
-        ComplaintStatus.CLOSED,
-        ComplaintStatus.UNDER_INVESTIGATION,
-      ],
+      allowedNextStatuses: [ComplaintStatus.CLOSED],
+      allowedPreviousStatuses: [ComplaintStatus.UNDER_INVESTIGATION],
     },
     {
       value: ComplaintStatus.CLOSED,
@@ -94,6 +98,7 @@ export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
         "Complaint has been resolved and closed with final disposition.",
       color: "bg-green-500",
       allowedNextStatuses: [ComplaintStatus.REOPENED],
+      allowedPreviousStatuses: [],
     },
     {
       value: ComplaintStatus.REOPENED,
@@ -101,7 +106,9 @@ export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
       description:
         "Complaint was reopened due to new evidence or regulatory requirement.",
       color: "bg-red-500",
+      isBranch: true,
       allowedNextStatuses: [ComplaintStatus.UNDER_INVESTIGATION],
+      allowedPreviousStatuses: [ComplaintStatus.CLOSED],
     },
   ],
 };
@@ -109,7 +116,7 @@ export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
 // -----------------------------------------------------------------------------
 // Investigation Lifecycle
 // NOT_STARTED → IN_PROGRESS → COMPLETED
-// NOT_REQUIRED is a terminal state (set at creation, not transitioned to)
+// NOT_REQUIRED is an alternative terminal branch from NOT_STARTED
 // -----------------------------------------------------------------------------
 
 export const INVESTIGATION_STATUS_CONFIG: EntityStatusConfig = {
@@ -126,6 +133,7 @@ export const INVESTIGATION_STATUS_CONFIG: EntityStatusConfig = {
         InvestigationStatus.IN_PROGRESS,
         InvestigationStatus.NOT_REQUIRED,
       ],
+      allowedPreviousStatuses: [],
     },
     {
       value: InvestigationStatus.IN_PROGRESS,
@@ -134,6 +142,7 @@ export const INVESTIGATION_STATUS_CONFIG: EntityStatusConfig = {
         "Active investigation — sample analysis, risk review, or data collection underway.",
       color: "bg-amber-500",
       allowedNextStatuses: [InvestigationStatus.COMPLETED],
+      allowedPreviousStatuses: [InvestigationStatus.NOT_STARTED],
     },
     {
       value: InvestigationStatus.COMPLETED,
@@ -142,6 +151,7 @@ export const INVESTIGATION_STATUS_CONFIG: EntityStatusConfig = {
         "Investigation is complete with summary signed and locked.",
       color: "bg-green-500",
       allowedNextStatuses: [],
+      allowedPreviousStatuses: [InvestigationStatus.IN_PROGRESS],
     },
     {
       value: InvestigationStatus.NOT_REQUIRED,
@@ -149,7 +159,9 @@ export const INVESTIGATION_STATUS_CONFIG: EntityStatusConfig = {
       description:
         "Investigation has been determined as not required with documented rationale.",
       color: "bg-zinc-400",
+      isBranch: true,
       allowedNextStatuses: [],
+      allowedPreviousStatuses: [InvestigationStatus.NOT_STARTED],
     },
   ],
 };
@@ -174,6 +186,7 @@ export const VIGILANCE_STATUS_CONFIG: EntityStatusConfig = {
         VigilanceStatus.REPORTABLE,
         VigilanceStatus.NOT_REPORTABLE,
       ],
+      allowedPreviousStatuses: [],
     },
     {
       value: VigilanceStatus.REPORTABLE,
@@ -182,6 +195,7 @@ export const VIGILANCE_STATUS_CONFIG: EntityStatusConfig = {
         "Event has been determined as reportable to the competent authority.",
       color: "bg-red-500",
       allowedNextStatuses: [VigilanceStatus.SUBMITTED],
+      allowedPreviousStatuses: [VigilanceStatus.PENDING],
     },
     {
       value: VigilanceStatus.NOT_REPORTABLE,
@@ -189,7 +203,9 @@ export const VIGILANCE_STATUS_CONFIG: EntityStatusConfig = {
       description:
         "Event has been assessed and determined as non-reportable with rationale.",
       color: "bg-green-500",
+      isBranch: true,
       allowedNextStatuses: [],
+      allowedPreviousStatuses: [VigilanceStatus.PENDING],
     },
     {
       value: VigilanceStatus.SUBMITTED,
@@ -198,6 +214,7 @@ export const VIGILANCE_STATUS_CONFIG: EntityStatusConfig = {
         "Vigilance report has been submitted to the regulatory authority.",
       color: "bg-purple-500",
       allowedNextStatuses: [],
+      allowedPreviousStatuses: [VigilanceStatus.REPORTABLE],
     },
   ],
 };
@@ -229,7 +246,20 @@ export function isTransitionAllowed(
   targetStatus: string
 ): boolean {
   const step = getStepConfig(entityType, currentStatus);
-  return step?.allowedNextStatuses.includes(targetStatus) ?? false;
+  if (!step) return false;
+  return (
+    step.allowedNextStatuses.includes(targetStatus) ||
+    (step.allowedPreviousStatuses?.includes(targetStatus) ?? false)
+  );
+}
+
+export function isRevertTransition(
+  entityType: EntityType,
+  currentStatus: string,
+  targetStatus: string
+): boolean {
+  const step = getStepConfig(entityType, currentStatus);
+  return step?.allowedPreviousStatuses?.includes(targetStatus) ?? false;
 }
 
 export function getNextStatuses(
@@ -241,5 +271,17 @@ export function getNextStatuses(
   const config = getStatusConfig(entityType);
   return config.steps.filter((s) =>
     step.allowedNextStatuses.includes(s.value)
+  );
+}
+
+export function getPreviousStatuses(
+  entityType: EntityType,
+  currentStatus: string
+): StatusStepConfig[] {
+  const step = getStepConfig(entityType, currentStatus);
+  if (!step || !step.allowedPreviousStatuses) return [];
+  const config = getStatusConfig(entityType);
+  return config.steps.filter((s) =>
+    step.allowedPreviousStatuses?.includes(s.value)
   );
 }
