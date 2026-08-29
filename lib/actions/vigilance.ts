@@ -4,6 +4,7 @@ import { requireOrgAuth } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { AuditAction, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { generateAuditDiff } from "@/utils/auditDiff";
 
 export async function updateVigilance(data: any) {
   const { orgId, userId } = await requireOrgAuth();
@@ -54,6 +55,11 @@ export async function updateVigilance(data: any) {
       include: { attachments: true },
     });
 
+    const fieldChanges = generateAuditDiff(
+      existing as unknown as Record<string, unknown>,
+      updated as unknown as Record<string, unknown>
+    );
+
     await tx.auditLog.create({
       data: {
         orgId,
@@ -64,6 +70,7 @@ export async function updateVigilance(data: any) {
         previousData: existing as unknown as Prisma.InputJsonValue,
         newData: updated as unknown as Prisma.InputJsonValue,
         reason: `Updated vigilance decision tree assessment`,
+        fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
         complaintId: existing.complaintId,
       },
     });

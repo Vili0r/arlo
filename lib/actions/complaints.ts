@@ -250,7 +250,14 @@ export async function createComplaintWithRelations(
       include: {
         productInformation: true,
         patientInformation: true,
-        attachments: true,
+        attachments: {
+          where: {
+            investigationId: null,
+            vigilanceId: null,
+            communicationId: null,
+            taskId: null,
+          },
+        },
       },
     });
 
@@ -417,7 +424,14 @@ export async function updateComplaintWithRelations(
       include: {
         productInformation: true,
         patientInformation: true,
-        attachments: true,
+        attachments: {
+          where: {
+            investigationId: null,
+            vigilanceId: null,
+            communicationId: null,
+            taskId: null,
+          },
+        },
       },
     });
 
@@ -605,7 +619,14 @@ export async function updateComplaintWithRelations(
       include: {
         productInformation: true,
         patientInformation: true,
-        attachments: true,
+        attachments: {
+          where: {
+            investigationId: null,
+            vigilanceId: null,
+            communicationId: null,
+            taskId: null,
+          },
+        },
       },
     });
 

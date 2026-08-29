@@ -83,7 +83,18 @@ export default async function InvestigationPage({
     <InvestigationEditForm
       orgSlug={orgSlug}
       complaintNumber={complaint.complaintNumber}
-      customSections={customSections}
+      customSections={customSections.map(cs => ({
+        ...cs,
+        assignedDate: cs.assignedDate?.toISOString() || null,
+        completedAt: cs.completedAt?.toISOString() || null,
+        createdAt: cs.createdAt?.toISOString() || null,
+        updatedAt: cs.updatedAt?.toISOString() || null,
+        template: cs.template ? {
+          ...cs.template,
+          createdAt: cs.template.createdAt?.toISOString() || null,
+          updatedAt: cs.template.updatedAt?.toISOString() || null,
+        } : null,
+      }))}
       productInformation={complaint.productInformation || []}
       investigation={{
         ...activeInvestigation,

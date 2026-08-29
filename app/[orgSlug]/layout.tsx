@@ -1,10 +1,26 @@
+import type { Metadata } from "next";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
+import { findOrgByIdentifier } from "@/lib/tenant";
 
 interface WorkspaceLayoutProps {
   children: React.ReactNode;
   params: Promise<{ orgSlug: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>;
+}): Promise<Metadata> {
+  const { orgSlug } = await params;
+  const org = await findOrgByIdentifier(orgSlug);
+  const orgName = org?.name || orgSlug;
+
+  return {
+    title: `${orgName} - Meet Arlo`,
+  };
 }
 
 export default async function WorkspaceLayout({

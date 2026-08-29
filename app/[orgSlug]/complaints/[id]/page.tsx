@@ -24,7 +24,14 @@ export default async function ComplaintDetailPage({
       },
       productInformation: true,
       patientInformation: true,
-      attachments: true,
+      attachments: {
+        where: {
+          investigationId: null,
+          vigilanceId: null,
+          communicationId: null,
+          taskId: null,
+        },
+      },
       sampleManagement: true,
     },
   });

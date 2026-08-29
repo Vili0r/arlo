@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireOrgAuth } from "@/lib/auth-guard";
 import { AuditAction, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { generateAuditDiff } from "@/utils/auditDiff";
 
 export async function getInvestigationTemplates(orgId: string) {
   return await prisma.investigationSectionTemplate.findMany({
@@ -111,13 +112,17 @@ export async function getCustomSections(investigationId: string) {
   });
 }
 
-export async function updateCustomSection(id: string, data: {
-  assignedToId?: string | null;
-  isRequired?: boolean;
-  assignedDate?: Date | null;
-  exemptRationale?: string | null;
-  results?: string | null;
-}) {
+export async function updateCustomSection(
+  id: string,
+  data: {
+    assignedToId?: string | null;
+    isRequired?: boolean;
+    assignedDate?: Date | string | null;
+    exemptRationale?: string | null;
+    results?: string | null;
+  },
+  orgSlug?: string
+) {
   const { orgId, userId } = await requireOrgAuth();
   
   const existing = await prisma.investigationCustomSection.findUnique({
@@ -131,9 +136,18 @@ export async function updateCustomSection(id: string, data: {
   const updated = await prisma.investigationCustomSection.update({
     where: { id, orgId },
     data: {
-      ...data,
+      isRequired: data.isRequired,
+      assignedToId: data.assignedToId || null,
+      assignedDate: data.assignedDate ? new Date(data.assignedDate) : null,
+      exemptRationale: data.exemptRationale || null,
+      results: data.results || null,
     }
   });
+
+  const fieldChanges = generateAuditDiff(
+    existing as unknown as Record<string, unknown>,
+    updated as unknown as Record<string, unknown>
+  );
 
   await prisma.auditLog.create({
     data: {
@@ -145,8 +159,14 @@ export async function updateCustomSection(id: string, data: {
       previousData: existing as unknown as Prisma.InputJsonValue,
       newData: updated as unknown as Prisma.InputJsonValue,
       reason: "Updated custom investigation section",
+      fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
+      complaintId: existing.investigationId,
     },
   });
+
+  if (orgSlug) {
+    revalidatePath(`/${orgSlug}/complaints/${existing.investigationId}/investigation`);
+  }
 
   return updated;
 }

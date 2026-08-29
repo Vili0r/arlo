@@ -1505,7 +1505,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             href: `/${orgSlug}/complaints/${c.id}/investigation`,
                                             icon: <SearchCode className="h-3.5 w-3.5" />,
                                             iconColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
-                                            title: "Formal Investigation Workflow",
+                                            title: "Investigation File",
                                             badge: getInvestigationStatusBadge(
                                               investigation.status,
                                               "text-[9px] py-0"
@@ -1529,13 +1529,13 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             href: `/${orgSlug}/complaints/${c.id}/vigilance`,
                                             icon: <ShieldAlert className="h-3.5 w-3.5" />,
                                             iconColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-                                            title: "Vigilance Decision Tree (MDR / FDA)",
+                                            title: "Vigilance Decision Tree",
                                             badge: (
                                               <Badge variant="outline" className="text-[9px] bg-purple-500/10 text-purple-600 border-purple-500/20 py-0">
                                                 {vigilance.status}
                                               </Badge>
                                             ),
-                                            desc: `${vigilance.reportable ? "🚨 Reportable Incident (Adverse Event)" : "🛡️ Non-Reportable"} • ${vigilance.rationale || "Evaluation pending."}`,
+                                            desc: `${vigilance.reportable ? "Reportable Incident (Adverse Event)" : "Non-Reportable"} • ${vigilance.rationale || "Evaluation pending"}`,
                                             rightMeta: (
                                               <span className="font-mono text-[10px]">
                                                 Decision Tree #{vigilance.id.slice(-6)}

@@ -262,6 +262,14 @@ export async function executeStatusTransition(
         }
       }
 
+      // 5b-3. Investigation Under Review Mandatory Fields Guard
+      if (
+        entityType === "Investigation" &&
+        (newStatus === "UNDER_REVIEW" || newStatus === "COMPLETED")
+      ) {
+        await validateInvestigationForReview(tx, entityId, orgId);
+      }
+
       const isCancel = isCancelTransition(newStatus);
       const isRevert = isRevertTransition(
         entityType as EntityType,
@@ -440,5 +448,134 @@ async function updateRecord(
       });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);
+  }
+}
+
+async function validateInvestigationForReview(
+  tx: PrismaTx,
+  investigationId: string,
+  orgId: string
+) {
+  const fullInvestigation = await tx.investigation.findUnique({
+    where: { id: investigationId, orgId },
+    include: {
+      summary: {
+        include: {
+          imdrfCodes: true,
+        },
+      },
+      customSections: {
+        include: {
+          template: true,
+        },
+      },
+    },
+  });
+
+  if (!fullInvestigation) {
+    throw new Error("Investigation record not found.");
+  }
+
+  const missingFields: string[] = [];
+
+  // 1. General Details: Investigator
+  if (!fullInvestigation.investigatorId?.trim()) {
+    missingFields.push("General Details: Investigator must be assigned.");
+  }
+
+  // 2. Sample Analysis:
+  if (fullInvestigation.sampleAnalysisRequired) {
+    if (!fullInvestigation.sampleAnalysisAssignedDate) {
+      missingFields.push("Sample Analysis: Assigned Date is required.");
+    }
+    if (!fullInvestigation.sampleAnalysisCompleteDate) {
+      missingFields.push("Sample Analysis: Complete Date is required.");
+    }
+  } else {
+    if (!fullInvestigation.sampleAnalysisExemptRationale?.trim()) {
+      missingFields.push("Sample Analysis: Exempt Rationale is required when Sample Analysis is not required.");
+    }
+  }
+
+  // 3. Risk Review:
+  if (fullInvestigation.riskReviewRequired) {
+    if (!fullInvestigation.riskReviewCompletedById?.trim()) {
+      missingFields.push("Risk Review: Completed By is required when Risk Review is required.");
+    }
+    if (!fullInvestigation.riskReviewCompletedAt) {
+      missingFields.push("Risk Review: Completed At date is required when Risk Review is required.");
+    }
+    if (!fullInvestigation.riskReviewResults?.trim()) {
+      missingFields.push("Risk Review: Results are required when Risk Review is required.");
+    }
+  } else {
+    if (!fullInvestigation.riskReviewExemptRationale?.trim()) {
+      missingFields.push("Risk Review: Exempt Rationale is required when Risk Review is not required.");
+    }
+  }
+
+  // 4. Summary & CAPA:
+  if (!fullInvestigation.summary) {
+    missingFields.push("Summary & CAPA: Investigation Summary details have not been saved yet.");
+  } else {
+    const summary = fullInvestigation.summary;
+    const completedById = fullInvestigation.investigationSummaryCompletedById || summary.completedById;
+    const completedAt = fullInvestigation.investigationSummaryCompletedAt || summary.completedAt;
+
+    if (!completedById?.trim()) {
+      missingFields.push("Summary & CAPA: Summary Completed By is required.");
+    }
+    if (!completedAt) {
+      missingFields.push("Summary & CAPA: Summary Completed At date is required.");
+    }
+    if (!summary.summary?.trim()) {
+      missingFields.push("Summary & CAPA: Summary text is required.");
+    }
+    if (!summary.report?.trim()) {
+      missingFields.push("Summary & CAPA: Investigation Report is required.");
+    }
+    if (!summary.capaRationale?.trim()) {
+      missingFields.push("Summary & CAPA: CAPA Rationale is required.");
+    }
+
+    // IMDRF Codes check: Annex B, C, D, G
+    const codes = summary.imdrfCodes || [];
+    const hasAnnexB = codes.some((c) => c.annex === "ANNEX_B" && c.code?.trim() && c.term?.trim());
+    const hasAnnexC = codes.some((c) => c.annex === "ANNEX_C" && c.code?.trim() && c.term?.trim());
+    const hasAnnexD = codes.some((c) => c.annex === "ANNEX_D" && c.code?.trim() && c.term?.trim());
+    const hasAnnexG = codes.some((c) => c.annex === "ANNEX_G" && c.code?.trim() && c.term?.trim());
+
+    if (!hasAnnexB || !hasAnnexC || !hasAnnexD || !hasAnnexG) {
+      missingFields.push("Summary & CAPA: IMDRF Codes must include valid selections for all Annexes (Annex B, C, D, and G).");
+    }
+  }
+
+  // 5. Custom Sections:
+  if (fullInvestigation.customSections && fullInvestigation.customSections.length > 0) {
+    for (const cs of fullInvestigation.customSections) {
+      if (cs.template && !cs.template.isActive) {
+        continue;
+      }
+      const sectionName = cs.template?.sectionName || "Custom Section";
+      if (cs.isRequired) {
+        const missingSub: string[] = [];
+        if (!cs.assignedToId?.trim()) missingSub.push("Assigned To");
+        if (!cs.assignedDate) missingSub.push("Assigned Date");
+        if (!cs.results?.trim()) missingSub.push("Results");
+        if (missingSub.length > 0) {
+          missingFields.push(`Custom Section "${sectionName}": ${missingSub.join(", ")} required.`);
+        }
+      } else {
+        if (!cs.exemptRationale?.trim()) {
+          missingFields.push(`Custom Section "${sectionName}": Exempt Rationale is required.`);
+        }
+      }
+    }
+  }
+
+  if (missingFields.length > 0) {
+    throw new Error(
+      `Cannot move investigation to Under Review. The following mandatory fields must be completed:\n• ${missingFields.join("\n• ")}`
+    );
   }
 }

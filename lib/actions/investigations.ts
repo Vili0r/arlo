@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireOrgAuth, PERMISSIONS } from "@/lib/auth-guard";
 import { InvestigationStatus, AuditAction, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { generateAuditDiff } from "@/utils/auditDiff";
 
 export interface AttachmentInput {
   fileUrl: string;
@@ -57,6 +58,14 @@ export interface UpdateInvestigationInput {
   }>;
 
   newAttachments?: AttachmentInput[];
+  customSections?: Array<{
+    id: string;
+    isRequired: boolean;
+    assignedToId?: string | null;
+    assignedDate?: Date | string | null;
+    exemptRationale?: string | null;
+    results?: string | null;
+  }>;
 }
 
 export async function updateInvestigation(data: UpdateInvestigationInput) {
@@ -65,7 +74,11 @@ export async function updateInvestigation(data: UpdateInvestigationInput) {
   return await prisma.$transaction(async (tx) => {
     const existing = await tx.investigation.findUnique({
       where: { id: data.id, orgId },
-      include: { attachments: true, summary: { include: { imdrfCodes: true } } },
+      include: {
+        attachments: true,
+        summary: { include: { imdrfCodes: true } },
+        customSections: { include: { template: true } },
+      },
     });
 
     if (!existing) {
@@ -135,6 +148,21 @@ export async function updateInvestigation(data: UpdateInvestigationInput) {
       },
     });
 
+    if (data.customSections && data.customSections.length > 0) {
+      for (const cs of data.customSections) {
+        await tx.investigationCustomSection.updateMany({
+          where: { id: cs.id, investigationId: data.id, orgId },
+          data: {
+            isRequired: cs.isRequired,
+            assignedToId: cs.assignedToId || null,
+            assignedDate: cs.assignedDate ? new Date(cs.assignedDate) : null,
+            exemptRationale: cs.exemptRationale || null,
+            results: cs.results || null,
+          },
+        });
+      }
+    }
+
     if (data.newAttachments && data.newAttachments.length > 0) {
       await tx.attachment.createMany({
         data: data.newAttachments.map((att) => ({
@@ -152,8 +180,17 @@ export async function updateInvestigation(data: UpdateInvestigationInput) {
 
     const fullyUpdated = await tx.investigation.findUnique({
       where: { id: data.id },
-      include: { attachments: true }
+      include: {
+        attachments: true,
+        summary: { include: { imdrfCodes: true } },
+        customSections: { include: { template: true } },
+      },
     });
+
+    const fieldChanges = generateAuditDiff(
+      existing as unknown as Record<string, unknown>,
+      fullyUpdated as unknown as Record<string, unknown>
+    );
 
     await tx.auditLog.create({
       data: {
@@ -165,6 +202,7 @@ export async function updateInvestigation(data: UpdateInvestigationInput) {
         previousData: existing as unknown as Prisma.InputJsonValue,
         newData: fullyUpdated as unknown as Prisma.InputJsonValue,
         reason: `Updated investigation details`,
+        fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
         complaintId: data.complaintId,
       },
     });

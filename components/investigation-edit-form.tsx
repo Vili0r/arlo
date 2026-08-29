@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   SearchCode,
   Save,
-  
+  Loader2,
   FlaskConical,
   ShieldAlert,
   CheckCircle2,
@@ -15,7 +16,7 @@ import {
   Trash2
 } from "lucide-react";
 import { InvestigationStatus, ImdrfAnnex } from "@prisma/client";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +26,7 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
+  CardFooter,
 } from "@/components/ui/card";
 import {
   Breadcrumb,
@@ -219,6 +221,18 @@ export function InvestigationEditForm({
     return groups;
   });
 
+  const [customSectionStates, setCustomSectionStates] = React.useState(customSections);
+
+  React.useEffect(() => {
+    setCustomSectionStates(customSections);
+  }, [customSections]);
+
+  const handleCustomSectionChange = (sectionId: string, field: string, value: any) => {
+    setCustomSectionStates((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, [field]: value } : s))
+    );
+  };
+
   const handleAddImdrfGroup = () => {
     setImdrfGroups([...imdrfGroups, [
       { annex: ImdrfAnnex.ANNEX_B, category: "", code: "", term: "", productInformationId: null },
@@ -307,6 +321,14 @@ export function InvestigationEditForm({
         capaRef: capaRef || null,
         reportabilityReviewRequired,
         imdrfCodes: imdrfGroups.flat(),
+        customSections: customSectionStates.map((cs) => ({
+          id: cs.id,
+          isRequired: !!cs.isRequired,
+          assignedToId: cs.assignedToId || null,
+          assignedDate: cs.assignedDate ? new Date(cs.assignedDate) : null,
+          exemptRationale: cs.exemptRationale || null,
+          results: cs.results || null,
+        })),
       });
 
       toast.success("Success", { description: "Investigation details saved successfully." });
@@ -340,61 +362,58 @@ export function InvestigationEditForm({
           </Breadcrumb>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600">
-              <SearchCode className="h-6 w-6" />
+        <Card className="border-border shadow-sm">
+          <CardHeader className="border-b border-border pb-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+                  <SearchCode className="h-6 w-6" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold">Investigation: {complaintNumber}</CardTitle>
+                  <CardDescription className="mt-1">Manage all investigation tasks and CAPA assignments</CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center">
+                <StatusTransitionTracker
+                  entityType="Investigation"
+                  entityId={investigation.id}
+                  currentStatus={status}
+                  onStatusChanged={(newStatus) => {
+                    setStatus(newStatus as InvestigationStatus);
+                    router.refresh();
+                  }}
+                />
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Investigation: {complaintNumber}</h1>
-              <p className="text-sm text-muted-foreground mt-1">Manage all investigation tasks and CAPA assignments</p>
-            </div>
-          </div>
-          <div className="flex items-center">
-            <StatusTransitionTracker
-              entityType="Investigation"
-              entityId={investigation.id}
-              currentStatus={status}
-              onStatusChanged={(newStatus) => {
-                setStatus(newStatus as InvestigationStatus);
-                router.refresh();
-              }}
-            />
-          </div>
-        </div>
+          </CardHeader>
 
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-xs text-destructive">
-            <span className="font-semibold block">Error</span>
-            {error}
-          </div>
-        )}
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-6 pt-6">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mb-6">
+                <TabsList className="w-full sm:w-auto flex flex-wrap h-auto p-1 bg-muted/50 gap-1 rounded-lg">
+                  <TabsTrigger value="general" className="gap-2 text-xs py-2">
+                    <FileText className="h-4 w-4" /> General Details
+                  </TabsTrigger>
+                  <TabsTrigger value="sample" className="gap-2 text-xs py-2">
+                    <FlaskConical className="h-4 w-4" /> Sample Analysis
+                  </TabsTrigger>
+                  <TabsTrigger value="risk" className="gap-2 text-xs py-2">
+                    <ShieldAlert className="h-4 w-4" /> Risk Review
+                  </TabsTrigger>
+                  <TabsTrigger value="summary" className="gap-2 text-xs py-2">
+                    <CheckCircle2 className="h-4 w-4" /> Summary & CAPA
+                  </TabsTrigger>
+                  {customSectionStates.map((section) => (
+                    <TabsTrigger key={section.id} value={`custom-${section.id}`} className="gap-2 text-xs py-2">
+                      <SearchCode className="h-4 w-4" /> {section.template?.sectionName || "Custom Section"}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full sm:w-auto flex flex-wrap h-auto p-1 bg-muted/50 gap-1 rounded-lg">
-              <TabsTrigger value="general" className="gap-2 text-xs py-2">
-                <FileText className="h-4 w-4" /> General Details
-              </TabsTrigger>
-              <TabsTrigger value="sample" className="gap-2 text-xs py-2">
-                <FlaskConical className="h-4 w-4" /> Sample Analysis
-              </TabsTrigger>
-              <TabsTrigger value="risk" className="gap-2 text-xs py-2">
-                <ShieldAlert className="h-4 w-4" /> Risk Review
-              </TabsTrigger>
-              <TabsTrigger value="summary" className="gap-2 text-xs py-2">
-                <CheckCircle2 className="h-4 w-4" /> Summary & CAPA
-              </TabsTrigger>
-              {customSections.map((section) => (
-                <TabsTrigger key={section.id} value={`custom-${section.id}`} className="gap-2 text-xs py-2">
-                  <SearchCode className="h-4 w-4" /> {section.template.sectionName}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            <div className="mt-6 bg-card border border-border rounded-xl p-6">
-              {/* General Details Tab */}
-              <TabsContent value="general" className="mt-0 space-y-6 outline-none">
+                <div className="mt-6 rounded-xl border border-border bg-muted/15 p-6">
+                  {/* General Details Tab */}
+                  <TabsContent value="general" className="mt-0 space-y-6 outline-none">
                 <h2 className="text-xl font-semibold border-b pb-2">General Details</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -433,7 +452,9 @@ export function InvestigationEditForm({
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Investigator</Label>
+                    <Label className="text-sm font-medium">
+                      Investigator <span className="text-destructive">*</span>
+                    </Label>
                     <select
                       value={investigatorId}
                       onChange={(e) => setInvestigatorId(e.target.value)}
@@ -477,11 +498,15 @@ export function InvestigationEditForm({
                     <Input type="date" value={sampleReceivedDate} onChange={(e) => setSampleReceivedDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Assigned Date</Label>
+                    <Label className="text-sm font-medium">
+                      Assigned Date <span className="text-destructive">*</span>
+                    </Label>
                     <Input type="date" value={sampleAnalysisAssignedDate} onChange={(e) => setSampleAnalysisAssignedDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Complete Date</Label>
+                    <Label className="text-sm font-medium">
+                      Complete Date <span className="text-destructive">*</span>
+                    </Label>
                     <Input type="date" value={sampleAnalysisCompleteDate} onChange={(e) => setSampleAnalysisCompleteDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
@@ -521,7 +546,9 @@ export function InvestigationEditForm({
                   <Label htmlFor="riskRequired" className="font-medium">Risk Review Required</Label>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Exempt Rationale</Label>
+                  <Label className="text-sm font-medium">
+                    Exempt Rationale {!riskReviewRequired && <span className="text-destructive">*</span>}
+                  </Label>
                   <Textarea 
                     rows={2} 
                     value={riskReviewExemptRationale} 
@@ -530,7 +557,9 @@ export function InvestigationEditForm({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Completed By</Label>
+                    <Label className="text-sm font-medium">
+                      Completed By {riskReviewRequired && <span className="text-destructive">*</span>}
+                    </Label>
                     <select
                       value={riskReviewCompletedById}
                       onChange={(e) => setRiskReviewCompletedById(e.target.value)}
@@ -545,12 +574,16 @@ export function InvestigationEditForm({
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Completed At</Label>
+                    <Label className="text-sm font-medium">
+                      Completed At {riskReviewRequired && <span className="text-destructive">*</span>}
+                    </Label>
                     <Input type="date" value={riskReviewCompletedAt} onChange={(e) => setRiskReviewCompletedAt(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2 pt-2">
-                  <Label className="text-sm font-medium">Risk Review Results</Label>
+                  <Label className="text-sm font-medium">
+                    Risk Review Results {riskReviewRequired && <span className="text-destructive">*</span>}
+                  </Label>
                   <Textarea 
                     rows={4} 
                     value={riskReviewResults} 
@@ -565,12 +598,16 @@ export function InvestigationEditForm({
                 <h2 className="text-xl font-semibold border-b pb-2">Investigation Summary & CAPA</h2>
                 
                  <div className="space-y-2">
-                  <Label className="text-sm font-medium">Summary</Label>
+                  <Label className="text-sm font-medium">
+                    Summary <span className="text-destructive">*</span>
+                  </Label>
                   <Textarea rows={3} value={summaryText} onChange={(e) => setSummaryText(e.target.value)} />
                 </div>
                 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Report</Label>
+                  <Label className="text-sm font-medium">
+                    Report <span className="text-destructive">*</span>
+                  </Label>
                   <Textarea rows={4} value={report} onChange={(e) => setReport(e.target.value)} />
                 </div>
 
@@ -604,7 +641,9 @@ export function InvestigationEditForm({
                 </div>
                 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">CAPA Rationale</Label>
+                  <Label className="text-sm font-medium">
+                    CAPA Rationale <span className="text-destructive">*</span>
+                  </Label>
                   <Textarea rows={2} value={capaRationale} onChange={(e) => setCapaRationale(e.target.value)} />
                 </div>
                 
@@ -620,7 +659,9 @@ export function InvestigationEditForm({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label className="text-base">IMDRF Investigation Codes</Label>
+                      <Label className="text-base">
+                        IMDRF Investigation Codes <span className="text-destructive">*</span>
+                      </Label>
                       <p className="text-sm text-muted-foreground">
                         Hierarchical categorization of the investigation findings.
                       </p>
@@ -784,14 +825,14 @@ export function InvestigationEditForm({
                                       <TableCell className="p-3 align-top min-w-[200px]">
                                         {getCodeSelects("ANNEX_G")}
                                       </TableCell>
-                                                                        <TableCell className="p-3 align-top min-w-[200px]">
-                                    <textarea
-                                      placeholder="Notes (optional)"
-                                      value={group[0]?.notes || ""}
-                                      onChange={(e) => handleGroupNotesChange(groupIdx, e.target.value)}
-                                      className="w-full min-h-[60px] rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring resize-y"
-                                    />
-                                  </TableCell>
+                                      <TableCell className="p-3 align-top min-w-[200px]">
+                                        <textarea
+                                          placeholder="Notes (optional)"
+                                          value={group[0]?.notes || ""}
+                                          onChange={(e) => handleGroupNotesChange(groupIdx, e.target.value)}
+                                          className="w-full min-h-[60px] rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring resize-y"
+                                        />
+                                      </TableCell>
                                       <TableCell className="p-3 text-center align-middle opacity-0 group-hover:opacity-100 transition-opacity">
                                         {imdrfGroups.length > 1 && (
                                           <Button 
@@ -821,7 +862,9 @@ export function InvestigationEditForm({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-border pt-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Summary Completed By</Label>
+                    <Label className="text-sm font-medium">
+                      Summary Completed By <span className="text-destructive">*</span>
+                    </Label>
                     <select
                       value={investigationSummaryCompletedById}
                       onChange={(e) => setInvestigationSummaryCompletedById(e.target.value)}
@@ -836,33 +879,51 @@ export function InvestigationEditForm({
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Summary Completed At</Label>
+                    <Label className="text-sm font-medium">
+                      Summary Completed At <span className="text-destructive">*</span>
+                    </Label>
                     <Input type="date" value={investigationSummaryCompletedAt} onChange={(e) => setInvestigationSummaryCompletedAt(e.target.value)} />
                   </div>
                 </div>
               </TabsContent>
 
               {/* Custom Sections Tabs */}
-              {customSections.map((section) => (
+              {customSectionStates.map((section) => (
                 <TabsContent key={section.id} value={`custom-${section.id}`} className="mt-0 space-y-6 outline-none">
-                  <h2 className="text-xl font-semibold border-b pb-2">{section.template.sectionName}</h2>
-                  <CustomInvestigationSection initialSection={section} />
+                  <h2 className="text-xl font-semibold border-b pb-2">{section.template?.sectionName || "Custom Section"}</h2>
+                  <CustomInvestigationSection
+                    section={section}
+                    onChange={(field, value) => handleCustomSectionChange(section.id, field, value)}
+                  />
                 </TabsContent>
               ))}
             </div>
-
-            <div className="flex justify-end pt-4">
-              <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
-                {isSubmitting ? "Saving..." : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" /> Save Investigation
-                  </>
-                )}
-              </Button>
-            </div>
           </Tabs>
-        </form>
-      </div>
-    </div>
+        </CardContent>
+
+        <CardFooter className="flex justify-end gap-3 border-t border-border pt-4 pb-4">
+          <Link
+            href={`/complaints/${investigation.complaintId}`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            Cancel
+          </Link>
+          <Button type="submit" size="sm" disabled={isSubmitting} className="min-w-[120px]">
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-1.5" /> Save Investigation
+              </>
+            )}
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
+  </div>
+</div>
   );
 }

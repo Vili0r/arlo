@@ -1,7 +1,7 @@
 import { requireOrgAuth } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { CommunicationDetail } from "@/components/CommunicationDetail";
+import { CommunicationDetail } from "@/components/communication-details";
 
 interface CommunicationPageProps {
   params: Promise<{ orgSlug: string; id: string; communicationId: string }>;

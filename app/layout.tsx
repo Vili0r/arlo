@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Arlo — Post-Market Quality Tracker",
+  title: "Meet Arlo",
   description: "Post-Market Surveillance for medical device manufacturers",
 };
 

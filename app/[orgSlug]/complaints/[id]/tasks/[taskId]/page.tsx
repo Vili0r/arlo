@@ -1,7 +1,7 @@
 import { requireOrgAuth } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { ComplaintTaskForm } from "@/components/ComplaintTaskForm";
+import { ComplaintTaskForm } from "@/components/complaint-task-form";
 
 interface ComplaintTaskDetailPageProps {
   params: Promise<{ orgSlug: string; id: string; taskId: string }>;

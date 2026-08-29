@@ -11,9 +11,12 @@ import {
   MessageSquare,
   SearchCode,
   ShieldAlert,
+  ChevronDown,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AuditAction } from "@prisma/client";
+import { cn } from "@/lib/utils";
+import { generateAuditDiff } from "@/utils/auditDiff";
 import {
   Pagination,
   PaginationContent,
@@ -46,6 +49,19 @@ export function AuditHistoryDrawer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
+  const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set());
+
+  const toggleLogAccordion = (logId: string) => {
+    setExpandedLogIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(logId)) {
+        next.delete(logId);
+      } else {
+        next.add(logId);
+      }
+      return next;
+    });
+  };
 
   const MAX_HISTORY_PAGES = 5;
   const HISTORY_ITEMS_PER_PAGE = 5;
@@ -55,6 +71,7 @@ export function AuditHistoryDrawer({
       setLoading(true);
       setError(null);
       setHistoryPage(1);
+      setExpandedLogIds(new Set());
       getAuditHistory(entityType, entityId)
         .then((data) => setLogs(data))
         .catch((err) => setError(err.message))
@@ -445,130 +462,164 @@ export function AuditHistoryDrawer({
                             <span suppressHydrationWarning>{formatDateTime(log.timestamp)}</span>
                           </div>
 
-                          {/* Technical details / Diff preview */}
-                          {Boolean(log.fieldChanges) &&
-                            Array.isArray(log.fieldChanges) &&
-                            (log.fieldChanges as Record<string, unknown>[]).length > 0 && (
+                          {/* Technical details / Diff preview with accordion */}
+                          {(() => {
+                            const rawChanges =
+                              Array.isArray(log.fieldChanges) &&
+                              (log.fieldChanges as Record<string, unknown>[]).length > 0
+                                ? (log.fieldChanges as Record<string, unknown>[])
+                                : log.previousData &&
+                                  log.newData &&
+                                  typeof log.previousData === "object" &&
+                                  typeof log.newData === "object"
+                                ? (generateAuditDiff(
+                                    log.previousData as Record<string, any>,
+                                    log.newData as Record<string, any>
+                                  ) as unknown as Record<string, unknown>[])
+                                : [];
+
+                            const fieldChangesList = rawChanges;
+                            const isExpanded = expandedLogIds.has(log.id);
+
+                            if (fieldChangesList.length === 0) return null;
+
+                            return (
                               <div className="pt-2 border-t border-border/80 space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                                    Field Modifications:
+                                <button
+                                  type="button"
+                                  onClick={() => toggleLogAccordion(log.id)}
+                                  className="w-full flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors border border-border/50 cursor-pointer font-medium"
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    <ChevronDown
+                                      className={cn(
+                                        "h-3.5 w-3.5 transition-transform duration-200 text-amber-500",
+                                        isExpanded ? "rotate-180" : ""
+                                      )}
+                                    />
+                                    <span className="text-[11px] font-sans font-semibold">
+                                      {isExpanded
+                                        ? "Hide Field Modifications"
+                                        : "View Field Modifications"}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background border border-border/60 text-muted-foreground">
+                                    {fieldChangesList.length} field
+                                    {fieldChangesList.length > 1 ? "s" : ""} changed
                                   </span>
-                                  <span className="text-[10px] font-mono text-muted-foreground">
-                                    {(log.fieldChanges as Record<string, unknown>[]).length} field
-                                    {(log.fieldChanges as Record<string, unknown>[]).length > 1 ? "s" : ""}{" "}
-                                    changed
-                                  </span>
-                                </div>
+                                </button>
 
-                                <div className="space-y-2">
-                                  {(log.fieldChanges as Record<string, unknown>[]).map(
-                                    (change: Record<string, unknown>, idx: number) => {
-                                      const rawKey = String(
-                                        change.field || change.fieldId || ""
-                                      );
-                                      const fieldLabel = String(
-                                        change.fieldLabel || formatFieldTitle(rawKey)
-                                      );
-                                      const isComplex =
-                                        typeof change.oldValue === "object" ||
-                                        typeof change.newValue === "object";
-                                      const diffs = extractDetailedDiffs(
-                                        change.oldValue,
-                                        change.newValue
-                                      );
+                                {isExpanded && (
+                                  <div className="space-y-2 pt-1 animate-in fade-in-0 duration-150">
+                                    {fieldChangesList.map(
+                                      (change: Record<string, unknown>, idx: number) => {
+                                        const rawKey = String(
+                                          change.field || change.fieldId || ""
+                                        );
+                                        const fieldLabel = String(
+                                          change.fieldLabel || formatFieldTitle(rawKey)
+                                        );
+                                        const isComplex =
+                                          typeof change.oldValue === "object" ||
+                                          typeof change.newValue === "object";
+                                        const diffs = extractDetailedDiffs(
+                                          change.oldValue,
+                                          change.newValue
+                                        );
 
-                                      return (
-                                        <div
-                                          key={idx}
-                                          className="rounded-lg border border-border/60 bg-muted/30 p-2.5 space-y-1.5 text-xs"
-                                        >
-                                          {/* Field Label Header */}
-                                          <div className="flex items-center justify-between gap-2">
-                                            <div className="flex items-center gap-1.5">
-                                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                              <span className="font-semibold text-foreground text-[11px] font-sans">
-                                                {fieldLabel}
-                                              </span>
-                                              {rawKey && rawKey !== fieldLabel && (
-                                                <span className="text-[10px] font-mono text-muted-foreground">
-                                                  ({rawKey})
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className="rounded-lg border border-border/60 bg-muted/30 p-2.5 space-y-1.5 text-xs"
+                                          >
+                                            {/* Field Label Header */}
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                                <span className="font-semibold text-foreground text-[11px] font-sans">
+                                                  {fieldLabel}
+                                                </span>
+                                                {rawKey && rawKey !== fieldLabel && (
+                                                  <span className="text-[10px] font-mono text-muted-foreground">
+                                                    ({rawKey})
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {isComplex && (
+                                                <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/60">
+                                                  Structured Data
                                                 </span>
                                               )}
                                             </div>
+
+                                            {/* Visual Diff Badges */}
+                                            <div className="space-y-1.5">
+                                              {diffs.map((diff, dIdx) => (
+                                                <div
+                                                  key={dIdx}
+                                                  className="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-background/80 p-1.5 rounded border border-border/50 text-[11px] font-mono"
+                                                >
+                                                  {diff.label && (
+                                                    <span className="text-muted-foreground font-medium text-[10px] sm:min-w-[110px] shrink-0">
+                                                      {diff.label}:
+                                                    </span>
+                                                  )}
+                                                  <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                                                    <span className="line-through text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
+                                                      {diff.oldDisplay}
+                                                    </span>
+                                                    <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
+                                                      {diff.newDisplay}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+
+                                            {/* Expandable formatted raw JSON */}
                                             {isComplex && (
-                                              <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/60">
-                                                Structured Data
-                                              </span>
+                                              <details className="text-[10px] font-mono pt-1 text-muted-foreground cursor-pointer group">
+                                                <summary className="hover:text-foreground transition-colors select-none">
+                                                  View raw formatted JSON
+                                                </summary>
+                                                <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-card p-2 rounded border border-border">
+                                                  <div>
+                                                    <span className="block text-[9px] uppercase tracking-wider font-semibold text-rose-500 mb-1">
+                                                      Previous (Old)
+                                                    </span>
+                                                    <pre className="p-2 rounded bg-rose-500/5 text-rose-700 dark:text-rose-300 overflow-x-auto text-[10px] leading-tight border border-rose-500/10 max-h-48 overflow-y-auto">
+                                                      {JSON.stringify(
+                                                        cleanNoise(change.oldValue),
+                                                        null,
+                                                        2
+                                                      )}
+                                                    </pre>
+                                                  </div>
+                                                  <div>
+                                                    <span className="block text-[9px] uppercase tracking-wider font-semibold text-emerald-500 mb-1">
+                                                      Updated (New)
+                                                    </span>
+                                                    <pre className="p-2 rounded bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 overflow-x-auto text-[10px] leading-tight border border-emerald-500/10 max-h-48 overflow-y-auto">
+                                                      {JSON.stringify(
+                                                        cleanNoise(change.newValue),
+                                                        null,
+                                                        2
+                                                      )}
+                                                    </pre>
+                                                  </div>
+                                                </div>
+                                              </details>
                                             )}
                                           </div>
-
-                                          {/* Visual Diff Badges */}
-                                          <div className="space-y-1.5">
-                                            {diffs.map((diff, dIdx) => (
-                                              <div
-                                                key={dIdx}
-                                                className="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-background/80 p-1.5 rounded border border-border/50 text-[11px] font-mono"
-                                              >
-                                                {diff.label && (
-                                                  <span className="text-muted-foreground font-medium text-[10px] sm:min-w-[110px] shrink-0">
-                                                    {diff.label}:
-                                                  </span>
-                                                )}
-                                                <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-                                                  <span className="line-through text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
-                                                    {diff.oldDisplay}
-                                                  </span>
-                                                  <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                                                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
-                                                    {diff.newDisplay}
-                                                  </span>
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-
-                                          {/* Expandable formatted raw JSON */}
-                                          {isComplex && (
-                                            <details className="text-[10px] font-mono pt-1 text-muted-foreground cursor-pointer group">
-                                              <summary className="hover:text-foreground transition-colors select-none">
-                                                View raw formatted JSON
-                                              </summary>
-                                              <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-card p-2 rounded border border-border">
-                                                <div>
-                                                  <span className="block text-[9px] uppercase tracking-wider font-semibold text-rose-500 mb-1">
-                                                    Previous (Old)
-                                                  </span>
-                                                  <pre className="p-2 rounded bg-rose-500/5 text-rose-700 dark:text-rose-300 overflow-x-auto text-[10px] leading-tight border border-rose-500/10 max-h-48 overflow-y-auto">
-                                                    {JSON.stringify(
-                                                      cleanNoise(change.oldValue),
-                                                      null,
-                                                      2
-                                                    )}
-                                                  </pre>
-                                                </div>
-                                                <div>
-                                                  <span className="block text-[9px] uppercase tracking-wider font-semibold text-emerald-500 mb-1">
-                                                    Updated (New)
-                                                  </span>
-                                                  <pre className="p-2 rounded bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 overflow-x-auto text-[10px] leading-tight border border-emerald-500/10 max-h-48 overflow-y-auto">
-                                                    {JSON.stringify(
-                                                      cleanNoise(change.newValue),
-                                                      null,
-                                                      2
-                                                    )}
-                                                  </pre>
-                                                </div>
-                                              </div>
-                                            </details>
-                                          )}
-                                        </div>
-                                      );
-                                    }
-                                  )}
-                                </div>
+                                        );
+                                      }
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            );
+                          })()}
                         </div>
                       </div>
                     );
