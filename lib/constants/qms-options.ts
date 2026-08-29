@@ -27,12 +27,9 @@ export const CUSTOMER_TYPES: OptionItem[] = [
 
 export const REGIONS: OptionItem[] = [
   { value: "North America (US & Canada)", label: "North America (US & Canada)" },
-  { value: "European Union (EU & EEA)", label: "European Union (EU & EEA)" },
-  { value: "United Kingdom (MHRA)", label: "United Kingdom (MHRA)" },
+  { value: "Europe & Middle East & Africa (EMEA)", label: "Europe & Middle East & Africa (EMEA)" },
   { value: "Asia-Pacific (APAC)", label: "Asia-Pacific (APAC)" },
   { value: "Latin America (LATAM)", label: "Latin America (LATAM)" },
-  { value: "Middle East & Africa (MEA)", label: "Middle East & Africa (MEA)" },
-  { value: "Global / Multi-Region", label: "Global / Multi-Region" },
 ];
 
 export const COUNTRIES: OptionItem[] = [

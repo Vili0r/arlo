@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, ArrowRight, Lock, RotateCcw } from "lucide-react";
+import { Check, ChevronDown, ArrowRight, RotateCcw, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -16,6 +16,8 @@ import {
   getStepConfig,
   getNextStatuses,
   getPreviousStatuses,
+  getCancelStepConfig,
+  canCancelStatus,
   type EntityType,
   type StatusStepConfig,
 } from "@/lib/constants/status-transitions";
@@ -28,6 +30,23 @@ interface StatusTransitionTrackerProps {
   onStatusChanged?: (newStatus: string) => void;
 }
 
+function formatEntityLabel(entityType: EntityType): string {
+  switch (entityType) {
+    case "Complaint":
+      return "Complaint";
+    case "Investigation":
+      return "Investigation";
+    case "Vigilance":
+      return "Vigilance Assessment";
+    case "CustomerCommunication":
+      return "Communication";
+    case "ComplaintTask":
+      return "Task";
+    default:
+      return entityType;
+  }
+}
+
 export function StatusTransitionTracker({
   entityType,
   entityId,
@@ -38,11 +57,13 @@ export function StatusTransitionTracker({
   const [selectedTarget, setSelectedTarget] =
     React.useState<StatusStepConfig | null>(null);
   const [isReverting, setIsReverting] = React.useState(false);
+  const [isCancelling, setIsCancelling] = React.useState(false);
 
   const config = getStatusConfig(entityType);
   const nextStatuses = getNextStatuses(entityType, currentStatus);
   const previousStatuses = getPreviousStatuses(entityType, currentStatus);
   const currentStepConfig = getStepConfig(entityType, currentStatus);
+  const canCancel = canCancelStatus(currentStatus);
 
   const mainSteps = config.steps.filter((s) => !s.isBranch);
   const isBranchStatus = currentStepConfig?.isBranch;
@@ -51,16 +72,27 @@ export function StatusTransitionTracker({
   function handleAdvanceClick(target: StatusStepConfig, isRevert: boolean = false) {
     setSelectedTarget(target);
     setIsReverting(isRevert);
+    setIsCancelling(false);
+    setModalOpen(true);
+  }
+
+  function handleCancelClick() {
+    const cancelTarget = getCancelStepConfig(entityType);
+    setSelectedTarget(cancelTarget);
+    setIsReverting(false);
+    setIsCancelling(true);
     setModalOpen(true);
   }
 
   function handleSignatureSuccess(newStatus: string) {
     setSelectedTarget(null);
     setIsReverting(false);
+    setIsCancelling(false);
     onStatusChanged?.(newStatus);
   }
 
-  const hasActions = previousStatuses.length > 0 || nextStatuses.length > 0;
+  const hasActions =
+    previousStatuses.length > 0 || nextStatuses.length > 0 || canCancel;
 
   return (
     <div className="flex flex-wrap items-center gap-4">
@@ -188,6 +220,25 @@ export function StatusTransitionTracker({
                   ))}
                 </>
               )}
+
+              {canCancel && (
+                <>
+                  {(nextStatuses.length > 0 || previousStatuses.length > 0) && (
+                    <DropdownMenuSeparator className="my-1" />
+                  )}
+                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-destructive px-2 py-1">
+                    Cancel Record
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    key="action-cancel"
+                    onClick={handleCancelClick}
+                    className="cursor-pointer gap-2 px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive focus:bg-destructive/10"
+                  >
+                    <Ban className="h-3.5 w-3.5 text-destructive" />
+                    <span>Cancel {formatEntityLabel(entityType)}</span>
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -204,6 +255,7 @@ export function StatusTransitionTracker({
           targetStatus={selectedTarget.value}
           targetStatusLabel={selectedTarget.label}
           isRevert={isReverting}
+          isCancel={isCancelling}
           onSuccess={handleSignatureSuccess}
         />
       )}

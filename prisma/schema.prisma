@@ -128,6 +128,7 @@ enum ComplaintStatus {
   PENDING_RESPONSE
   CLOSED
   REOPENED
+  CANCELLED
 }
 
 enum Priority {
@@ -152,6 +153,7 @@ enum CommunicationStatus {
   OPEN
   IN_PROGRESS
   CLOSED
+  CANCELLED
 }
 
 enum SampleStatus {
@@ -169,6 +171,7 @@ enum InvestigationStatus {
   UNDER_REVIEW
   COMPLETED
   NOT_REQUIRED
+  CANCELLED
 }
 
 enum VigilanceStatus {
@@ -176,6 +179,7 @@ enum VigilanceStatus {
   REPORTABLE
   NOT_REPORTABLE
   SUBMITTED
+  CANCELLED
 }
 
 enum VigilanceReportabilityDecision {
@@ -218,7 +222,6 @@ model Complaint {
   detailDescriptionNativeLanguage String?
   customerResponseNeeded          Boolean         @default(true)
   finalResponseCompletedOn        DateTime?
-  followUpRequired                Boolean         @default(true) // Unified with customer communication / follow-up
   complaintOwnerId                String // Maps to Clerk User ID
 
   // Legacy / Intact Optional Fields
@@ -509,6 +512,7 @@ enum TaskStatus {
   OPEN
   IN_PROGRESS
   CLOSED
+  CANCELLED
 }
 
 enum TaskType {

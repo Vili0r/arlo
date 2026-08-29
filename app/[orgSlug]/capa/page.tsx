@@ -60,7 +60,7 @@ export default async function CapaPage({ params }: CapaPageProps) {
             Corrective & Preventive Actions (CAPA)
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Systematic CAPA management under ISO 13485:2016 for{" "}
+            Systematic CAPA management for{" "}
             <span className="font-semibold text-foreground">{orgSlug}</span>.
           </p>
         </div>

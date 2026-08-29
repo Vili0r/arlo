@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldCheck, Loader2, AlertTriangle, RotateCcw } from "lucide-react";
+import { ShieldCheck, Loader2, AlertTriangle, RotateCcw, Ban } from "lucide-react";
 import { SIGNATURE_MEANINGS } from "@/lib/constants/status-transitions";
 import {
   executeStatusTransition,
@@ -29,6 +29,7 @@ interface ESignatureModalProps {
   targetStatus: string;
   targetStatusLabel: string;
   isRevert?: boolean;
+  isCancel?: boolean;
   onSuccess?: (newStatus: string) => void;
 }
 
@@ -41,6 +42,7 @@ export function ESignatureModal({
   targetStatus,
   targetStatusLabel,
   isRevert = false,
+  isCancel = false,
   onSuccess,
 }: ESignatureModalProps) {
   const [state, setState] = React.useState<StatusTransitionResult | null>(null);
@@ -92,12 +94,16 @@ export function ESignatureModal({
             <div
               className={cn(
                 "flex h-10 w-10 items-center justify-center rounded-full",
-                isRevert
+                isCancel
+                  ? "bg-destructive/10 text-destructive"
+                  : isRevert
                   ? "bg-muted text-muted-foreground"
                   : "bg-primary/10 text-primary"
               )}
             >
-              {isRevert ? (
+              {isCancel ? (
+                <Ban className="h-5 w-5" />
+              ) : isRevert ? (
                 <RotateCcw className="h-5 w-5" />
               ) : (
                 <ShieldCheck className="h-5 w-5" />
@@ -105,7 +111,9 @@ export function ESignatureModal({
             </div>
             <div>
               <DialogTitle className="text-base font-semibold">
-                {isRevert
+                {isCancel
+                  ? "Record Cancellation — Electronic Signature"
+                  : isRevert
                   ? "Stage Reversion — Electronic Signature"
                   : "Electronic Signature Required"}
               </DialogTitle>
@@ -116,7 +124,11 @@ export function ESignatureModal({
         {/* Action description */}
         <div className="rounded-md border px-4 py-3 mt-2 bg-muted/50 border-border">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            {isRevert ? (
+            {isCancel ? (
+              <span className="font-semibold text-destructive">
+                You are cancelling this {entityType} record:
+              </span>
+            ) : isRevert ? (
               <span className="font-semibold text-foreground">
                 You are reverting this {entityType} stage:
               </span>
@@ -138,7 +150,9 @@ export function ESignatureModal({
             <span
               className={cn(
                 "inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium border shadow-sm",
-                isRevert
+                isCancel
+                  ? "bg-destructive/10 text-destructive border-destructive/20 font-semibold"
+                  : isRevert
                   ? "bg-muted text-foreground border-border"
                   : "bg-primary/10 text-primary border-primary/20"
               )}
@@ -197,16 +211,22 @@ export function ESignatureModal({
           {/* Rationale / Justification */}
           <div className="space-y-2">
             <Label htmlFor="rationale" className="text-xs">
-              {isRevert ? "Rationale for Reversion" : "Rationale (Optional)"}{" "}
-              {isRevert && <span className="text-destructive">*</span>}
+              {isCancel
+                ? "Cancellation Rationale"
+                : isRevert
+                ? "Rationale for Reversion"
+                : "Rationale (Optional)"}{" "}
+              {(isRevert || isCancel) && <span className="text-destructive">*</span>}
             </Label>
             <Textarea
               id="rationale"
               name="rationale"
-              required={isRevert}
+              required={isRevert || isCancel}
               disabled={isPending || state?.success === true}
               placeholder={
-                isRevert
+                isCancel
+                  ? `Document mandatory rationale for cancelling this ${entityType} record (e.g., entered in error, duplicate complaint, customer retracted)...`
+                  : isRevert
                   ? "Document the specific reason for reverting this stage (e.g., additional investigation requested by QA, new clinical data received)..."
                   : "Optional rationale or change summary..."
               }
@@ -249,7 +269,7 @@ export function ESignatureModal({
             <Button
               type="submit"
               disabled={isPending || state?.success === true}
-              variant="default"
+              variant={isCancel ? "destructive" : "default"}
               className="gap-2"
             >
               {isPending ? (
@@ -261,6 +281,11 @@ export function ESignatureModal({
                 <>
                   <ShieldCheck className="h-4 w-4" />
                   Signed
+                </>
+              ) : isCancel ? (
+                <>
+                  <Ban className="h-4 w-4" />
+                  Sign & Cancel Record
                 </>
               ) : isRevert ? (
                 <>

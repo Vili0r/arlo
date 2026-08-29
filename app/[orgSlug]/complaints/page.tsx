@@ -12,11 +12,12 @@ export default async function ComplaintsPage({
   const { orgSlug } = await params;
   const { orgId } = await requireOrgAuth();
   
-  // Query up to 100 complaints (10 pages max) strictly for this tenant
+  // Query up to 100 complaints (10 pages max) strictly for this tenant excluding cancelled records
   const complaints = await prisma.complaint.findMany({
     where: {
       orgId,
       deletedAt: null,
+      status: { not: "CANCELLED" },
     },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -42,6 +43,7 @@ export default async function ComplaintsPage({
       },
       vigilanceDecisionTree: true,
       customerCommunications: {
+        where: { status: { not: "CANCELLED" } },
         orderBy: { communicationDate: "desc" },
         include: {
           author: {
@@ -50,6 +52,7 @@ export default async function ComplaintsPage({
         },
       },
       tasks: {
+        where: { status: { not: "CANCELLED" } },
         orderBy: { createdAt: "desc" },
         include: {
           assignedTo: {
@@ -70,8 +73,12 @@ export default async function ComplaintsPage({
       },
       _count: {
         select: {
-          customerCommunications: true,
-          tasks: true,
+          customerCommunications: {
+            where: { status: { not: "CANCELLED" } },
+          },
+          tasks: {
+            where: { status: { not: "CANCELLED" } },
+          },
         },
       },
     },

@@ -514,20 +514,21 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
 
   const filteredComplaints = complaints.filter(
     (c) =>
-      c.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.complaintNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.deviceModel &&
-        c.deviceModel.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (c.lotNumber &&
-        c.lotNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (c.countryEventOccurred &&
-        c.countryEventOccurred.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (c.complaintOwner?.email &&
-        c.complaintOwner.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (c.complaintOwner?.firstName &&
-        c.complaintOwner.firstName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (c.complaintOwner?.lastName &&
-        c.complaintOwner.lastName.toLowerCase().includes(searchQuery.toLowerCase()))
+      c.status !== "CANCELLED" &&
+      (c.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.complaintNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.deviceModel &&
+          c.deviceModel.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.lotNumber &&
+          c.lotNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.countryEventOccurred &&
+          c.countryEventOccurred.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.complaintOwner?.email &&
+          c.complaintOwner.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.complaintOwner?.firstName &&
+          c.complaintOwner.firstName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.complaintOwner?.lastName &&
+          c.complaintOwner.lastName.toLowerCase().includes(searchQuery.toLowerCase())))
   );
 
   const MAX_COMPLAINTS_PAGES = 10;
@@ -605,6 +606,12 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
             Reopened
           </span>
         );
+      case "CANCELLED":
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400 border border-red-500/20">
+            Cancelled
+          </span>
+        );
       default:
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-500/20">
@@ -667,6 +674,18 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
             Not Required
           </Badge>
         );
+      case "CANCELLED":
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-red-500/10 text-red-600 border-red-500/20",
+              className
+            )}
+          >
+            Cancelled
+          </Badge>
+        );
       default:
         return (
           <Badge
@@ -709,6 +728,18 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
             )}
           >
             In Progress
+          </Badge>
+        );
+      case "CANCELLED":
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-red-500/10 text-red-600 border-red-500/20",
+              className
+            )}
+          >
+            Cancelled
           </Badge>
         );
       default:
@@ -767,10 +798,11 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
   const activeHistoryItems = React.useMemo<RelatedAuditLog[]>(() => {
     if (!activeHistoryComplaint) return [];
 
-    // Filter strictly to Complaint-level audit logs
+    // Filter to Complaint-level and SampleManagement audit logs
     const complaintLogs = (activeHistoryComplaint.auditLogs || []).filter(
       (log) =>
         log.entityType === "Complaint" ||
+        log.entityType === "SampleManagement" ||
         (!log.entityType && log.entityId === activeHistoryComplaint.id)
     );
 
@@ -901,10 +933,21 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {paginatedComplaints.map((c) => {
               const isExpanded = expandedIds.has(c.id);
-              const communications = c.customerCommunications || [];
-              const tasks = c.tasks || [];
-              const investigation = c.investigation;
-              const vigilance = c.vigilanceDecisionTree;
+              const communications = (c.customerCommunications || []).filter(
+                (comm) => comm.status !== "CANCELLED"
+              );
+              const tasks = (c.tasks || []).filter(
+                (task) => task.status !== "CANCELLED"
+              );
+              const investigation =
+                c.investigation && c.investigation.status !== "CANCELLED"
+                  ? c.investigation
+                  : null;
+              const vigilance =
+                c.vigilanceDecisionTree &&
+                c.vigilanceDecisionTree.status !== "CANCELLED"
+                  ? c.vigilanceDecisionTree
+                  : null;
               const totalRelations =
                 (investigation ? 1 : 0) +
                 (vigilance ? 1 : 0) +
@@ -1292,10 +1335,21 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                 <tbody className="divide-y divide-border">
                   {paginatedComplaints.map((c) => {
                     const isExpanded = expandedIds.has(c.id);
-                    const communications = c.customerCommunications || [];
-                    const tasks = c.tasks || [];
-                    const investigation = c.investigation;
-                    const vigilance = c.vigilanceDecisionTree;
+                    const communications = (c.customerCommunications || []).filter(
+                      (comm) => comm.status !== "CANCELLED"
+                    );
+                    const tasks = (c.tasks || []).filter(
+                      (task) => task.status !== "CANCELLED"
+                    );
+                    const investigation =
+                      c.investigation && c.investigation.status !== "CANCELLED"
+                        ? c.investigation
+                        : null;
+                    const vigilance =
+                      c.vigilanceDecisionTree &&
+                      c.vigilanceDecisionTree.status !== "CANCELLED"
+                        ? c.vigilanceDecisionTree
+                        : null;
                     const totalRelations =
                       (investigation ? 1 : 0) +
                       (vigilance ? 1 : 0) +
@@ -1848,6 +1902,11 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   {getAuditActionBadge(log.action)}
+                                  {log.entityType && log.entityType !== "Complaint" && (
+                                    <Badge variant="outline" className="text-[9px] py-0 bg-blue-500/10 text-blue-600 border-blue-500/20 font-mono">
+                                      {log.entityType === "SampleManagement" ? "Sample & RMA" : log.entityType}
+                                    </Badge>
+                                  )}
                                   <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                                     <History className="h-3 w-3 text-amber-500" />
                                     {log.reason || "Record Action"}

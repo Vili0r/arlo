@@ -132,6 +132,16 @@ export const COMPLAINT_STATUS_CONFIG: EntityStatusConfig = {
       allowedNextStatuses: [COMPLAINT_IN_PROGRESS],
       allowedPreviousStatuses: [ComplaintStatus.CLOSED],
     },
+    {
+      value: ComplaintStatus.CANCELLED,
+      label: "Cancelled",
+      description:
+        "Complaint has been cancelled with documented rationale.",
+      color: "bg-red-500",
+      isBranch: true,
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [],
+    },
   ],
 };
 
@@ -200,6 +210,16 @@ export const INVESTIGATION_STATUS_CONFIG: EntityStatusConfig = {
       allowedNextStatuses: [],
       allowedPreviousStatuses: [InvestigationStatus.NOT_STARTED],
     },
+    {
+      value: InvestigationStatus.CANCELLED,
+      label: "Cancelled",
+      description:
+        "Investigation has been cancelled with documented rationale.",
+      color: "bg-red-500",
+      isBranch: true,
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [],
+    },
   ],
 };
 
@@ -253,6 +273,16 @@ export const VIGILANCE_STATUS_CONFIG: EntityStatusConfig = {
       allowedNextStatuses: [],
       allowedPreviousStatuses: [VigilanceStatus.REPORTABLE],
     },
+    {
+      value: VigilanceStatus.CANCELLED,
+      label: "Cancelled",
+      description:
+        "Vigilance assessment has been cancelled with documented rationale.",
+      color: "bg-red-500",
+      isBranch: true,
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [],
+    },
   ],
 };
 
@@ -299,6 +329,16 @@ export const CUSTOMER_COMMUNICATION_STATUS_CONFIG: EntityStatusConfig = {
         CommunicationStatus.OPEN,
       ],
     },
+    {
+      value: CommunicationStatus.CANCELLED,
+      label: "Cancelled",
+      description:
+        "Customer communication has been cancelled with documented rationale.",
+      color: "bg-red-500",
+      isBranch: true,
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [],
+    },
   ],
 };
 
@@ -335,6 +375,15 @@ export const COMPLAINT_TASK_STATUS_CONFIG: EntityStatusConfig = {
       color: "bg-green-500",
       allowedNextStatuses: [],
       allowedPreviousStatuses: [TaskStatus.IN_PROGRESS, TaskStatus.OPEN],
+    },
+    {
+      value: TaskStatus.CANCELLED,
+      label: "Cancelled",
+      description: "Task has been cancelled with documented rationale.",
+      color: "bg-red-500",
+      isBranch: true,
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [],
     },
   ],
 };
@@ -401,11 +450,36 @@ export function getStepConfig(
   return undefined;
 }
 
+export function isCancelTransition(targetStatus: string): boolean {
+  return targetStatus === "CANCELLED";
+}
+
+export function canCancelStatus(currentStatus: string): boolean {
+  return currentStatus !== "CANCELLED";
+}
+
+export function getCancelStepConfig(entityType: EntityType): StatusStepConfig {
+  const step = getStepConfig(entityType, "CANCELLED");
+  if (step) return step;
+  return {
+    value: "CANCELLED",
+    label: "Cancelled",
+    description: `${entityType} has been cancelled with documented rationale.`,
+    color: "bg-red-500",
+    isBranch: true,
+    allowedNextStatuses: [],
+    allowedPreviousStatuses: [],
+  };
+}
+
 export function isTransitionAllowed(
   entityType: EntityType,
   currentStatus: string,
   targetStatus: string
 ): boolean {
+  if (targetStatus === "CANCELLED") {
+    return currentStatus !== "CANCELLED";
+  }
   const step = getStepConfig(entityType, currentStatus);
   if (!step) return false;
   return (
@@ -419,6 +493,7 @@ export function isRevertTransition(
   currentStatus: string,
   targetStatus: string
 ): boolean {
+  if (targetStatus === "CANCELLED") return false;
   const step = getStepConfig(entityType, currentStatus);
   return step?.allowedPreviousStatuses?.includes(targetStatus) ?? false;
 }

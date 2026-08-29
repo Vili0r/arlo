@@ -25,14 +25,6 @@ export default async function ComplaintDetailPage({
       productInformation: true,
       patientInformation: true,
       attachments: true,
-      customerCommunications: {
-        orderBy: { communicationDate: "desc" },
-        include: {
-          author: {
-            select: { email: true, firstName: true, lastName: true },
-          },
-        },
-      },
       sampleManagement: true,
     },
   });
@@ -51,10 +43,6 @@ export default async function ComplaintDetailPage({
         patientInformation: complaint.patientInformation.map((pt) => ({
           ...pt,
           eventOccurred: pt.eventOccurred ? pt.eventOccurred.toISOString() : null,
-        })),
-        customerCommunications: complaint.customerCommunications.map((c) => ({
-          ...c,
-          communicationDate: c.communicationDate.toISOString(),
         })),
         sampleManagement: complaint.sampleManagement
           ? {

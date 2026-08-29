@@ -63,7 +63,6 @@ export function ProjectsView({
       branch: `CAPAs: ${capaCount}`,
       repo: "",
       date: "Active",
-      details: "",
     },
     {
       id: "arlo-quality-complaints-system",
@@ -77,7 +76,6 @@ export function ProjectsView({
       branch: `Complaints: ${complaintCount} (Open: ${openComplaints})`,
       repo: "",
       date: "Active",
-      details: "",
     },
   ];
 
@@ -241,9 +239,6 @@ export function ProjectsView({
                           <Link href={p.href} className="text-sm font-bold text-foreground hover:underline truncate">
                             {p.title}
                           </Link>
-                          <span className="text-[10px] font-mono rounded bg-muted border border-border px-1.5 py-0.5 text-muted-foreground">
-                            {p.details}
-                          </span>
                         </div>
                         <span className="text-xs text-muted-foreground font-mono block truncate">
                           {p.domain}

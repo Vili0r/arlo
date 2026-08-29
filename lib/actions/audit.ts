@@ -18,12 +18,23 @@ export async function getAuditHistory(entityType: string, entityId: string) {
     throw new Error("Unauthorized");
   }
 
+  const where =
+    entityType === "Complaint"
+      ? {
+          orgId,
+          OR: [
+            { entityType: "Complaint", entityId },
+            { entityType: "SampleManagement", complaintId: entityId },
+          ],
+        }
+      : {
+          orgId,
+          entityType,
+          entityId,
+        };
+
   const logs = await prisma.auditLog.findMany({
-    where: {
-      orgId,
-      entityType,
-      entityId,
-    },
+    where,
     orderBy: {
       timestamp: "desc",
     },

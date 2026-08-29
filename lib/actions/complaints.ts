@@ -24,6 +24,7 @@ import {
 // =============================================================================
 
 export interface ProductInformationInput {
+  id?: string | null;
   occurrence?: string | null;
   materialNumber?: string | null;
   materialDescription?: string | null;
@@ -35,6 +36,7 @@ export interface ProductInformationInput {
 }
 
 export interface PatientInformationInput {
+  id?: string | null;
   patientImpact?: string | null;
   patientImpactDesc?: string | null;
   patientName?: string | null;
@@ -74,7 +76,6 @@ export interface CreateComplaintWithRelationsInput {
   detailDescriptionNativeLanguage?: string | null;
   customerResponseNeeded?: boolean;
   finalResponseCompletedOn?: Date | string | null;
-  followUpRequired?: boolean;
   complaintOwnerId?: string; // Maps to Clerk User ID (defaults to active user)
 
   // Optional Device Legacy fields
@@ -136,7 +137,6 @@ export async function createComplaintWithRelations(
   const description = data.description || data.shortDescription;
   const customerResponseNeeded = data.customerResponseNeeded ?? true;
   const investigationRequired = data.investigationRequired ?? true;
-  const followUpRequired = data.followUpRequired ?? true;
   const deathStatus: Death = data.death ?? Death.NO;
 
   return await prisma.$transaction(async (tx) => {
@@ -181,7 +181,6 @@ export async function createComplaintWithRelations(
         detailDescriptionNativeLanguage: data.detailDescriptionNativeLanguage ?? null,
         customerResponseNeeded,
         finalResponseCompletedOn,
-        followUpRequired,
         complaintOwnerId,
         createdById: userId,
         status: "OPEN",
@@ -344,7 +343,6 @@ export async function createComplaintWithRelations(
             region: complaint.region,
             death: complaint.death,
             customerResponseNeeded: complaint.customerResponseNeeded,
-            followUpRequired: complaint.followUpRequired,
             complaintOwnerId: complaint.complaintOwnerId,
           },
           productsCount: complaint.productInformation.length,
@@ -392,7 +390,6 @@ export interface UpdateComplaintWithRelationsInput {
   detailDescriptionNativeLanguage?: string | null;
   customerResponseNeeded?: boolean;
   finalResponseCompletedOn?: Date | string | null;
-  followUpRequired?: boolean;
   complaintOwnerId?: string;
 
   deviceModel?: string | null;
@@ -420,6 +417,7 @@ export async function updateComplaintWithRelations(
       include: {
         productInformation: true,
         patientInformation: true,
+        attachments: true,
       },
     });
 
@@ -432,51 +430,117 @@ export async function updateComplaintWithRelations(
       ? new Date(data.dateReceived)
       : existing.dateReceived;
 
-    // Replace products if provided
+    // Intelligent relational updates for products
     if (data.products !== undefined) {
-      await tx.productInformation.deleteMany({
-        where: { complaintId: data.complaintId },
-      });
-      if (data.products.length > 0) {
-        await tx.productInformation.createMany({
-          data: data.products.map((p) => ({
-            orgId,
+      const incomingProductIds = new Set(
+        data.products.map((p) => p.id).filter((id): id is string => Boolean(id))
+      );
+      const existingProductIds = new Set(existing.productInformation.map((p) => p.id));
+
+      // 1. Delete products in DB missing from the incoming payload
+      const productsToDelete = existing.productInformation.filter(
+        (p) => !incomingProductIds.has(p.id)
+      );
+      if (productsToDelete.length > 0) {
+        await tx.productInformation.deleteMany({
+          where: {
+            id: { in: productsToDelete.map((p) => p.id) },
             complaintId: data.complaintId,
-            occurrence: p.occurrence ?? null,
-            materialNumber: p.materialNumber ?? null,
-            materialDescription: p.materialDescription ?? null,
-            serialNumber: p.serialNumber ?? null,
-            batchNumber: p.batchNumber ?? null,
-            asReportedCode1: p.asReportedCode1 ?? null,
-            asReportedCode2: p.asReportedCode2 ?? null,
-            softwareVersion: p.softwareVersion ?? null,
-          })),
+          },
         });
+      }
+
+      // 2. Update existing items or create new ones
+      for (const p of data.products) {
+        if (p.id && existingProductIds.has(p.id)) {
+          await tx.productInformation.update({
+            where: { id: p.id },
+            data: {
+              occurrence: p.occurrence ?? null,
+              materialNumber: p.materialNumber ?? null,
+              materialDescription: p.materialDescription ?? null,
+              serialNumber: p.serialNumber ?? null,
+              batchNumber: p.batchNumber ?? null,
+              asReportedCode1: p.asReportedCode1 ?? null,
+              asReportedCode2: p.asReportedCode2 ?? null,
+              softwareVersion: p.softwareVersion ?? null,
+            },
+          });
+        } else {
+          await tx.productInformation.create({
+            data: {
+              orgId,
+              complaintId: data.complaintId,
+              occurrence: p.occurrence ?? null,
+              materialNumber: p.materialNumber ?? null,
+              materialDescription: p.materialDescription ?? null,
+              serialNumber: p.serialNumber ?? null,
+              batchNumber: p.batchNumber ?? null,
+              asReportedCode1: p.asReportedCode1 ?? null,
+              asReportedCode2: p.asReportedCode2 ?? null,
+              softwareVersion: p.softwareVersion ?? null,
+            },
+          });
+        }
       }
     }
 
-    // Replace patients if provided
+    // Intelligent relational updates for patients
     if (data.patients !== undefined) {
-      await tx.patientInformation.deleteMany({
-        where: { complaintId: data.complaintId },
-      });
-      if (data.patients.length > 0) {
-        await tx.patientInformation.createMany({
-          data: data.patients.map((pt) => ({
-            orgId,
+      const incomingPatientIds = new Set(
+        data.patients.map((pt) => pt.id).filter((id): id is string => Boolean(id))
+      );
+      const existingPatientIds = new Set(existing.patientInformation.map((pt) => pt.id));
+
+      // 1. Delete patients in DB missing from the incoming payload
+      const patientsToDelete = existing.patientInformation.filter(
+        (pt) => !incomingPatientIds.has(pt.id)
+      );
+      if (patientsToDelete.length > 0) {
+        await tx.patientInformation.deleteMany({
+          where: {
+            id: { in: patientsToDelete.map((pt) => pt.id) },
             complaintId: data.complaintId,
-            patientName: pt.patientName ?? null,
-            patientImpact: pt.patientImpact ?? null,
-            patientImpactDesc: pt.patientImpactDesc ?? null,
-            sex: pt.sex ?? null,
-            age: pt.age ?? null,
-            eventOccurred: pt.eventOccurred
-              ? new Date(pt.eventOccurred)
-              : awarenessDate,
-            annexE_Codes: pt.annexE_Codes ?? [],
-            annexF_Codes: pt.annexF_Codes ?? [],
-          })),
+          },
         });
+      }
+
+      // 2. Update existing items or create new ones
+      for (const pt of data.patients) {
+        if (pt.id && existingPatientIds.has(pt.id)) {
+          await tx.patientInformation.update({
+            where: { id: pt.id },
+            data: {
+              patientName: pt.patientName ?? null,
+              patientImpact: pt.patientImpact ?? null,
+              patientImpactDesc: pt.patientImpactDesc ?? null,
+              sex: pt.sex ?? null,
+              age: pt.age ?? null,
+              eventOccurred: pt.eventOccurred
+                ? new Date(pt.eventOccurred)
+                : awarenessDate,
+              annexE_Codes: pt.annexE_Codes ?? [],
+              annexF_Codes: pt.annexF_Codes ?? [],
+            },
+          });
+        } else {
+          await tx.patientInformation.create({
+            data: {
+              orgId,
+              complaintId: data.complaintId,
+              patientName: pt.patientName ?? null,
+              patientImpact: pt.patientImpact ?? null,
+              patientImpactDesc: pt.patientImpactDesc ?? null,
+              sex: pt.sex ?? null,
+              age: pt.age ?? null,
+              eventOccurred: pt.eventOccurred
+                ? new Date(pt.eventOccurred)
+                : awarenessDate,
+              annexE_Codes: pt.annexE_Codes ?? [],
+              annexF_Codes: pt.annexF_Codes ?? [],
+            },
+          });
+        }
       }
     }
 
@@ -508,7 +572,6 @@ export async function updateComplaintWithRelations(
         finalResponseCompletedOn: data.finalResponseCompletedOn
           ? new Date(data.finalResponseCompletedOn)
           : null,
-        followUpRequired: data.followUpRequired ?? existing.followUpRequired,
         complaintOwnerId: data.complaintOwnerId || existing.complaintOwnerId,
         deviceModel: data.deviceModel ?? existing.deviceModel,
         deviceSerialNumber:
@@ -682,6 +745,16 @@ export async function updateSampleManagement(
       },
     });
 
+    const fieldChanges = existing
+      ? generateAuditDiff(existing, sample, [
+          "updatedAt",
+          "createdAt",
+          "orgId",
+          "id",
+          "complaintId",
+        ])
+      : [];
+
     await tx.auditLog.create({
       data: {
         orgId,
@@ -691,6 +764,10 @@ export async function updateSampleManagement(
         changedById: userId,
         previousData: existing ? (existing as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         newData: sample as unknown as Prisma.InputJsonValue,
+        fieldChanges:
+          fieldChanges.length > 0
+            ? (fieldChanges as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
         reason: `Updated sample management status to ${data.status}`,
         complaintId: data.complaintId,
       },

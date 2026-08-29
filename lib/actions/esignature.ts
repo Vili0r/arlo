@@ -6,6 +6,7 @@ import { generateAuditDiff } from "@/utils/auditDiff";
 import {
   isTransitionAllowed,
   isRevertTransition,
+  isCancelTransition,
   getStatusConfig,
   type EntityType,
 } from "@/lib/constants/status-transitions";
@@ -261,11 +262,18 @@ export async function executeStatusTransition(
         }
       }
 
+      const isCancel = isCancelTransition(newStatus);
       const isRevert = isRevertTransition(
         entityType as EntityType,
         currentStatus,
         newStatus
       );
+
+      if (isCancel && (!rationale || rationale.trim().length === 0)) {
+        throw new Error(
+          `A documented rationale is mandatory when cancelling a ${entityType}.`
+        );
+      }
 
       if (isRevert && (!rationale || rationale.trim().length === 0)) {
         throw new Error(
@@ -290,12 +298,15 @@ export async function executeStatusTransition(
         entityType as EntityType,
         entityId,
         orgId,
-        newStatus
+        newStatus,
+        rationale
       );
 
       // 5e. Write immutable audit log with e-signature details
       const signatureReason = [
-        isRevert
+        isCancel
+          ? `E-SIGNATURE RECORD CANCELLATION: ${currentStatus} → ${newStatus}`
+          : isRevert
           ? `E-SIGNATURE STAGE REVERSION: ${currentStatus} → ${newStatus}`
           : `E-SIGNATURE STATUS CHANGE: ${currentStatus} → ${newStatus}`,
         `Meaning: ${meaningOfSignature}`,
@@ -393,7 +404,8 @@ async function updateRecord(
   entityType: EntityType,
   entityId: string,
   orgId: string,
-  newStatus: string
+  newStatus: string,
+  rationale?: string | null
 ) {
   switch (entityType) {
     case "Complaint":
@@ -409,7 +421,12 @@ async function updateRecord(
     case "Vigilance":
       return tx.vigilanceDecisionTree.update({
         where: { id: entityId, orgId },
-        data: { status: newStatus as Prisma.EnumVigilanceStatusFieldUpdateOperationsInput["set"] },
+        data: {
+          status: newStatus as Prisma.EnumVigilanceStatusFieldUpdateOperationsInput["set"],
+          ...(newStatus === "CANCELLED" && rationale?.trim()
+            ? { cancelledRationale: rationale.trim() }
+            : {}),
+        },
       });
     case "CustomerCommunication":
       return tx.customerCommunication.update({

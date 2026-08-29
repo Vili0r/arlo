@@ -214,7 +214,6 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
         detailDescriptionNativeLanguage: null,
         complaintOwnerId: data.complaintOwnerId || undefined,
         customerResponseNeeded: true,
-        followUpRequired: true,
         investigationRequired: true,
         deviceModel: filteredProducts[0]?.materialDescription || null,
         deviceSerialNumber: filteredProducts[0]?.serialNumber || null,
@@ -241,7 +240,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
   return (
     <div className="w-full flex justify-center py-6 px-4">
       {/* Centered Form Container */}
-      <div className="w-full max-w-4xl space-y-6">
+      <div className="w-full max-w-5xl space-y-6">
         {/* Navigation & Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <Breadcrumb>
@@ -255,11 +254,6 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-[11px]">
-              {orgSlug}
-            </Badge>
-          </div>
         </div>
 
         {error && (
@@ -679,7 +673,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
               <Separator />
 
               {/* SECTION 4: Dynamic Multiple Patient Information (IMDRF Annex E & F) */}
-              <div className="space-y-4">
+              <div className="space-y-4 mb-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     <HeartPulse className="h-4 w-4 text-primary" />
