@@ -129,3 +129,12 @@
     @apply font-sans;
   }
 }
+
+/* Sonner Toast Description visibility in Light and Dark mode */
+[data-sonner-toast] [data-description] {
+  color: #52525b !important; /* Zinc-600 with high contrast in light mode */
+}
+
+.dark [data-sonner-toast] [data-description] {
+  color: #a1a1aa !important; /* Zinc-400 with high contrast in dark mode */
+}

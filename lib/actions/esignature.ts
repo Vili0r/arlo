@@ -28,6 +28,7 @@ const ExecuteStatusTransitionSchema = z.object({
     "Investigation",
     "Vigilance",
     "CustomerCommunication",
+    "ComplaintTask",
   ]),
   entityId: z.string().min(1, "Entity ID is required"),
   newStatus: z.string().min(1, "Target status is required"),
@@ -378,6 +379,10 @@ async function fetchRecord(
       return tx.customerCommunication.findUnique({
         where: { id: entityId, orgId },
       });
+    case "ComplaintTask":
+      return tx.complaintTask.findUnique({
+        where: { id: entityId, orgId },
+      });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);
   }
@@ -410,6 +415,11 @@ async function updateRecord(
       return tx.customerCommunication.update({
         where: { id: entityId, orgId },
         data: { status: newStatus as Prisma.EnumCommunicationStatusFieldUpdateOperationsInput["set"] },
+      });
+    case "ComplaintTask":
+      return tx.complaintTask.update({
+        where: { id: entityId, orgId },
+        data: { status: newStatus as Prisma.EnumTaskStatusFieldUpdateOperationsInput["set"] },
       });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);

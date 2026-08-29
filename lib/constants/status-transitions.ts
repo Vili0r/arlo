@@ -3,6 +3,7 @@ import {
   InvestigationStatus,
   VigilanceStatus,
   CommunicationStatus,
+  TaskStatus,
 } from "@prisma/client";
 
 // =============================================================================
@@ -17,7 +18,8 @@ export type EntityType =
   | "Complaint"
   | "Investigation"
   | "Vigilance"
-  | "CustomerCommunication";
+  | "CustomerCommunication"
+  | "ComplaintTask";
 
 export interface StatusStepConfig {
   /** The enum value stored in the database */
@@ -43,7 +45,8 @@ export interface EntityStatusConfig {
     | "complaint"
     | "investigation"
     | "vigilanceDecisionTree"
-    | "customerCommunication";
+    | "customerCommunication"
+    | "complaintTask";
   /** The field name that holds the status */
   statusField: "status";
   /** Ordered array of steps for the horizontal stepper */
@@ -300,6 +303,43 @@ export const CUSTOMER_COMMUNICATION_STATUS_CONFIG: EntityStatusConfig = {
 };
 
 // -----------------------------------------------------------------------------
+// Complaint Task Lifecycle
+// OPEN → IN_PROGRESS → CLOSED
+// -----------------------------------------------------------------------------
+
+export const COMPLAINT_TASK_STATUS_CONFIG: EntityStatusConfig = {
+  entityType: "ComplaintTask",
+  modelName: "complaintTask",
+  statusField: "status",
+  steps: [
+    {
+      value: TaskStatus.OPEN,
+      label: "Open",
+      description: "Task has been created and assigned.",
+      color: "bg-blue-500",
+      allowedNextStatuses: [TaskStatus.IN_PROGRESS, TaskStatus.CLOSED],
+      allowedPreviousStatuses: [],
+    },
+    {
+      value: TaskStatus.IN_PROGRESS,
+      label: "In Progress",
+      description: "Task is actively being addressed by the assignee.",
+      color: "bg-purple-500",
+      allowedNextStatuses: [TaskStatus.CLOSED],
+      allowedPreviousStatuses: [TaskStatus.OPEN],
+    },
+    {
+      value: TaskStatus.CLOSED,
+      label: "Closed",
+      description: "Task has been completed and verified.",
+      color: "bg-green-500",
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [TaskStatus.IN_PROGRESS, TaskStatus.OPEN],
+    },
+  ],
+};
+
+// -----------------------------------------------------------------------------
 // Lookup helpers
 // -----------------------------------------------------------------------------
 
@@ -308,6 +348,7 @@ const CONFIG_MAP: Record<EntityType, EntityStatusConfig> = {
   Investigation: INVESTIGATION_STATUS_CONFIG,
   Vigilance: VIGILANCE_STATUS_CONFIG,
   CustomerCommunication: CUSTOMER_COMMUNICATION_STATUS_CONFIG,
+  ComplaintTask: COMPLAINT_TASK_STATUS_CONFIG,
 };
 
 export function getStatusConfig(entityType: EntityType): EntityStatusConfig {

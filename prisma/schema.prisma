@@ -41,6 +41,8 @@ model User {
   approvedCapas                   Capa[]                       @relation("CapaApprover")
   ownedVigilanceRecords           VigilanceDecisionTree[]      @relation("VigilanceOwner")
   approvedVigilanceRecords        VigilanceDecisionTree[]      @relation("VigilanceApprover")
+  originatedTasks                 ComplaintTask[]              @relation("TaskOriginator")
+  assignedTasks                   ComplaintTask[]              @relation("TaskAssignee")
   auditLogs                       AuditLog[]
 
   @@index([email])
@@ -68,6 +70,7 @@ model Organization {
   investigationCustomSections   InvestigationCustomSection[]
   vigilanceDecisionTrees        VigilanceDecisionTree[]
   attachments                   Attachment[]
+  complaintTasks                ComplaintTask[]
   capas                         Capa[]
   formTemplates                 FormTemplate[]
   auditLogs                     AuditLog[]
@@ -255,6 +258,7 @@ model Complaint {
   investigation          Investigation?
   vigilanceDecisionTree  VigilanceDecisionTree?
   attachments            Attachment[]
+  tasks                  ComplaintTask[]
   capas                  Capa[]
   auditLogs              AuditLog[]
 
@@ -485,6 +489,8 @@ model Attachment {
   vigilance       VigilanceDecisionTree? @relation(fields: [vigilanceId], references: [id], onDelete: Cascade)
   communicationId String?
   communication   CustomerCommunication? @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  taskId          String?
+  task            ComplaintTask?         @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
   @@index([complaintId])
@@ -492,6 +498,67 @@ model Attachment {
   @@index([investigationId])
   @@index([vigilanceId])
   @@index([communicationId])
+  @@index([taskId])
+}
+
+// -------------------------------------------------------------
+// Ad-Hoc Complaint Tasks (Sub-workflows)
+// -------------------------------------------------------------
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum TaskType {
+  CORRECTION
+  CUSTOMER_FOLLOW_UP
+  INTERNAL_FOLLOW_UP
+  REGULATORY_TASK
+}
+
+enum TaskSubType {
+  RISK_REVIEW
+  COMPLAINT_HISTORY_REVIEW
+  HAZARD_DECISION_INVESTIGATION_FOLLOW_UP
+  MANUFACTURING_DEFECT_IDENTIFIED
+  COMPLAINT_HISTORY_REVIEW_IDENTIFIED_ISSUE
+  DESIGN_ISSUE_DETECTED
+  OTHER
+}
+
+model ComplaintTask {
+  id               String       @id @default(cuid())
+  orgId            String
+  complaintId      String
+  
+  status           TaskStatus   @default(OPEN)
+  taskType         TaskType
+  taskSubType      TaskSubType? // Conditionally required if taskType is INTERNAL_FOLLOW_UP
+  
+  shortDescription String
+  taskDescription  String?      @db.Text
+  
+  dateOfRequest    DateTime     @default(now())
+  dateDue          DateTime?
+  
+  originatorId     String       // Clerk User ID of the creator
+  assignedToId     String?      // Clerk User ID of the assignee
+  
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // Relations
+  organization     Organization @relation(fields: [orgId], references: [id])
+  complaint        Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  originator       User         @relation("TaskOriginator", fields: [originatorId], references: [id])
+  assignedTo       User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  attachments      Attachment[]
+
+  @@index([orgId])
+  @@index([complaintId])
+  @@index([assignedToId])
 }
 
 // -------------------------------------------------------------

@@ -49,6 +49,17 @@ export default async function ComplaintsPage({
           },
         },
       },
+      tasks: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          assignedTo: {
+            select: { email: true, firstName: true, lastName: true },
+          },
+          originator: {
+            select: { email: true, firstName: true, lastName: true },
+          },
+        },
+      },
       auditLogs: {
         orderBy: { timestamp: "desc" },
         include: {
@@ -60,6 +71,7 @@ export default async function ComplaintsPage({
       _count: {
         select: {
           customerCommunications: true,
+          tasks: true,
         },
       },
     },

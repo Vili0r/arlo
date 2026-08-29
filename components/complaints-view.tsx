@@ -32,6 +32,7 @@ import {
   ShieldCheck,
   FileText,
   ArrowRight,
+  ListTodo,
 } from "lucide-react";
 import {
   Priority,
@@ -39,6 +40,9 @@ import {
   VigilanceStatus,
   InvestigationStatus,
   AuditAction,
+  TaskStatus,
+  TaskType,
+  TaskSubType,
 } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -163,6 +167,29 @@ export interface RelatedAuditLog {
   fieldChanges?: unknown;
 }
 
+export interface RelatedTask {
+  id: string;
+  shortDescription: string;
+  taskDescription?: string | null;
+  taskType: TaskType;
+  taskSubType?: TaskSubType | null;
+  status: TaskStatus;
+  dateOfRequest: Date | string;
+  dateDue?: Date | string | null;
+  originatorId: string;
+  assignedToId?: string | null;
+  originator?: {
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+  assignedTo?: {
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+}
+
 export interface ComplaintRecord {
   id: string;
   complaintNumber: string;
@@ -203,12 +230,14 @@ export interface ComplaintRecord {
   patientInformation?: RelatedPatient[];
   customerCommunications?: RelatedCommunication[];
   sampleManagement?: RelatedSample | null;
+  tasks?: RelatedTask[];
   capas?: RelatedCapa[];
   auditLogs?: RelatedAuditLog[];
   _count?: {
     productInformation?: number;
     patientInformation?: number;
     customerCommunications?: number;
+    tasks?: number;
     capas?: number;
     auditLogs?: number;
   };
@@ -653,6 +682,50 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
     }
   };
 
+  const getTaskStatusBadge = (
+    status: TaskStatus | string,
+    className?: string
+  ) => {
+    switch (status as string) {
+      case "CLOSED":
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+              className
+            )}
+          >
+            Closed
+          </Badge>
+        );
+      case "IN_PROGRESS":
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-purple-500/10 text-purple-600 border-purple-500/20",
+              className
+            )}
+          >
+            In Progress
+          </Badge>
+        );
+      default:
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "bg-blue-500/10 text-blue-600 border-blue-500/20",
+              className
+            )}
+          >
+            Open
+          </Badge>
+        );
+    }
+  };
+
   const getAuditActionBadge = (action: AuditAction) => {
     switch (action) {
       case "CREATE":
@@ -829,12 +902,14 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
             {paginatedComplaints.map((c) => {
               const isExpanded = expandedIds.has(c.id);
               const communications = c.customerCommunications || [];
+              const tasks = c.tasks || [];
               const investigation = c.investigation;
               const vigilance = c.vigilanceDecisionTree;
               const totalRelations =
                 (investigation ? 1 : 0) +
                 (vigilance ? 1 : 0) +
-                communications.length;
+                communications.length +
+                tasks.length;
 
               return (
                 <div
@@ -905,6 +980,12 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                               <Link href={`/complaints/${c.id}`} className="flex items-center gap-2">
                                 <Eye className="h-3.5 w-3.5 text-primary" />
                                 <span>View / Edit Details</span>
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/${orgSlug}/complaints/${c.id}/tasks/new`} className="flex items-center gap-2">
+                                <ListTodo className="h-3.5 w-3.5 text-purple-500" />
+                                <span>Add Task</span>
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem
@@ -1018,6 +1099,28 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                     icon: <ShieldAlert className="h-3.5 w-3.5 text-purple-500" />,
                                   }
                                 : null,
+                              ...tasks.map((task) => {
+                                const assigneeName = task.assignedTo?.firstName
+                                  ? `${task.assignedTo.firstName} ${task.assignedTo.lastName ?? ""}`
+                                  : task.assignedTo?.email || "Unassigned";
+                                return {
+                                  id: `task-${task.id}`,
+                                  rawId: task.id,
+                                  entityType: "ComplaintTask",
+                                  href: `/${orgSlug}/complaints/${c.id}/tasks/${task.id}`,
+                                  title: `Task: ${task.shortDescription}`,
+                                  badge: (
+                                    <div className="flex items-center gap-1">
+                                      <Badge variant="outline" className="text-[9px] bg-purple-500/10 text-purple-600 border-purple-500/20 py-0">
+                                        {task.taskType.replace(/_/g, " ")}
+                                      </Badge>
+                                      {getTaskStatusBadge(task.status, "text-[9px] py-0")}
+                                    </div>
+                                  ),
+                                  desc: `${task.taskSubType ? `[${task.taskSubType.replace(/_/g, " ")}] ` : ""}${task.taskDescription || task.shortDescription} • Assigned: ${assigneeName}`,
+                                  icon: <ListTodo className="h-3.5 w-3.5 text-purple-500" />,
+                                };
+                              }),
                               ...communications.map((comm) => ({
                                 id: `comm-${comm.id}`,
                                 rawId: comm.id,
@@ -1190,12 +1293,14 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                   {paginatedComplaints.map((c) => {
                     const isExpanded = expandedIds.has(c.id);
                     const communications = c.customerCommunications || [];
+                    const tasks = c.tasks || [];
                     const investigation = c.investigation;
                     const vigilance = c.vigilanceDecisionTree;
                     const totalRelations =
                       (investigation ? 1 : 0) +
                       (vigilance ? 1 : 0) +
-                      communications.length;
+                      communications.length +
+                      tasks.length;
 
                     return (
                       <React.Fragment key={c.id}>
@@ -1293,6 +1398,12 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                     <span>View / Edit Details</span>
                                   </Link>
                                 </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/${orgSlug}/complaints/${c.id}/tasks/new`} className="flex items-center gap-2">
+                                    <ListTodo className="h-3.5 w-3.5 text-purple-500" />
+                                    <span>Add Task</span>
+                                  </Link>
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => setActiveHistoryComplaint(c)}
                                   className="flex items-center gap-2"
@@ -1325,7 +1436,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                             <td colSpan={9} className="p-0 border-b border-border/80">
                               <div className="py-4 px-6 pl-1 ml-6 my-2 space-y-3">
                                 <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                                  <span>Related Workflows &amp; Direct Linkages:</span>
+                                  <span>Related Workflows &amp; Sub-Folders:</span>
                                   <span className="font-mono text-primary font-bold">({totalRelations})</span>
                                 </div>
 
@@ -1378,6 +1489,37 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             ),
                                           }
                                         : null,
+                                      ...tasks.map((task) => {
+                                        const assigneeName = task.assignedTo?.firstName
+                                          ? `${task.assignedTo.firstName} ${task.assignedTo.lastName ?? ""}`
+                                          : task.assignedTo?.email || "Unassigned";
+                                        return {
+                                          id: `table-task-${task.id}`,
+                                          rawId: task.id,
+                                          entityType: "ComplaintTask",
+                                          href: `/${orgSlug}/complaints/${c.id}/tasks/${task.id}`,
+                                          icon: <ListTodo className="h-3.5 w-3.5" />,
+                                          iconColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+                                          title: `Task: ${task.shortDescription}`,
+                                          badge: (
+                                            <div className="flex items-center gap-1">
+                                              <Badge variant="outline" className="text-[9px] bg-purple-500/10 text-purple-600 border-purple-500/20 py-0">
+                                                {task.taskType.replace(/_/g, " ")}
+                                              </Badge>
+                                              {getTaskStatusBadge(task.status, "text-[9px] py-0")}
+                                            </div>
+                                          ),
+                                          desc: `${task.taskSubType ? `[${task.taskSubType.replace(/_/g, " ")}] ` : ""}${task.taskDescription || task.shortDescription}`,
+                                          rightMeta: (
+                                            <span>
+                                              Assignee:{" "}
+                                              <strong className="text-foreground font-medium">
+                                                {assigneeName}
+                                              </strong>
+                                            </span>
+                                          ),
+                                        };
+                                      }),
                                       ...communications.map((comm) => ({
                                         id: `table-comm-${comm.id}`,
                                         rawId: comm.id,

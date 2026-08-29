@@ -124,7 +124,7 @@ export function WorkspaceShell({
       icon: LayoutDashboard,
     },
     {
-      title: "Complaints (PMS)",
+      title: "Complaints",
       href: "/complaints",
       exact: true,
       icon: FileSpreadsheet,
@@ -140,7 +140,7 @@ export function WorkspaceShell({
       icon: ClipboardCheck,
     },
     {
-      title: "Settings (Templates)",
+      title: "Settings",
       href: "/settings/investigation-templates",
       icon: SlidersHorizontal,
     },
