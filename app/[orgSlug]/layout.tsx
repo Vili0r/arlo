@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
+import { IdleSessionManager } from "@/components/idle-session-manager";
 import { findOrgByIdentifier } from "@/lib/tenant";
 
 interface WorkspaceLayoutProps {
@@ -48,14 +49,17 @@ export default async function WorkspaceLayout({
     : null;
 
   return (
-    <WorkspaceShell
-      orgSlug={orgSlug}
-      orgRole={orgRole}
-      userEmail={primaryEmail}
-      userName={fullName}
-      userImageUrl={user?.imageUrl}
-    >
-      {children}
-    </WorkspaceShell>
+    <>
+      <IdleSessionManager />
+      <WorkspaceShell
+        orgSlug={orgSlug}
+        orgRole={orgRole}
+        userEmail={primaryEmail}
+        userName={fullName}
+        userImageUrl={user?.imageUrl}
+      >
+        {children}
+      </WorkspaceShell>
+    </>
   );
 }

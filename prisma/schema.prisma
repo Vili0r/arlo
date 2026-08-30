@@ -44,6 +44,7 @@ model User {
   originatedTasks                 ComplaintTask[]              @relation("TaskOriginator")
   assignedTasks                   ComplaintTask[]              @relation("TaskAssignee")
   auditLogs                       AuditLog[]
+  recordLocks                     RecordLock[]
 
   @@index([email])
 }
@@ -75,6 +76,7 @@ model Organization {
   formTemplates                 FormTemplate[]
   auditLogs                     AuditLog[]
   investigationSummaries        InvestigationSummary[]
+  recordLocks                   RecordLock[]
 
   @@index([slug])
 }
@@ -733,3 +735,36 @@ model InvestigationCustomSection {
   @@index([assignedToId])
   @@index([completedById])
 }
+
+// -------------------------------------------------------------
+// Pessimistic Record Locking (Concurrency Control)
+// -------------------------------------------------------------
+
+enum LockEntityType {
+  Complaint
+  Investigation
+  Vigilance
+  FollowUp
+  Task
+}
+
+model RecordLock {
+  id         String         @id @default(cuid())
+  orgId      String         // Multi-tenant isolation
+  entityType LockEntityType
+  recordId   String         // ID of the entity instance (e.g. complaintId, investigationId)
+  lockedById String         // Clerk User ID
+  lockedAt   DateTime       @default(now())
+  expiresAt  DateTime       // TTL expiration timestamp for stale lock auto-recovery
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lockedBy     User         @relation(fields: [lockedById], references: [id], onDelete: Cascade)
+
+  // Enforce single active lock per record per organization
+  @@unique([orgId, entityType, recordId], name: "org_entity_record_lock_unique")
+  @@index([orgId, entityType, recordId])
+  @@index([expiresAt])
+  @@index([lockedById])
+}
+

@@ -13,9 +13,11 @@ import {
   CheckCircle2,
   FileText,
   Plus,
-  Trash2
+  Trash2,
+  Lock
 } from "lucide-react";
-import { InvestigationStatus, ImdrfAnnex } from "@prisma/client";
+import { InvestigationStatus, ImdrfAnnex, LockEntityType } from "@prisma/client";
+import { useRecordLock } from "@/hooks/useRecordLock";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -134,6 +136,11 @@ export function InvestigationEditForm({
 }: InvestigationEditFormProps) {
   const router = useRouter();
   
+  const { isReadOnly, isLoading: isLockLoading } = useRecordLock({
+    entityType: LockEntityType.Investigation,
+    recordId: investigation.id,
+  });
+
   const [activeTab, setActiveTab] = React.useState("general");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -284,6 +291,11 @@ export function InvestigationEditForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) {
+      toast.error("Cannot save changes: this record is locked by another user.");
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -908,11 +920,20 @@ export function InvestigationEditForm({
           >
             Cancel
           </Link>
-          <Button type="submit" size="sm" disabled={isSubmitting} className="min-w-[120px]">
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isSubmitting || isReadOnly || isLockLoading}
+            className="min-w-[120px]"
+          >
             {isSubmitting ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                 Saving...
+              </>
+            ) : isReadOnly ? (
+              <>
+                <Lock className="w-4 h-4 mr-1.5" /> Locked (Read-Only)
               </>
             ) : (
               <>
