@@ -6,7 +6,6 @@ import { generateAuditDiff } from "@/utils/auditDiff";
 import { revalidatePath } from "next/cache";
 import {
   CommunicationStatus,
-  CommunicationDirection,
   AuditAction,
   Prisma,
 } from "@prisma/client";
@@ -18,7 +17,6 @@ export interface UpdateCustomerCommunicationInput {
   questionAsked?: string | null;
   customerResponse?: string | null;
   internalNotes?: string | null;
-  direction?: CommunicationDirection;
   communicationDate?: Date | string;
   newAttachments?: AttachmentInput[];
   reason?: string;
@@ -91,7 +89,6 @@ export async function updateCustomerCommunication(
           data.internalNotes !== undefined
             ? data.internalNotes
             : existing.internalNotes,
-        direction: data.direction ?? existing.direction,
         communicationDate: data.communicationDate
           ? new Date(data.communicationDate)
           : existing.communicationDate,

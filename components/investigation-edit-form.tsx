@@ -58,7 +58,7 @@ import { useOrganization } from "@clerk/nextjs";
 import { FileUploader } from "@/components/file-uploader";
 import { CustomInvestigationSection } from "@/components/custom-investigation-section";
 import { StatusTransitionTracker } from "@/components/status-transition-tracker";
-import { cn } from "@/lib/utils";
+import { cn, formatUserName } from "@/lib/utils";
 import {
   IMDRF_ANNEX_B_CATEGORIES,
   IMDRF_ANNEX_B_SUBCAT_MAP,
@@ -474,8 +474,8 @@ export function InvestigationEditForm({
                     >
                       <option value="">Unassigned</option>
                       {memberships?.data?.map((m) => (
-                        <option key={m.publicUserData?.userId} value={m.publicUserData?.userId || ""}>
-                          {m.publicUserData?.firstName} {m.publicUserData?.lastName} ({m.publicUserData?.identifier})
+                        <option key={m.publicUserData?.userId || m.id} value={m.publicUserData?.userId || ""}>
+                          {formatUserName(m.publicUserData, "User")}
                         </option>
                       ))}
                     </select>
@@ -579,8 +579,8 @@ export function InvestigationEditForm({
                     >
                       <option value="">Unassigned</option>
                       {memberships?.data?.map((m) => (
-                        <option key={m.publicUserData?.userId} value={m.publicUserData?.userId || ""}>
-                          {m.publicUserData?.firstName} {m.publicUserData?.lastName} ({m.publicUserData?.identifier})
+                        <option key={m.publicUserData?.userId || m.id} value={m.publicUserData?.userId || ""}>
+                          {formatUserName(m.publicUserData, "User")}
                         </option>
                       ))}
                     </select>
@@ -884,8 +884,8 @@ export function InvestigationEditForm({
                     >
                       <option value="">Unassigned</option>
                       {memberships?.data?.map((m) => (
-                        <option key={m.publicUserData?.userId} value={m.publicUserData?.userId || ""}>
-                          {m.publicUserData?.firstName} {m.publicUserData?.lastName} ({m.publicUserData?.identifier})
+                        <option key={m.publicUserData?.userId || m.id} value={m.publicUserData?.userId || ""}>
+                          {formatUserName(m.publicUserData, "User")}
                         </option>
                       ))}
                     </select>
@@ -916,15 +916,15 @@ export function InvestigationEditForm({
         <CardFooter className="flex justify-end gap-3 border-t border-border pt-4 pb-4">
           <Link
             href={`/complaints/${investigation.complaintId}`}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
+            className={buttonVariants({ variant: "outline", size: "lg" })}
           >
             Cancel
           </Link>
           <Button
             type="submit"
-            size="sm"
+            size="lg"
             disabled={isSubmitting || isReadOnly || isLockLoading}
-            className="min-w-[120px]"
+            className="min-w-[150px]"
           >
             {isSubmitting ? (
               <>

@@ -110,7 +110,7 @@ export function StatusTransitionTracker({
           </span>
         </div>
       ) : (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {mainSteps.map((step, index) => {
             const isCompleted = currentIndex > index;
             const isCurrent = step.value === currentStatus;
@@ -122,7 +122,7 @@ export function StatusTransitionTracker({
                   {/* Dot */}
                   <div
                     className={cn(
-                      "flex h-5 w-5 items-center justify-center rounded-full text-[10px] transition-all",
+                      "flex h-5 w-5 items-center justify-center rounded-full text-[10px] transition-all shrink-0",
                       isCompleted && "bg-primary text-primary-foreground",
                       isCurrent &&
                         "border border-primary bg-primary/10 text-primary font-bold",
@@ -136,13 +136,14 @@ export function StatusTransitionTracker({
                     )}
                   </div>
 
-                  {/* Label */}
+                  {/* Label — hidden on small screens for non-current steps */}
                   <span
                     className={cn(
                       "text-xs font-medium max-w-[100px] truncate",
                       isCompleted && "text-foreground",
                       isCurrent && "text-primary font-semibold",
-                      isFuture && "text-muted-foreground"
+                      isFuture && "text-muted-foreground",
+                      !isCurrent && "hidden md:inline"
                     )}
                   >
                     {step.label}
@@ -154,11 +155,11 @@ export function StatusTransitionTracker({
                   </div>
                 </div>
 
-                {/* Connector line */}
+                {/* Connector line — hidden on small screens */}
                 {index < mainSteps.length - 1 && (
                   <div
                     className={cn(
-                      "h-px w-4 transition-all",
+                      "h-px w-4 transition-all hidden md:block",
                       currentIndex > index ? "bg-primary" : "bg-border"
                     )}
                   />

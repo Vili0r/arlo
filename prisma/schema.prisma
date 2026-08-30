@@ -146,11 +146,6 @@ enum Death {
   UNKNOWN
 }
 
-enum CommunicationDirection {
-  INBOUND
-  OUTBOUND
-}
-
 enum CommunicationStatus {
   OPEN
   IN_PROGRESS
@@ -325,12 +320,11 @@ model PatientInformation {
 }
 
 model CustomerCommunication {
-  id                String                 @id @default(cuid())
+  id                String              @id @default(cuid())
   orgId             String // Multi-tenant isolation
   complaintId       String
-  communicationDate DateTime               @default(now())
-  status            CommunicationStatus    @default(OPEN)
-  direction         CommunicationDirection @default(INBOUND)
+  communicationDate DateTime            @default(now())
+  status            CommunicationStatus @default(OPEN)
   questionAsked     String?
   customerResponse  String?
   internalNotes     String?

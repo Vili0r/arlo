@@ -1,6 +1,7 @@
 import { requireOrgAuth, PERMISSIONS } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { History, Lock, ShieldCheck, User } from "lucide-react";
+import { formatUserName } from "@/lib/utils";
 
 interface AuditTrailPageProps {
   params: Promise<{ orgSlug: string }>;
@@ -89,7 +90,7 @@ export default async function AuditTrailPage({
                       </span>
                     </td>
                     <td className="py-3 px-4 font-sans text-muted-foreground">
-                      {log.changedBy?.email || log.changedById}
+                      {formatUserName(log.changedBy, log.changedById)}
                     </td>
                     <td className="py-3 px-4 font-sans text-muted-foreground italic max-w-xs truncate">
                       {log.reason || "Standard system operation"}

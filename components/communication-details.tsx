@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import {
   CommunicationStatus,
-  CommunicationDirection,
 } from "@prisma/client";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +34,7 @@ import { FileUploader } from "@/components/file-uploader";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { cn } from "@/lib/utils";
+import { cn, formatUserName } from "@/lib/utils";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -51,7 +50,6 @@ import type { AttachmentInput } from "@/lib/actions/complaints";
 
 const formSchema = z.object({
   status: z.nativeEnum(CommunicationStatus),
-  direction: z.nativeEnum(CommunicationDirection),
   communicationDate: z.string().optional().nullable(),
   questionAsked: z.string().optional().nullable(),
   customerResponse: z.string().optional().nullable(),
@@ -66,7 +64,6 @@ export interface CommunicationDetailData {
   complaintId: string;
   communicationDate: Date | string;
   status: CommunicationStatus;
-  direction: CommunicationDirection;
   questionAsked: string | null;
   customerResponse: string | null;
   internalNotes: string | null;
@@ -111,7 +108,6 @@ export function CommunicationDetail({
     resolver: zodResolver(formSchema),
     defaultValues: {
       status: initialComm.status || CommunicationStatus.OPEN,
-      direction: initialComm.direction || CommunicationDirection.INBOUND,
       communicationDate: toDateString(initialComm.communicationDate),
       questionAsked: initialComm.questionAsked || "",
       customerResponse: initialComm.customerResponse || "",
@@ -177,7 +173,6 @@ export function CommunicationDetail({
       const updated = await updateCustomerCommunication({
         communicationId: initialComm.id,
         status: data.status,
-        direction: data.direction,
         communicationDate: data.communicationDate
           ? new Date(data.communicationDate)
           : undefined,
@@ -206,9 +201,7 @@ export function CommunicationDetail({
     }
   };
 
-  const authorName = initialComm.author?.firstName
-    ? `${initialComm.author.firstName} ${initialComm.author.lastName ?? ""}`.trim()
-    : initialComm.author?.email || "Unknown User";
+  const authorName = formatUserName(initialComm.author, "Unknown User");
 
   const complaintsHref = orgSlug ? `/${orgSlug}/complaints` : "/complaints";
   const complaintHref = orgSlug
@@ -278,6 +271,7 @@ export function CommunicationDetail({
 
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <CardContent className="space-y-6 pt-6">
+              {/* Row 1: Status (first half) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Status Display Box */}
                 <div className="space-y-2">
@@ -301,24 +295,10 @@ export function CommunicationDetail({
                     </span>
                   </div>
                 </div>
+              </div>
 
-                {/* Direction */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Communication Direction</Label>
-                  <select
-                    {...form.register("direction")}
-                    disabled={isClosed}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring disabled:bg-muted/40 disabled:cursor-not-allowed"
-                  >
-                    <option value={CommunicationDirection.INBOUND}>
-                      Inbound (From Customer)
-                    </option>
-                    <option value={CommunicationDirection.OUTBOUND}>
-                      Outbound (To Customer)
-                    </option>
-                  </select>
-                </div>
-
+              {/* Row 2: Communication Date & Logged By */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Communication Date */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Communication Date</Label>
@@ -424,15 +404,15 @@ export function CommunicationDetail({
             <CardFooter className="flex justify-end gap-3 border-t border-border pt-4 pb-4">
               <Link
                 href={complaintHref}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
+                className={buttonVariants({ variant: "outline", size: "lg" })}
               >
                 Cancel
               </Link>
               <Button
                 type="submit"
-                size="sm"
+                size="lg"
                 disabled={isSubmitting}
-                className="min-w-[120px]"
+                className="min-w-[150px]"
               >
                 {isSubmitting ? (
                   <>

@@ -71,7 +71,7 @@ import {
   ContextMenuLabel,
 } from "@/components/ui/context-menu";
 import { AuditHistoryDrawer } from "@/components/audit/audit-history-drawer";
-import { cn } from "@/lib/utils";
+import { cn, formatUserName } from "@/lib/utils";
 
 
 export interface RelatedProduct {
@@ -106,7 +106,6 @@ export interface RelatedCommunication {
   customerResponse?: string | null;
   internalNotes?: string | null;
   notes?: string | null;
-  direction: string;
   author?: {
     email: string;
     firstName: string | null;
@@ -1074,9 +1073,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                           <User className="h-2.5 w-2.5" /> Owner
                         </span>
                         <span className="font-medium text-foreground truncate block">
-                          {c.complaintOwner?.firstName
-                            ? `${c.complaintOwner.firstName} ${c.complaintOwner.lastName ?? ""}`
-                            : c.complaintOwner?.email || "Unassigned"}
+                          {formatUserName(c.complaintOwner, "Unassigned")}
                         </span>
                       </div>
                       <div>
@@ -1143,9 +1140,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                   }
                                 : null,
                               ...tasks.map((task) => {
-                                const assigneeName = task.assignedTo?.firstName
-                                  ? `${task.assignedTo.firstName} ${task.assignedTo.lastName ?? ""}`
-                                  : task.assignedTo?.email || "Unassigned";
+                                const assigneeName = formatUserName(task.assignedTo, "Unassigned");
                                 return {
                                   id: `task-${task.id}`,
                                   rawId: task.id,
@@ -1169,7 +1164,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                 rawId: comm.id,
                                 entityType: "CustomerCommunication",
                                 href: `/${orgSlug}/complaints/${c.id}/communications/${comm.id}`,
-                                title: `Customer Follow-up (${comm.direction})`,
+                                title: "Customer Follow-up",
                                 badge: (
                                   <span className="text-[10px] text-muted-foreground font-mono" suppressHydrationWarning>
                                     {formatDate(comm.communicationDate)}
@@ -1413,9 +1408,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
 
                           {/* Complaint Owner */}
                           <td className="py-3.5 px-4 text-xs text-muted-foreground">
-                            {c.complaintOwner?.firstName
-                              ? `${c.complaintOwner.firstName} ${c.complaintOwner.lastName ?? ""}`
-                              : c.complaintOwner?.email || "Unassigned"}
+                            {formatUserName(c.complaintOwner, "Unassigned")}
                           </td>
 
                           {/* Awareness Date */}
@@ -1515,7 +1508,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                               <span>
                                                 Investigator:{" "}
                                                 <strong className="text-foreground font-medium">
-                                                  {investigation.investigator?.email || "Unassigned"}
+                                                  {formatUserName(investigation.investigator, "Unassigned")}
                                                 </strong>
                                               </span>
                                             ),
@@ -1544,9 +1537,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                           }
                                         : null,
                                       ...tasks.map((task) => {
-                                        const assigneeName = task.assignedTo?.firstName
-                                          ? `${task.assignedTo.firstName} ${task.assignedTo.lastName ?? ""}`
-                                          : task.assignedTo?.email || "Unassigned";
+                                        const assigneeName = formatUserName(task.assignedTo, "Unassigned");
                                         return {
                                           id: `table-task-${task.id}`,
                                           rawId: task.id,
@@ -1582,11 +1573,11 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                         icon: <MessageSquare className="h-3.5 w-3.5" />,
                                         iconColor: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
                                         title: "Customer Follow-up Log",
-                                        badge: (
+                                        badge: comm.status ? (
                                           <Badge variant="secondary" className="text-[9px] py-0 font-mono">
-                                            {comm.direction}
+                                            {comm.status.replace(/_/g, " ")}
                                           </Badge>
-                                        ),
+                                        ) : null,
                                         desc:
                                            comm.questionAsked ||
                                            comm.customerResponse ||
@@ -1921,9 +1912,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                 <span>
                                   By:{" "}
                                   <strong className="text-foreground font-sans font-medium">
-                                    {log.changedBy?.firstName
-                                      ? `${log.changedBy.firstName} ${log.changedBy.lastName ?? ""}`
-                                      : log.changedBy?.email || log.changedById}
+                                    {formatUserName(log.changedBy, log.changedById)}
                                   </strong>
                                 </span>
                                 <span suppressHydrationWarning>{formatDateTime(log.timestamp)}</span>

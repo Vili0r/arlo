@@ -10,7 +10,6 @@ import {
   Priority,
   ComplaintStatus,
   Death,
-  CommunicationDirection,
   CommunicationStatus,
   SampleStatus,
   InvestigationStatus,
@@ -293,7 +292,6 @@ export async function createComplaintWithRelations(
           orgId,
           complaintId: complaint.id,
           communicationDate: new Date(),
-          direction: CommunicationDirection.INBOUND,
           internalNotes:
             data.initialCommunicationNotes ||
             `Initial customer intake communication logged for ${data.customerName}.`,
@@ -665,7 +663,6 @@ export interface AddCustomerCommunicationInput {
   questionAsked?: string | null;
   customerResponse?: string | null;
   status?: CommunicationStatus;
-  direction?: CommunicationDirection;
   communicationDate?: Date | string;
   attachments?: AttachmentInput[];
 }
@@ -684,7 +681,6 @@ export async function addCustomerCommunication(
         questionAsked: data.questionAsked ?? null,
         customerResponse: data.customerResponse ?? null,
         status: data.status ?? "OPEN",
-        direction: data.direction ?? CommunicationDirection.INBOUND,
         communicationDate: data.communicationDate
           ? new Date(data.communicationDate)
           : new Date(),
@@ -721,7 +717,7 @@ export async function addCustomerCommunication(
         action: AuditAction.CREATE,
         changedById: userId,
         newData: communication as unknown as Prisma.InputJsonValue,
-        reason: `Logged ${communication.direction} customer communication`,
+        reason: "Logged customer communication",
         complaintId: data.complaintId,
       },
     });

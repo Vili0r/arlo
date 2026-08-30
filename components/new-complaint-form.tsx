@@ -56,6 +56,7 @@ import {
 import { useOrganization } from "@clerk/nextjs";
 import { FileUploader } from "@/components/file-uploader";
 import { ComplaintFormSchema, type ComplaintFormValues } from "@/lib/validations/complaint";
+import { formatUserName } from "@/lib/utils";
 
 interface NewComplaintFormProps {
   orgSlug: string;
@@ -340,7 +341,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                           key={m.publicUserData?.userId || m.id}
                           value={m.publicUserData?.userId || ""}
                         >
-                          {m.publicUserData?.firstName || ""} {m.publicUserData?.lastName || m.publicUserData?.identifier || "User"}
+                          {formatUserName(m.publicUserData, "User")}
                         </option>
                       ))}
                     </select>
@@ -824,11 +825,11 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
             <CardFooter className="flex justify-end gap-3 border-t border-border pt-4 pb-0">
               <Link
                 href="/complaints"
-                className={buttonVariants({ variant: "outline", size: "sm" })}
+                className={buttonVariants({ variant: "outline", size: "lg" })}
               >
                 Cancel
               </Link>
-              <Button type="submit" size="sm" disabled={isSubmitting}>
+              <Button type="submit" size="lg" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />

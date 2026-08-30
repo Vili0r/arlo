@@ -18,7 +18,9 @@ export default async function VigilancePage({
     include: {
       vigilanceDecisionTree: {
         include: {
-          attachments: true
+          attachments: true,
+          owner: { select: { email: true, firstName: true, lastName: true } },
+          approver: { select: { email: true, firstName: true, lastName: true } },
         }
       },
     }
@@ -39,6 +41,8 @@ export default async function VigilancePage({
       },
       include: {
         attachments: true,
+        owner: { select: { email: true, firstName: true, lastName: true } },
+        approver: { select: { email: true, firstName: true, lastName: true } },
       },
     });
   }

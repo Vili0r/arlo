@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AuditAction } from "@prisma/client";
-import { cn } from "@/lib/utils";
+import { cn, formatUserName } from "@/lib/utils";
 import { generateAuditDiff } from "@/utils/auditDiff";
 import {
   Pagination,
@@ -454,9 +454,7 @@ export function AuditHistoryDrawer({
                             <span>
                               By:{" "}
                               <strong className="text-foreground font-sans font-medium">
-                                {log.changedBy?.firstName
-                                  ? `${log.changedBy.firstName} ${log.changedBy.lastName ?? ""}`
-                                  : log.changedBy?.email || log.changedById}
+                                {formatUserName(log.changedBy, log.changedById)}
                               </strong>
                             </span>
                             <span suppressHydrationWarning>{formatDateTime(log.timestamp)}</span>

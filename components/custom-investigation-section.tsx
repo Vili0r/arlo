@@ -4,6 +4,7 @@ import { useOrganization } from "@clerk/nextjs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { formatUserName } from "@/lib/utils";
 
 interface CustomInvestigationSectionProps {
   section: {
@@ -66,11 +67,10 @@ export function CustomInvestigationSection({
             <option value="">Unassigned</option>
             {memberships?.data?.map((m) => (
               <option
-                key={m.publicUserData?.userId}
+                key={m.publicUserData?.userId || m.id}
                 value={m.publicUserData?.userId || ""}
               >
-                {m.publicUserData?.firstName} {m.publicUserData?.lastName} (
-                {m.publicUserData?.identifier})
+                {formatUserName(m.publicUserData, "User")}
               </option>
             ))}
           </select>

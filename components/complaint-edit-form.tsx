@@ -64,6 +64,7 @@ import { useOrganization } from "@clerk/nextjs";
 import { FileUploader } from "@/components/file-uploader";
 import { ComplaintFormSchema, type ComplaintFormValues } from "@/lib/validations/complaint";
 import { StatusTransitionTracker } from "@/components/status-transition-tracker";
+import { formatUserName } from "@/lib/utils";
 
 interface SampleManagementData {
   id: string;
@@ -473,15 +474,13 @@ export function ComplaintEditForm({
                   <span>
                     Owner:{" "}
                     <strong className="text-foreground">
-                      {complaint.complaintOwner?.firstName
-                        ? `${complaint.complaintOwner.firstName} ${complaint.complaintOwner.lastName ?? ""}`
-                        : complaint.complaintOwner?.email || "Unassigned"}
+                      {formatUserName(complaint.complaintOwner, "Unassigned")}
                     </strong>
                   </span>
                   <span>
                     Logged by:{" "}
                     <strong className="text-foreground">
-                      {complaint.createdBy?.email || "System"}
+                      {formatUserName(complaint.createdBy, "System")}
                     </strong>
                   </span>
                 </div>
@@ -572,7 +571,7 @@ export function ComplaintEditForm({
                               key={m.publicUserData?.userId || m.id}
                               value={m.publicUserData?.userId || ""}
                             >
-                              {m.publicUserData?.firstName || ""} {m.publicUserData?.lastName || m.publicUserData?.identifier || "User"}
+                              {formatUserName(m.publicUserData, "User")}
                             </option>
                           ))}
                         </select>
@@ -1124,6 +1123,7 @@ export function ComplaintEditForm({
                   <div className="flex items-center gap-3">
                     <Button
                       type="submit"
+                      size="lg"
                       disabled={isSubmitting}
                       className="gap-2 text-xs font-semibold"
                     >

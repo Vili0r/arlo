@@ -25,7 +25,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { StatusTransitionTracker } from "@/components/status-transition-tracker";
-import { cn } from "@/lib/utils";
+import { cn, formatUserName } from "@/lib/utils";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -246,17 +246,11 @@ export function VigilanceEditForm({
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring"
                   >
                     <option value="">Unassigned</option>
-                    {memberships?.data?.map((m) => {
-                      const first = m.publicUserData?.firstName;
-                      const last = m.publicUserData?.lastName;
-                      const identifier = m.publicUserData?.identifier;
-                      const name = first || last ? `${first || ''} ${last || ''}`.trim() : (identifier ? identifier.split('@')[0] : 'Unknown User');
-                      return (
-                        <option key={m.publicUserData?.userId || m.id} value={m.publicUserData?.userId || ""}>
-                          {name}
-                        </option>
-                      );
-                    })}
+                    {memberships?.data?.map((m) => (
+                      <option key={m.publicUserData?.userId || m.id} value={m.publicUserData?.userId || ""}>
+                        {formatUserName(m.publicUserData, "User")}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -267,17 +261,11 @@ export function VigilanceEditForm({
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring"
                   >
                     <option value="">Unassigned</option>
-                    {memberships?.data?.map((m) => {
-                      const first = m.publicUserData?.firstName;
-                      const last = m.publicUserData?.lastName;
-                      const identifier = m.publicUserData?.identifier;
-                      const name = first || last ? `${first || ''} ${last || ''}`.trim() : (identifier ? identifier.split('@')[0] : 'Unknown User');
-                      return (
-                        <option key={m.publicUserData?.userId || m.id} value={m.publicUserData?.userId || ""}>
-                          {name}
-                        </option>
-                      );
-                    })}
+                    {memberships?.data?.map((m) => (
+                      <option key={m.publicUserData?.userId || m.id} value={m.publicUserData?.userId || ""}>
+                        {formatUserName(m.publicUserData, "User")}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 
@@ -325,11 +313,11 @@ export function VigilanceEditForm({
             <CardFooter className="flex justify-end gap-3 border-t border-border pt-4 pb-4">
               <Link
                 href={`/complaints/${vigilance.complaintId}`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
+                className={buttonVariants({ variant: "outline", size: "lg" })}
               >
                 Cancel
               </Link>
-              <Button type="submit" size="sm" disabled={isSubmitting} className="min-w-[120px]">
+              <Button type="submit" size="lg" disabled={isSubmitting} className="min-w-[150px]">
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />

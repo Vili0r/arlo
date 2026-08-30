@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ClipboardCheck, Plus, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { CapaStatus } from "@prisma/client";
+import { formatUserName } from "@/lib/utils";
 
 interface CapaPageProps {
   params: Promise<{ orgSlug: string }>;
@@ -16,9 +17,9 @@ export default async function CapaPage({ params }: CapaPageProps) {
     where: { orgId, deletedAt: null },
     orderBy: { createdAt: "desc" },
     include: {
-      createdBy: { select: { email: true } },
-      assignedOwner: { select: { email: true } },
-      approvedBy: { select: { email: true } },
+      createdBy: { select: { email: true, firstName: true, lastName: true } },
+      assignedOwner: { select: { email: true, firstName: true, lastName: true } },
+      approvedBy: { select: { email: true, firstName: true, lastName: true } },
       complaint: { select: { complaintNumber: true, shortDescription: true } },
     },
   });
@@ -85,6 +86,7 @@ export default async function CapaPage({ params }: CapaPageProps) {
                 <tr>
                   <th className="py-3 px-4">CAPA Number</th>
                   <th className="py-3 px-4">Title & Problem Statement</th>
+                  <th className="py-3 px-4">Owner</th>
                   <th className="py-3 px-4">Type</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Source Complaint</th>
@@ -104,6 +106,9 @@ export default async function CapaPage({ params }: CapaPageProps) {
                       <span className="text-[11px] text-muted-foreground block truncate">
                         {capa.problemStatement}
                       </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-muted-foreground">
+                      {formatUserName(capa.assignedOwner, "Unassigned")}
                     </td>
                     <td className="py-3.5 px-4">
                       <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-mono">
