@@ -81,6 +81,7 @@ export interface RelatedProduct {
   materialDescription?: string | null;
   serialNumber?: string | null;
   batchNumber?: string | null;
+  udi?: string | null;
   asReportedCode1?: string | null;
   asReportedCode2?: string | null;
   softwareVersion?: string | null;
@@ -224,7 +225,7 @@ export interface ComplaintRecord {
     lastName: string | null;
   } | null;
   investigation?: RelatedInvestigation | null;
-  vigilanceDecisionTree?: RelatedVigilance | null;
+  vigilanceDecisionTrees?: RelatedVigilance[] | null;
   productInformation?: RelatedProduct[];
   patientInformation?: RelatedPatient[];
   customerCommunications?: RelatedCommunication[];
@@ -942,10 +943,12 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                 c.investigation && c.investigation.status !== "CANCELLED"
                   ? c.investigation
                   : null;
+              const activeVigilanceList = (c.vigilanceDecisionTrees || []).filter(
+                (v) => v.status !== "CANCELLED"
+              );
               const vigilance =
-                c.vigilanceDecisionTree &&
-                c.vigilanceDecisionTree.status !== "CANCELLED"
-                  ? c.vigilanceDecisionTree
+                activeVigilanceList.length > 0
+                  ? activeVigilanceList[activeVigilanceList.length - 1]
                   : null;
               const totalRelations =
                 (investigation ? 1 : 0) +
@@ -1340,10 +1343,12 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                       c.investigation && c.investigation.status !== "CANCELLED"
                         ? c.investigation
                         : null;
+                    const activeVigilanceList = (c.vigilanceDecisionTrees || []).filter(
+                      (v) => v.status !== "CANCELLED"
+                    );
                     const vigilance =
-                      c.vigilanceDecisionTree &&
-                      c.vigilanceDecisionTree.status !== "CANCELLED"
-                        ? c.vigilanceDecisionTree
+                      activeVigilanceList.length > 0
+                        ? activeVigilanceList[activeVigilanceList.length - 1]
                         : null;
                     const totalRelations =
                       (investigation ? 1 : 0) +

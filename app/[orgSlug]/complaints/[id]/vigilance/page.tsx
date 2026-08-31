@@ -16,21 +16,26 @@ export default async function VigilancePage({
   const complaint = await prisma.complaint.findUnique({
     where: { id, orgId, deletedAt: null },
     include: {
-      vigilanceDecisionTree: {
+      vigilanceDecisionTrees: {
+        orderBy: { createdAt: "asc" },
         include: {
           attachments: true,
           owner: { select: { email: true, firstName: true, lastName: true } },
           approver: { select: { email: true, firstName: true, lastName: true } },
-        }
+        },
       },
-    }
+    },
   });
 
   if (!complaint) {
     notFound();
   }
 
-  let vigilance = complaint.vigilanceDecisionTree;
+  // Get the latest vigilance record or create an initial one if none exist
+  let vigilance =
+    complaint.vigilanceDecisionTrees && complaint.vigilanceDecisionTrees.length > 0
+      ? complaint.vigilanceDecisionTrees[complaint.vigilanceDecisionTrees.length - 1]
+      : null;
 
   if (!vigilance) {
     vigilance = await prisma.vigilanceDecisionTree.create({
@@ -38,6 +43,7 @@ export default async function VigilancePage({
         complaintId: complaint.id,
         orgId,
         status: "PENDING",
+        assessmentStage: "INITIAL",
       },
       include: {
         attachments: true,

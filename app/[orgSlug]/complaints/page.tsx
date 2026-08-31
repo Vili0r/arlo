@@ -41,7 +41,7 @@ export default async function ComplaintsPage({
           },
         },
       },
-      vigilanceDecisionTree: true,
+      vigilanceDecisionTrees: true,
       customerCommunications: {
         where: { status: { not: "CANCELLED" } },
         orderBy: { communicationDate: "desc" },

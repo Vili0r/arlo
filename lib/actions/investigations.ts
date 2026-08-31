@@ -43,9 +43,11 @@ export interface UpdateInvestigationInput {
   investigationSummaryCompletedAt?: Date | string | null;
   summaryText?: string | null;
   report?: string | null;
-  capaRationale?: string | null;
+  capaFscaRationale?: string | null;
   capaRequired: boolean;
   capaRef?: string | null;
+  fscaRequired: boolean;
+  fscaRef?: string | null;
   reportabilityReviewRequired: boolean;
   imdrfCodes?: Array<{
     id?: string;
@@ -91,9 +93,11 @@ export async function updateInvestigation(data: UpdateInvestigationInput) {
       completedAt: data.investigationSummaryCompletedAt ? new Date(data.investigationSummaryCompletedAt) : null,
       summary: data.summaryText ?? null,
       report: data.report ?? null,
-      capaRationale: data.capaRationale ?? null,
+      capaFscaRationale: data.capaFscaRationale ?? null,
       capaRequired: data.capaRequired,
       capaRef: data.capaRef ?? null,
+      fscaRequired: data.fscaRequired,
+      fscaRef: data.fscaRef ?? null,
       notes: data.notes ?? null,
       reportabilityReviewRequired: data.reportabilityReviewRequired,
     };

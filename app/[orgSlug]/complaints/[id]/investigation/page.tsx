@@ -107,9 +107,11 @@ export default async function InvestigationPage({
         investigationSummaryCompletedById: activeInvestigation.summary?.completedById || null,
         summaryText: activeInvestigation.summary?.summary || null, // renamed from summary to avoid conflict with relation
         report: activeInvestigation.summary?.report || null,
-        capaRationale: activeInvestigation.summary?.capaRationale || null,
+        capaFscaRationale: activeInvestigation.summary?.capaFscaRationale || null,
         capaRequired: activeInvestigation.summary?.capaRequired || false,
         capaRef: activeInvestigation.summary?.capaRef || null,
+        fscaRequired: activeInvestigation.summary?.fscaRequired || false,
+        fscaRef: activeInvestigation.summary?.fscaRef || null,
         notes: activeInvestigation.summary?.notes || null,
         reportabilityReviewRequired: activeInvestigation.summary?.reportabilityReviewRequired || false,
         imdrfCodes: activeInvestigation.summary?.imdrfCodes || [],

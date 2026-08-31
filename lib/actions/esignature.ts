@@ -207,7 +207,7 @@ export async function executeStatusTransition(
           where: { id: entityId, orgId },
           include: {
             investigation: true,
-            vigilanceDecisionTree: true,
+            vigilanceDecisionTrees: true,
             capas: {
               where: { deletedAt: null },
             },
@@ -231,15 +231,16 @@ export async function executeStatusTransition(
           );
         }
 
-        // 2. Check Vigilance Decision Tree linkage
-        if (
-          fullComplaint.vigilanceDecisionTree &&
-          fullComplaint.vigilanceDecisionTree.status !== "SUBMITTED" &&
-          fullComplaint.vigilanceDecisionTree.status !== "NOT_REPORTABLE"
-        ) {
-          blockingReasons.push(
-            `Vigilance Decision Tree assessment is not finalized (current status: ${fullComplaint.vigilanceDecisionTree.status.replace(/_/g, " ")})`
+        // 2. Check Vigilance Decision Tree linkages
+        if (fullComplaint.vigilanceDecisionTrees && fullComplaint.vigilanceDecisionTrees.length > 0) {
+          const unfinalizedVigilance = fullComplaint.vigilanceDecisionTrees.filter(
+            (v) => v.status !== "SUBMITTED" && v.status !== "NOT_REPORTABLE" && v.status !== "CANCELLED"
           );
+          if (unfinalizedVigilance.length > 0) {
+            blockingReasons.push(
+              `Vigilance Decision Tree assessment is not finalized (${unfinalizedVigilance.length} assessment(s) pending/in-progress)`
+            );
+          }
         }
 
         // 3. Check CAPAs linkage
@@ -534,8 +535,8 @@ async function validateInvestigationForReview(
     if (!summary.report?.trim()) {
       missingFields.push("Summary & CAPA: Investigation Report is required.");
     }
-    if (!summary.capaRationale?.trim()) {
-      missingFields.push("Summary & CAPA: CAPA Rationale is required.");
+    if (!summary.capaFscaRationale?.trim()) {
+      missingFields.push("Summary & CAPA/FSCA: CAPA / FSCA Rationale is required.");
     }
 
     // IMDRF Codes check: Annex B, C, D, G

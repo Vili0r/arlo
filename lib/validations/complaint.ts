@@ -8,6 +8,7 @@ export const ProductEntrySchema = z.object({
   materialDescription: z.string().optional(),
   serialNumber: z.string().optional(),
   batchNumber: z.string().optional(),
+  udi: z.string().optional(),
   annexA_Category: z.string().optional(),
   asReportedCode1: z.string().optional(),
   asReportedCode2: z.string().optional(),
@@ -21,6 +22,7 @@ export const PatientEntrySchema = z.object({
   patientImpactDesc: z.string().optional(),
   sex: z.string().optional(),
   age: z.string().optional(),
+  eventOccurred: z.union([z.date(), z.string()]).optional().nullable(),
   annexE_Code: z.string().optional(),
   annexF_Code: z.string().optional(),
 });

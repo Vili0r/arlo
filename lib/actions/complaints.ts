@@ -29,6 +29,7 @@ export interface ProductInformationInput {
   materialDescription?: string | null;
   serialNumber?: string | null;
   batchNumber?: string | null;
+  udi?: string | null;
   asReportedCode1?: string | null; // IMDRF Annex A Code
   asReportedCode2?: string | null; // IMDRF Annex A Code
   softwareVersion?: string | null;
@@ -203,6 +204,7 @@ export async function createComplaintWithRelations(
                   materialDescription: prod.materialDescription ?? null,
                   serialNumber: prod.serialNumber ?? null,
                   batchNumber: prod.batchNumber ?? null,
+                  udi: prod.udi ?? null,
                   asReportedCode1: prod.asReportedCode1 ?? null,
                   asReportedCode2: prod.asReportedCode2 ?? null,
                   softwareVersion: prod.softwareVersion ?? null,
@@ -473,6 +475,7 @@ export async function updateComplaintWithRelations(
               materialDescription: p.materialDescription ?? null,
               serialNumber: p.serialNumber ?? null,
               batchNumber: p.batchNumber ?? null,
+              udi: p.udi ?? null,
               asReportedCode1: p.asReportedCode1 ?? null,
               asReportedCode2: p.asReportedCode2 ?? null,
               softwareVersion: p.softwareVersion ?? null,
@@ -488,6 +491,7 @@ export async function updateComplaintWithRelations(
               materialDescription: p.materialDescription ?? null,
               serialNumber: p.serialNumber ?? null,
               batchNumber: p.batchNumber ?? null,
+              udi: p.udi ?? null,
               asReportedCode1: p.asReportedCode1 ?? null,
               asReportedCode2: p.asReportedCode2 ?? null,
               softwareVersion: p.softwareVersion ?? null,

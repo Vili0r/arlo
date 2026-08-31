@@ -23,7 +23,9 @@ const summarySchema = z.object({
   notes: z.string().nullable().optional(),
   capaRequired: z.boolean(),
   capaRef: z.string().nullable().optional(),
-  capaRationale: z.string().nullable().optional(),
+  fscaRequired: z.boolean(),
+  fscaRef: z.string().nullable().optional(),
+  capaFscaRationale: z.string().nullable().optional(),
   reportabilityReviewRequired: z.boolean(),
 });
 
@@ -57,12 +59,15 @@ export function InvestigationSummaryForm({
       notes: initialData?.notes || "",
       capaRequired: initialData?.capaRequired || false,
       capaRef: initialData?.capaRef || "",
-      capaRationale: initialData?.capaRationale || "",
+      fscaRequired: initialData?.fscaRequired || false,
+      fscaRef: initialData?.fscaRef || "",
+      capaFscaRationale: initialData?.capaFscaRationale || "",
       reportabilityReviewRequired: initialData?.reportabilityReviewRequired || false,
     },
   });
 
   const capaRequired = watch("capaRequired");
+  const fscaRequired = watch("fscaRequired");
   const reportabilityReviewRequired = watch("reportabilityReviewRequired");
 
   const onSaveDraft = async (data: SummaryFormValues) => {
@@ -76,7 +81,9 @@ export function InvestigationSummaryForm({
         report: data.report || null,
         capaRequired: data.capaRequired,
         capaRef: data.capaRef || null,
-        capaRationale: data.capaRationale || null,
+        fscaRequired: data.fscaRequired,
+        fscaRef: data.fscaRef || null,
+        capaFscaRationale: data.capaFscaRationale || null,
         reportabilityReviewRequired: data.reportabilityReviewRequired,
         notes: data.notes || null,
       });
@@ -99,7 +106,9 @@ export function InvestigationSummaryForm({
         report: data.report || null,
         capaRequired: data.capaRequired,
         capaRef: data.capaRef || null,
-        capaRationale: data.capaRationale || null,
+        fscaRequired: data.fscaRequired,
+        fscaRef: data.fscaRef || null,
+        capaFscaRationale: data.capaFscaRationale || null,
         reportabilityReviewRequired: data.reportabilityReviewRequired,
         notes: data.notes || null,
       });
@@ -130,7 +139,7 @@ export function InvestigationSummaryForm({
               Investigation Summary
             </h2>
             <p className="text-sm text-zinc-400 mt-1">
-              Final conclusion, rationale, and CAPA determination for this investigation.
+              Final conclusion, rationale, CAPA, and FSCA determination for this investigation.
             </p>
           </div>
 
@@ -167,24 +176,24 @@ export function InvestigationSummaryForm({
             </div>
 
             {/* Decisions Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-white/10 pt-8">
-              {/* CAPA Required */}
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="capaRequired"
-                    className="h-4 w-4 rounded border-white/10 bg-zinc-950 accent-purple-600 focus:ring-purple-500/50"
-                    {...register("capaRequired")}
-                  />
-                  <Label htmlFor="capaRequired" className="font-medium text-zinc-200">
-                    CAPA Required
-                  </Label>
-                </div>
-                
-                {capaRequired && (
-                  <div className="space-y-4 pl-6 border-l-2 border-purple-500/30 animate-in fade-in slide-in-from-left-2 duration-300">
-                    <div className="space-y-2">
+            <div className="space-y-6 border-t border-white/10 pt-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* CAPA Required */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="capaRequired"
+                      className="h-4 w-4 rounded border-white/10 bg-zinc-950 accent-purple-600 focus:ring-purple-500/50"
+                      {...register("capaRequired")}
+                    />
+                    <Label htmlFor="capaRequired" className="font-medium text-zinc-200">
+                      CAPA Required
+                    </Label>
+                  </div>
+                  
+                  {capaRequired && (
+                    <div className="space-y-2 pl-6 border-l-2 border-purple-500/30 animate-in fade-in slide-in-from-left-2 duration-300">
                       <Label htmlFor="capaRef" className="text-xs text-zinc-400">CAPA Reference #</Label>
                       <Input
                         id="capaRef"
@@ -193,42 +202,47 @@ export function InvestigationSummaryForm({
                         placeholder="e.g. CAPA-2026-042"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="capaRationale" className="text-xs text-zinc-400">CAPA Rationale</Label>
-                      <Textarea
-                        id="capaRationale"
-                        rows={2}
-                        {...register("capaRationale")}
-                        className="bg-zinc-950/50 border-white/10 focus-visible:ring-purple-500/50"
-                        placeholder="Why is a CAPA being initiated?"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Reportability Review */}
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="reportabilityReviewRequired"
-                    className="h-4 w-4 rounded border-white/10 bg-zinc-950 accent-purple-600 focus:ring-purple-500/50"
-                    {...register("reportabilityReviewRequired")}
-                  />
-                  <Label htmlFor="reportabilityReviewRequired" className="font-medium text-zinc-200">
-                    Reportability Review Required
-                  </Label>
+                  )}
                 </div>
 
-                {reportabilityReviewRequired && (
-                  <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3 flex items-start gap-3 animate-in fade-in duration-300">
-                    <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-200/90 leading-tight">
-                      This will automatically trigger a Vigilance Decision Tree upon completion.
-                    </p>
+                {/* FSCA Required */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="fscaRequired"
+                      className="h-4 w-4 rounded border-white/10 bg-zinc-950 accent-purple-600 focus:ring-purple-500/50"
+                      {...register("fscaRequired")}
+                    />
+                    <Label htmlFor="fscaRequired" className="font-medium text-zinc-200">
+                      FSCA Required
+                    </Label>
                   </div>
-                )}
+                  
+                  {fscaRequired && (
+                    <div className="space-y-2 pl-6 border-l-2 border-purple-500/30 animate-in fade-in slide-in-from-left-2 duration-300">
+                      <Label htmlFor="fscaRef" className="text-xs text-zinc-400">FSCA Reference #</Label>
+                      <Input
+                        id="fscaRef"
+                        {...register("fscaRef")}
+                        className="bg-zinc-950/50 border-white/10 focus-visible:ring-purple-500/50 h-9"
+                        placeholder="e.g. FSCA-2026-001"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CAPA / FSCA Rationale */}
+              <div className="space-y-2">
+                <Label htmlFor="capaFscaRationale" className="text-xs text-zinc-400">CAPA / FSCA Rationale</Label>
+                <Textarea
+                  id="capaFscaRationale"
+                  rows={2}
+                  {...register("capaFscaRationale")}
+                  className="bg-zinc-950/50 border-white/10 focus-visible:ring-purple-500/50"
+                  placeholder="Provide rationale for CAPA and FSCA determination..."
+                />
               </div>
             </div>
 
@@ -242,6 +256,30 @@ export function InvestigationSummaryForm({
                 className="bg-zinc-950/50 border-white/10 focus-visible:ring-purple-500/50"
                 placeholder="Optional administrative notes..."
               />
+            </div>
+
+            {/* Reportability Review */}
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="reportabilityReviewRequired"
+                  className="h-4 w-4 rounded border-white/10 bg-zinc-950 accent-purple-600 focus:ring-purple-500/50"
+                  {...register("reportabilityReviewRequired")}
+                />
+                <Label htmlFor="reportabilityReviewRequired" className="font-medium text-zinc-200">
+                  Reportability Review Required
+                </Label>
+              </div>
+
+              {reportabilityReviewRequired && (
+                <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3 flex items-start gap-3 animate-in fade-in duration-300">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-200/90 leading-tight">
+                    This will automatically trigger a Vigilance Decision Tree upon completion.
+                  </p>
+                </div>
+              )}
             </div>
           </form>
         </div>

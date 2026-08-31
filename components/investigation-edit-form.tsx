@@ -111,9 +111,11 @@ interface InvestigationEditFormProps {
     investigationSummaryCompletedAt?: string | null;
     summaryText?: string | null;
     report?: string | null;
-    capaRationale?: string | null;
+    capaFscaRationale?: string | null;
     capaRequired: boolean;
     capaRef?: string | null;
+    fscaRequired: boolean;
+    fscaRef?: string | null;
     reportabilityReviewRequired: boolean;
     imdrfCodes?: ImdrfCodeInput[];
 
@@ -130,9 +132,9 @@ interface InvestigationEditFormProps {
 export function InvestigationEditForm({
   orgSlug,
   complaintNumber,
-  customSections = [],
-  productInformation = [],
   investigation,
+  productInformation = [],
+  customSections = [],
 }: InvestigationEditFormProps) {
   const router = useRouter();
   
@@ -152,6 +154,8 @@ export function InvestigationEditForm({
     },
   });
 
+  const toDateString = (isoString?: string | null) => isoString ? new Date(isoString).toISOString().split('T')[0] : "";
+
   // General Details State
   const [status, setStatus] = React.useState<InvestigationStatus>(investigation.status);
   const [investigatorId, setInvestigatorId] = React.useState(investigation.investigatorId || "");
@@ -165,18 +169,15 @@ export function InvestigationEditForm({
     })) || [];
   });
 
-  // Sample Analysis State
-  const [sampleAnalysisRequired, setSampleAnalysisRequired] = React.useState(investigation.sampleAnalysisRequired);
-  const [sampleAnalysisExemptRationale, setSampleAnalysisExemptRationale] = React.useState(investigation.sampleAnalysisExemptRationale || "");
-  const [quantity, setQuantity] = React.useState(investigation.quantity?.toString() || "");
-  const [sampleAnalysisResults, setSampleAnalysisResults] = React.useState(investigation.sampleAnalysisResults || "");
-  
-  // Dates stored as YYYY-MM-DD strings for native date inputs
-  const toDateString = (isoString?: string | null) => isoString ? new Date(isoString).toISOString().split('T')[0] : "";
+  // A. Sample Analysis State
   const [sampleAnalysisAssignedDate, setSampleAnalysisAssignedDate] = React.useState(toDateString(investigation.sampleAnalysisAssignedDate));
   const [sampleAnalysisCompleteDate, setSampleAnalysisCompleteDate] = React.useState(toDateString(investigation.sampleAnalysisCompleteDate));
+  const [sampleAnalysisRequired, setSampleAnalysisRequired] = React.useState(investigation.sampleAnalysisRequired);
+  const [sampleAnalysisExemptRationale, setSampleAnalysisExemptRationale] = React.useState(investigation.sampleAnalysisExemptRationale || "");
   const [decontaminatedAt, setDecontaminatedAt] = React.useState(toDateString(investigation.decontaminatedAt));
   const [sampleReceivedDate, setSampleReceivedDate] = React.useState(toDateString(investigation.sampleReceivedDate));
+  const [quantity, setQuantity] = React.useState<string>(investigation.quantity !== null && investigation.quantity !== undefined ? String(investigation.quantity) : "");
+  const [sampleAnalysisResults, setSampleAnalysisResults] = React.useState(investigation.sampleAnalysisResults || "");
 
   // Risk Review State
   const [riskReviewRequired, setRiskReviewRequired] = React.useState(investigation.riskReviewRequired);
@@ -191,8 +192,10 @@ export function InvestigationEditForm({
   const [summaryText, setSummaryText] = React.useState(investigation.summaryText || "");
   const [report, setReport] = React.useState(investigation.report || "");
   const [capaRequired, setCapaRequired] = React.useState(investigation.capaRequired);
-  const [capaRationale, setCapaRationale] = React.useState(investigation.capaRationale || "");
   const [capaRef, setCapaRef] = React.useState(investigation.capaRef || "");
+  const [fscaRequired, setFscaRequired] = React.useState(investigation.fscaRequired || false);
+  const [fscaRef, setFscaRef] = React.useState(investigation.fscaRef || "");
+  const [capaFscaRationale, setCapaFscaRationale] = React.useState(investigation.capaFscaRationale || "");
   const [reportabilityReviewRequired, setReportabilityReviewRequired] = React.useState(investigation.reportabilityReviewRequired);
   
   const [imdrfGroups, setImdrfGroups] = React.useState<ImdrfCodeInput[][]>(() => {
@@ -328,9 +331,11 @@ export function InvestigationEditForm({
         investigationSummaryCompletedAt: investigationSummaryCompletedAt ? new Date(investigationSummaryCompletedAt) : null,
         summaryText: summaryText || null,
         report: report || null,
-        capaRationale: capaRationale || null,
+        capaFscaRationale: capaFscaRationale || null,
         capaRequired,
         capaRef: capaRef || null,
+        fscaRequired,
+        fscaRef: fscaRef || null,
         reportabilityReviewRequired,
         imdrfCodes: imdrfGroups.flat(),
         customSections: customSectionStates.map((cs) => ({
@@ -622,9 +627,7 @@ export function InvestigationEditForm({
                   </Label>
                   <Textarea rows={4} value={report} onChange={(e) => setReport(e.target.value)} />
                 </div>
-
-               
-                
+ 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="flex items-center space-x-2 pt-4">
                     <input 
@@ -639,24 +642,44 @@ export function InvestigationEditForm({
                   <div className="flex items-center space-x-2 pt-4">
                     <input 
                       type="checkbox"
-                      id="repRequired" 
+                      id="fscaRequired" 
                       className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                      checked={reportabilityReviewRequired} 
-                      onChange={(e) => setReportabilityReviewRequired(e.target.checked)} 
+                      checked={fscaRequired} 
+                      onChange={(e) => setFscaRequired(e.target.checked)} 
                     />
-                    <Label htmlFor="repRequired" className="font-medium">Reportability Review Required</Label>
+                    <Label htmlFor="fscaRequired" className="font-medium">FSCA Required</Label>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">CAPA Reference #</Label>
-                    <Input value={capaRef} onChange={(e) => setCapaRef(e.target.value)} />
+                    <Input
+                      value={capaRef}
+                      onChange={(e) => setCapaRef(e.target.value)}
+                      placeholder="e.g. CAPA-2026-042"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">FSCA Reference #</Label>
+                    <Input
+                      value={fscaRef}
+                      onChange={(e) => setFscaRef(e.target.value)}
+                      placeholder="e.g. FSCA-2026-001"
+                    />
                   </div>
                 </div>
                 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">
-                    CAPA Rationale <span className="text-destructive">*</span>
+                    CAPA / FSCA Rationale <span className="text-destructive">*</span>
                   </Label>
-                  <Textarea rows={2} value={capaRationale} onChange={(e) => setCapaRationale(e.target.value)} />
+                  <Textarea
+                    rows={2}
+                    value={capaFscaRationale}
+                    onChange={(e) => setCapaFscaRationale(e.target.value)}
+                    placeholder="Provide rationale for CAPA and FSCA determination..."
+                  />
                 </div>
                 
                 <div className="space-y-2">
@@ -896,6 +919,16 @@ export function InvestigationEditForm({
                     </Label>
                     <Input type="date" value={investigationSummaryCompletedAt} onChange={(e) => setInvestigationSummaryCompletedAt(e.target.value)} />
                   </div>
+                </div>
+                <div className="flex items-center space-x-2 pt-4">
+                  <input 
+                    type="checkbox"
+                    id="repRequired" 
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    checked={reportabilityReviewRequired} 
+                    onChange={(e) => setReportabilityReviewRequired(e.target.checked)} 
+                  />
+                  <Label htmlFor="repRequired" className="font-medium">Reportability Review Required</Label>
                 </div>
               </TabsContent>
 

@@ -171,6 +171,12 @@ enum InvestigationStatus {
   CANCELLED
 }
 
+enum VigilanceAssessmentStage {
+  INITIAL
+  POST_INVESTIGATION
+  AD_HOC
+}
+
 enum VigilanceStatus {
   PENDING
   REPORTABLE
@@ -256,7 +262,7 @@ model Complaint {
   customerCommunications CustomerCommunication[]
   sampleManagement       SampleManagement?
   investigation          Investigation?
-  vigilanceDecisionTree  VigilanceDecisionTree?
+  vigilanceDecisionTrees VigilanceDecisionTree[]
   attachments            Attachment[]
   tasks                  ComplaintTask[]
   capas                  Capa[]
@@ -283,6 +289,7 @@ model ProductInformation {
   materialDescription String?
   serialNumber        String?
   batchNumber         String?
+  udi                 String?
   asReportedCode1     String? // IMDRF Code 1
   asReportedCode2     String? // IMDRF Code 2
   softwareVersion     String?
@@ -413,9 +420,11 @@ model InvestigationSummary {
   completedAt                 DateTime?
   summary                     String?
   report                      String?
-  capaRationale               String?
+  capaFscaRationale           String?
   capaRequired                Boolean   @default(false)
   capaRef                     String?
+  fscaRequired                Boolean   @default(false)
+  fscaRef                     String?
   notes                       String?
   reportabilityReviewRequired Boolean   @default(false)
   createdAt                   DateTime  @default(now())
@@ -431,11 +440,12 @@ model InvestigationSummary {
 }
 
 model VigilanceDecisionTree {
-  id          String          @id @default(cuid())
-  orgId       String // Multi-tenant isolation
-  complaintId String          @unique
-  status      VigilanceStatus @default(PENDING)
-  reportable  Boolean         @default(false)
+  id              String                   @id @default(cuid())
+  orgId           String // Multi-tenant isolation
+  complaintId     String
+  status          VigilanceStatus          @default(PENDING)
+  assessmentStage VigilanceAssessmentStage @default(INITIAL)
+  reportable      Boolean                  @default(false)
 
   // Ownership & Approval (Separation of Duties)
   ownerId    String? // Clerk User ID (The person drafting the assessment)
@@ -463,6 +473,7 @@ model VigilanceDecisionTree {
   attachments  Attachment[]
 
   @@index([orgId])
+  @@index([complaintId])
   @@index([ownerId])
   @@index([approverId])
 }

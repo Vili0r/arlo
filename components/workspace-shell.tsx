@@ -102,6 +102,12 @@ export function WorkspaceShell({
     if (cleanPath.includes("/complaints/")) {
       return "Complaint Details";
     }
+    if (cleanPath.includes("/settings/customize-insights")) {
+      return "Customize Insights";
+    }
+    if (cleanPath.includes("/settings/investigation-templates")) {
+      return "Investigation Templates";
+    }
     if (cleanPath.endsWith("/capa") || cleanPath === "/capa" || cleanPath.includes("/capa/")) {
       return "CAPA Management";
     }
@@ -115,6 +121,16 @@ export function WorkspaceShell({
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" - ");
   }, [pathname, orgSlug]);
+
+  const [isSettingsExpanded, setIsSettingsExpanded] = React.useState(() => {
+    return pathname?.includes("/settings") ?? false;
+  });
+
+  React.useEffect(() => {
+    if (pathname?.includes("/settings")) {
+      setIsSettingsExpanded(true);
+    }
+  }, [pathname]);
 
   const navItems = [
     {
@@ -141,8 +157,18 @@ export function WorkspaceShell({
     },
     {
       title: "Settings",
-      href: "/settings/investigation-templates",
       icon: SlidersHorizontal,
+      isExpandable: true,
+      children: [
+        {
+          title: "Investigation Templates",
+          href: "/settings/investigation-templates",
+        },
+        {
+          title: "Customize Insights",
+          href: "/settings/customize-insights",
+        },
+      ],
     },
     {
       title: "Organization & Users",
@@ -152,9 +178,17 @@ export function WorkspaceShell({
     },
   ];
 
-  const filteredNavItems = navItems.filter((item) =>
-    item.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredNavItems = navItems.filter((item) => {
+    if (item.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return true;
+    }
+    if (item.children) {
+      return item.children.some((c) =>
+        c.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    return false;
+  });
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-neutral-800 selection:text-white relative">
@@ -227,9 +261,70 @@ export function WorkspaceShell({
         <nav className="flex-1 overflow-y-auto px-2.5 py-2.5 space-y-1 scrollbar-thin">
           {filteredNavItems.map((item, idx) => {
             const Icon = item.icon;
+
+            if (item.isExpandable && item.children) {
+              const isGroupActive = item.children.some(
+                (child) => pathname === child.href || pathname?.startsWith(child.href)
+              );
+
+              return (
+                <div key={idx} className="space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsExpanded((prev) => !prev)}
+                    className={`w-full group flex items-center justify-between rounded-md px-3 py-2 text-[13px] font-medium transition-all text-left ${
+                      isGroupActive
+                        ? "text-foreground font-semibold bg-accent/40"
+                        : "text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Icon
+                        className={`h-4 w-4 shrink-0 transition-colors ${
+                          isGroupActive
+                            ? "text-foreground"
+                            : "text-muted-foreground group-hover:text-foreground"
+                        }`}
+                      />
+                      <span className="truncate">{item.title}</span>
+                    </div>
+                    <ChevronRight
+                      className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${
+                        isSettingsExpanded ? "rotate-90 text-foreground" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {/* Expandable Sub-items with subtle vertical tree line */}
+                  {isSettingsExpanded && (
+                    <div className="relative pl-5 ml-4.5 my-1 space-y-1 border-l border-border">
+                      {item.children.map((child) => {
+                        const isChildActive =
+                          pathname === child.href || pathname?.startsWith(child.href);
+
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            className={`group flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
+                              isChildActive
+                                ? "bg-accent text-accent-foreground font-semibold shadow-xs"
+                                : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                            }`}
+                          >
+                            <span className="truncate">{child.title}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const isActive = item.exact
               ? pathname === item.href
-              : item.href !== "#" && pathname.startsWith(item.href);
+              : item.href && item.href !== "#" && pathname?.startsWith(item.href);
 
             if (item.onClick) {
               return (
@@ -249,7 +344,7 @@ export function WorkspaceShell({
             return (
               <Link
                 key={idx}
-                href={item.href}
+                href={item.href || "#"}
                 className={`group flex items-center justify-between rounded-md px-3 py-2 text-[13px] font-medium transition-all ${
                   isActive
                     ? "bg-accent text-accent-foreground font-semibold shadow-xs"

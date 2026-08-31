@@ -108,6 +108,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
           materialDescription: "",
           serialNumber: "",
           batchNumber: "",
+          udi: "",
           annexA_Category: "",
           asReportedCode1: "",
           asReportedCode2: "",
@@ -121,6 +122,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
           patientImpactDesc: "",
           sex: "UNKNOWN",
           age: "",
+          eventOccurred: undefined,
           annexE_Code: "",
           annexF_Code: "",
         },
@@ -159,6 +161,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
             p.materialDescription ||
             p.serialNumber ||
             p.batchNumber ||
+            p.udi ||
             p.asReportedCode1 ||
             p.annexA_Category
         )
@@ -168,6 +171,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
           materialDescription: p.materialDescription || null,
           serialNumber: p.serialNumber || null,
           batchNumber: p.batchNumber || null,
+          udi: p.udi || null,
           asReportedCode1: p.asReportedCode1 || (p.annexA_Category ? p.annexA_Category : null),
           asReportedCode2: p.asReportedCode2 || null,
           softwareVersion: p.softwareVersion || null,
@@ -181,6 +185,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
             pt.patientImpact ||
             pt.patientImpactDesc ||
             pt.age ||
+            pt.eventOccurred ||
             pt.annexE_Code ||
             pt.annexF_Code
         )
@@ -190,7 +195,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
           patientImpactDesc: pt.patientImpactDesc || null,
           sex: pt.sex || null,
           age: pt.age ? parseInt(pt.age, 10) : null,
-          eventOccurred: data.awarenessDate,
+          eventOccurred: pt.eventOccurred ? new Date(pt.eventOccurred) : data.awarenessDate,
           annexE_Codes: pt.annexE_Code ? [pt.annexE_Code] : [],
           annexF_Codes: pt.annexF_Code ? [pt.annexF_Code] : [],
         }));
@@ -531,6 +536,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                       materialDescription: "",
                       serialNumber: "",
                       batchNumber: "",
+                      udi: "",
                       annexA_Category: "",
                       asReportedCode1: "",
                       asReportedCode2: "",
@@ -648,8 +654,8 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                           </div>
                         </div>
 
-                        {/* Batch & Software Version */}
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {/* Batch, Software Version & UDI */}
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <div className="space-y-1">
                             <Label className="text-[11px]">Batch / Lot Number</Label>
                             <Input
@@ -662,6 +668,13 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                             <Input
                               {...register(`products.${idx}.softwareVersion` as const)}
                               placeholder="e.g. v3.4.1"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px]">UDI (Unique Device Identifier)</Label>
+                            <Input
+                              {...register(`products.${idx}.udi` as const)}
+                              placeholder="e.g. (01)00844588003287"
                             />
                           </div>
                         </div>
@@ -690,6 +703,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                       patientImpactDesc: "",
                       sex: "UNKNOWN",
                       age: "",
+                      eventOccurred: undefined,
                       annexE_Code: "",
                       annexF_Code: "",
                     })}
@@ -725,7 +739,7 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                         <div className="space-y-1">
                           <Label className="text-[11px]">Patient Death? *</Label>
                           <select
@@ -743,6 +757,21 @@ export function NewComplaintForm({ orgSlug }: NewComplaintFormProps) {
                           <Input
                             {...register(`patients.${idx}.patientName` as const)}
                             placeholder="e.g. PT-8820"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Date of Event</Label>
+                          <Controller
+                            control={control}
+                            name={`patients.${idx}.eventOccurred`}
+                            render={({ field }) => (
+                              <DatePicker
+                                value={field.value ? new Date(field.value) : null}
+                                onChange={(date) => field.onChange(date)}
+                                placeholder="Pick event date"
+                              />
+                            )}
                           />
                         </div>
 

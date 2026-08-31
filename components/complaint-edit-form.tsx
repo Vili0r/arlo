@@ -108,6 +108,7 @@ interface ComplaintEditFormProps {
       materialDescription?: string | null;
       serialNumber?: string | null;
       batchNumber?: string | null;
+      udi?: string | null;
       asReportedCode1?: string | null;
       asReportedCode2?: string | null;
       softwareVersion?: string | null;
@@ -119,6 +120,7 @@ interface ComplaintEditFormProps {
       patientImpactDesc?: string | null;
       sex?: string | null;
       age?: number | null;
+      eventOccurred?: string | Date | null;
       annexE_Codes: string[];
       annexF_Codes: string[];
     }>;
@@ -172,6 +174,7 @@ export function ComplaintEditForm({
           materialDescription: p.materialDescription || complaint.deviceModel || "",
           serialNumber: p.serialNumber || complaint.deviceSerialNumber || "",
           batchNumber: p.batchNumber || complaint.lotNumber || "",
+          udi: p.udi || "",
           annexA_Category: matchedCat,
           asReportedCode1: code1,
           asReportedCode2: p.asReportedCode2 || "",
@@ -186,6 +189,7 @@ export function ComplaintEditForm({
         materialDescription: complaint.deviceModel || "",
         serialNumber: complaint.deviceSerialNumber || "",
         batchNumber: complaint.lotNumber || "",
+        udi: "",
         annexA_Category: "",
         asReportedCode1: "",
         asReportedCode2: "",
@@ -204,6 +208,7 @@ export function ComplaintEditForm({
         patientImpactDesc: pt.patientImpactDesc || "",
         sex: pt.sex || "UNKNOWN",
         age: pt.age ? String(pt.age) : "",
+        eventOccurred: pt.eventOccurred ? new Date(pt.eventOccurred) : undefined,
         annexE_Code: pt.annexE_Codes?.[0] || "",
         annexF_Code: pt.annexF_Codes?.[0] || "",
       }));
@@ -215,6 +220,7 @@ export function ComplaintEditForm({
         patientImpactDesc: "",
         sex: "UNKNOWN",
         age: "",
+        eventOccurred: undefined,
         annexE_Code: "",
         annexF_Code: "",
       },
@@ -306,6 +312,7 @@ export function ComplaintEditForm({
             p.materialDescription ||
             p.serialNumber ||
             p.batchNumber ||
+            p.udi ||
             p.asReportedCode1 ||
             p.annexA_Category
         )
@@ -316,6 +323,7 @@ export function ComplaintEditForm({
           materialDescription: p.materialDescription || null,
           serialNumber: p.serialNumber || null,
           batchNumber: p.batchNumber || null,
+          udi: p.udi || null,
           asReportedCode1:
             p.asReportedCode1 ||
             (p.annexA_Category ? p.annexA_Category : null),
@@ -330,6 +338,7 @@ export function ComplaintEditForm({
             pt.patientImpact ||
             pt.patientImpactDesc ||
             pt.age ||
+            pt.eventOccurred ||
             pt.annexE_Code ||
             pt.annexF_Code
         )
@@ -340,7 +349,7 @@ export function ComplaintEditForm({
           patientImpactDesc: pt.patientImpactDesc || null,
           sex: pt.sex || null,
           age: pt.age ? parseInt(pt.age, 10) : null,
-          eventOccurred: data.awarenessDate,
+          eventOccurred: pt.eventOccurred ? new Date(pt.eventOccurred) : data.awarenessDate,
           annexE_Codes: pt.annexE_Code ? [pt.annexE_Code] : [],
           annexF_Codes: pt.annexF_Code ? [pt.annexF_Code] : [],
         }));
@@ -844,6 +853,7 @@ export function ComplaintEditForm({
                           materialDescription: "",
                           serialNumber: "",
                           batchNumber: "",
+                          udi: "",
                           annexA_Category: "",
                           asReportedCode1: "",
                           asReportedCode2: "",
@@ -933,6 +943,15 @@ export function ComplaintEditForm({
                               </div>
 
                               <div className="space-y-1">
+                                <Label className="text-[11px]">UDI (Unique Device Identifier)</Label>
+                                <Input
+                                  placeholder="e.g. (01)00844588003287"
+                                  {...register(`products.${index}.udi` as const)}
+                                  className="text-xs h-8 font-mono"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
                                 <Label className="text-[11px]">Software Version</Label>
                                 <Input
                                   placeholder="e.g. v3.4.1"
@@ -1001,6 +1020,7 @@ export function ComplaintEditForm({
                           patientImpactDesc: "",
                           sex: "UNKNOWN",
                           age: "",
+                          eventOccurred: undefined,
                           annexE_Code: "",
                           annexF_Code: "",
                         })}
@@ -1046,6 +1066,21 @@ export function ComplaintEditForm({
                             </div>
 
                             <div className="space-y-1">
+                              <Label className="text-[11px]">Date of Event</Label>
+                              <Controller
+                                control={control}
+                                name={`patients.${index}.eventOccurred`}
+                                render={({ field }) => (
+                                  <DatePicker
+                                    value={field.value ? new Date(field.value) : null}
+                                    onChange={(date) => field.onChange(date)}
+                                    placeholder="Pick event date"
+                                  />
+                                )}
+                              />
+                            </div>
+
+                            <div className="space-y-1">
                               <Label className="text-[11px]">Biological Sex</Label>
                               <select
                                 {...register(`patients.${index}.sex` as const)}
@@ -1068,7 +1103,7 @@ export function ComplaintEditForm({
                               />
                             </div>
 
-                            <div className="space-y-1">
+                            <div className="space-y-1 sm:col-span-2">
                               <Label className="text-[11px]">IMDRF Annex E (Clinical Signs)</Label>
                               <select
                                 {...register(`patients.${index}.annexE_Code` as const)}
@@ -1098,7 +1133,7 @@ export function ComplaintEditForm({
                               </select>
                             </div>
 
-                            <div className="space-y-1 sm:col-span-2">
+                            <div className="space-y-1 sm:col-span-4">
                               <Label className="text-[11px]">Clinical Impact Narrative</Label>
                               <Input
                                 placeholder="e.g. Transient arrhythmia requiring medical intervention"
