@@ -108,8 +108,14 @@ export function WorkspaceShell({
     if (cleanPath.includes("/settings/investigation-templates")) {
       return "Investigation Templates";
     }
-    if (cleanPath.endsWith("/capa") || cleanPath === "/capa" || cleanPath.includes("/capa/")) {
+    if (cleanPath.endsWith("/capa/new") || cleanPath === "/capa/new") {
+      return "CAPA Initiation";
+    }
+    if (cleanPath.endsWith("/capa") || cleanPath === "/capa") {
       return "CAPA Management";
+    }
+    if (cleanPath.includes("/capa/")) {
+      return "CAPA Details";
     }
 
     // Fallback: parse segments excluding orgSlug

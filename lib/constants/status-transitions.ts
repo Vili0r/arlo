@@ -4,6 +4,7 @@ import {
   VigilanceStatus,
   CommunicationStatus,
   TaskStatus,
+  CapaPhase,
 } from "@prisma/client";
 
 // =============================================================================
@@ -19,7 +20,8 @@ export type EntityType =
   | "Investigation"
   | "Vigilance"
   | "CustomerCommunication"
-  | "ComplaintTask";
+  | "ComplaintTask"
+  | "Capa";
 
 export interface StatusStepConfig {
   /** The enum value stored in the database */
@@ -389,6 +391,64 @@ export const COMPLAINT_TASK_STATUS_CONFIG: EntityStatusConfig = {
 };
 
 // -----------------------------------------------------------------------------
+// CAPA Lifecycle (21 CFR 820.100 / ISO 13485)
+// INITIATION → INVESTIGATION → IMPLEMENTATION → EFFECTIVENESS → CLOSED
+// -----------------------------------------------------------------------------
+
+export const CAPA_STATUS_CONFIG: EntityStatusConfig = {
+  entityType: "Capa",
+  modelName: "capa" as any,
+  statusField: "status",
+  steps: [
+    {
+      value: CapaPhase.INITIATION,
+      label: "Initiation",
+      description:
+        "Problem definition, containment, origin linkage, and ISO 14971 risk evaluation.",
+      color: "bg-blue-500",
+      allowedNextStatuses: [CapaPhase.INVESTIGATION],
+      allowedPreviousStatuses: [],
+    },
+    {
+      value: CapaPhase.INVESTIGATION,
+      label: "Investigation",
+      description:
+        "Root cause analysis tools, investigation summary, and product quality impact assessment.",
+      color: "bg-indigo-500",
+      allowedNextStatuses: [CapaPhase.IMPLEMENTATION],
+      allowedPreviousStatuses: [CapaPhase.INITIATION],
+    },
+    {
+      value: CapaPhase.IMPLEMENTATION,
+      label: "Implementation",
+      description:
+        "Corrective/preventive action execution, ECOs, and effectiveness check criteria design.",
+      color: "bg-amber-500",
+      allowedNextStatuses: [CapaPhase.EFFECTIVENESS],
+      allowedPreviousStatuses: [CapaPhase.INVESTIGATION],
+    },
+    {
+      value: CapaPhase.EFFECTIVENESS,
+      label: "Effectiveness",
+      description:
+        "Effectiveness verification check, statistical data review, and closeout validation.",
+      color: "bg-purple-500",
+      allowedNextStatuses: [CapaPhase.CLOSED],
+      allowedPreviousStatuses: [CapaPhase.IMPLEMENTATION],
+    },
+    {
+      value: CapaPhase.CLOSED,
+      label: "Closed",
+      description:
+        "CAPA is complete, effectiveness verified, and authorized by QA management.",
+      color: "bg-green-500",
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [CapaPhase.EFFECTIVENESS],
+    },
+  ],
+};
+
+// -----------------------------------------------------------------------------
 // Lookup helpers
 // -----------------------------------------------------------------------------
 
@@ -398,6 +458,7 @@ const CONFIG_MAP: Record<EntityType, EntityStatusConfig> = {
   Vigilance: VIGILANCE_STATUS_CONFIG,
   CustomerCommunication: CUSTOMER_COMMUNICATION_STATUS_CONFIG,
   ComplaintTask: COMPLAINT_TASK_STATUS_CONFIG,
+  Capa: CAPA_STATUS_CONFIG,
 };
 
 export function getStatusConfig(entityType: EntityType): EntityStatusConfig {

@@ -73,7 +73,7 @@ export function AddNewDropdown() {
 
           {/* Option 2: CAPA Action */}
           <Link
-            href="/capa"
+            href="/capa/new"
             onClick={() => setIsOpen(false)}
             className="group flex items-start gap-3 rounded-lg p-2.5 hover:bg-accent transition-colors"
           >

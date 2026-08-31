@@ -25,6 +25,28 @@ export async function getAuditHistory(entityType: string, entityId: string) {
           OR: [
             { entityType: "Complaint", entityId },
             { entityType: "SampleManagement", complaintId: entityId },
+            { complaintId: entityId },
+          ],
+        }
+      : entityType === "Capa"
+      ? {
+          orgId,
+          OR: [
+            { entityType: "Capa", entityId },
+            { capaId: entityId },
+            {
+              entityType: {
+                in: [
+                  "Capa",
+                  "CapaInitiation",
+                  "CapaInvestigation",
+                  "CapaImplementation",
+                  "CapaEffectiveness",
+                  "ExtensionRequest",
+                ],
+              },
+              OR: [{ entityId }, { capaId: entityId }],
+            },
           ],
         }
       : {

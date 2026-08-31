@@ -12,10 +12,12 @@ import {
   SearchCode,
   ShieldAlert,
   ChevronDown,
+  ClipboardCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AuditAction } from "@prisma/client";
 import { cn, formatUserName } from "@/lib/utils";
+import { useOrganization } from "@clerk/nextjs";
 import { generateAuditDiff } from "@/utils/auditDiff";
 import {
   Pagination,
@@ -50,6 +52,54 @@ export function AuditHistoryDrawer({
   const [error, setError] = useState<string | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set());
+
+  const { memberships } = useOrganization({
+    memberships: {
+      pageSize: 100,
+      keepPreviousData: true,
+    },
+  });
+
+  const memberNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    memberships?.data?.forEach((m) => {
+      if (m.publicUserData) {
+        const fullName = [m.publicUserData.firstName, m.publicUserData.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const displayName = fullName || m.publicUserData.identifier || "User";
+        if (m.publicUserData.userId) {
+          map.set(m.publicUserData.userId, displayName);
+        }
+        if (m.publicUserData.identifier) {
+          map.set(m.publicUserData.identifier, displayName);
+        }
+      }
+    });
+    return map;
+  }, [memberships]);
+
+  const resolveUserDisplayName = (
+    user?: {
+      email?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+    } | null,
+    userId?: string | null,
+    fallback = "Unassigned"
+  ) => {
+    if (userId && memberNameMap.has(userId)) {
+      return memberNameMap.get(userId)!;
+    }
+    if (user?.email && memberNameMap.has(user.email)) {
+      return memberNameMap.get(user.email)!;
+    }
+    if (user) {
+      return formatUserName(user, fallback);
+    }
+    return fallback;
+  };
 
   const toggleLogAccordion = (logId: string) => {
     setExpandedLogIds((prev) => {
@@ -318,6 +368,8 @@ export function AuditHistoryDrawer({
 
   const getEntityIcon = (type: string) => {
     switch (type) {
+      case "Capa":
+        return <ClipboardCheck className="h-4 w-4 text-blue-500" />;
       case "Investigation":
       case "InvestigationSummary":
         return <SearchCode className="h-4 w-4 text-indigo-500" />;
@@ -454,7 +506,7 @@ export function AuditHistoryDrawer({
                             <span>
                               By:{" "}
                               <strong className="text-foreground font-sans font-medium">
-                                {formatUserName(log.changedBy, log.changedById)}
+                                {resolveUserDisplayName(log.changedBy, log.changedById, log.changedById)}
                               </strong>
                             </span>
                             <span suppressHydrationWarning>{formatDateTime(log.timestamp)}</span>

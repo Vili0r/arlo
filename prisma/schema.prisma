@@ -23,28 +23,39 @@ model User {
   deletedAt DateTime? // Soft delete
 
   // Multi-tenant relations
-  memberships                     OrganizationMember[]
-  createdComplaints               Complaint[]                  @relation("ComplaintCreator")
-  assignedComplaints              Complaint[]                  @relation("ComplaintInvestigator")
-  approvedComplaints              Complaint[]                  @relation("ComplaintApprover")
-  ownedComplaints                 Complaint[]                  @relation("ComplaintOwner")
-  customerCommunications          CustomerCommunication[]
-  investigations                  Investigation[]              @relation("InvestigationInvestigator")
-  riskReviewedInvestigations      Investigation[]              @relation("RiskReviewCompletedBy")
-  investigationSummaryCompletedBy Investigation[]              @relation("InvestigationSummaryCompletedBy")
-  summaryCompletedInvestigations  InvestigationSummary[]       @relation("InvestigationSummaryCompletedBy")
-  assignedCustomSections          InvestigationCustomSection[] @relation("CustomSectionAssignedTo")
-  completedCustomSections         InvestigationCustomSection[] @relation("CustomSectionCompletedBy")
-  attachments                     Attachment[]
-  createdCapas                    Capa[]                       @relation("CapaCreator")
-  assignedCapas                   Capa[]                       @relation("CapaOwner")
-  approvedCapas                   Capa[]                       @relation("CapaApprover")
-  ownedVigilanceRecords           VigilanceDecisionTree[]      @relation("VigilanceOwner")
-  approvedVigilanceRecords        VigilanceDecisionTree[]      @relation("VigilanceApprover")
-  originatedTasks                 ComplaintTask[]              @relation("TaskOriginator")
-  assignedTasks                   ComplaintTask[]              @relation("TaskAssignee")
-  auditLogs                       AuditLog[]
-  recordLocks                     RecordLock[]
+  memberships                      OrganizationMember[]
+  createdComplaints                Complaint[]                  @relation("ComplaintCreator")
+  assignedComplaints               Complaint[]                  @relation("ComplaintInvestigator")
+  approvedComplaints               Complaint[]                  @relation("ComplaintApprover")
+  ownedComplaints                  Complaint[]                  @relation("ComplaintOwner")
+  customerCommunications           CustomerCommunication[]
+  investigations                   Investigation[]              @relation("InvestigationInvestigator")
+  riskReviewedInvestigations       Investigation[]              @relation("RiskReviewCompletedBy")
+  investigationSummaryCompletedBy  Investigation[]              @relation("InvestigationSummaryCompletedBy")
+  summaryCompletedInvestigations   InvestigationSummary[]       @relation("InvestigationSummaryCompletedBy")
+  assignedCustomSections           InvestigationCustomSection[] @relation("CustomSectionAssignedTo")
+  completedCustomSections          InvestigationCustomSection[] @relation("CustomSectionCompletedBy")
+  attachments                      Attachment[]
+  ownedCapas                       Capa[]                       @relation("CapaOwner")
+  primaryApprovedInitiations       CapaInitiation[]             @relation("InitiationPrimaryApprover")
+  secondaryApprovedInitiations     CapaInitiation[]             @relation("InitiationSecondaryApprover")
+  signedInitiations                CapaInitiation[]             @relation("InitiationSignOff")
+  investigatedCapaPhases           CapaInvestigation[]          @relation("InvestigationInvestigator")
+  primaryApprovedInvestigations    CapaInvestigation[]          @relation("InvestigationPrimaryApprover")
+  secondaryApprovedInvestigations  CapaInvestigation[]          @relation("InvestigationSecondaryApprover")
+  primaryApprovedImplementations   CapaImplementation[]         @relation("ImplementationPrimaryApprover")
+  secondaryApprovedImplementations CapaImplementation[]         @relation("ImplementationSecondaryApprover")
+  primaryApprovedEffectivenesses   CapaEffectiveness[]          @relation("EffectivenessPrimaryApprover")
+  secondaryApprovedEffectivenesses CapaEffectiveness[]          @relation("EffectivenessSecondaryApprover")
+  requestedExtensions              ExtensionRequest[]           @relation("ExtensionRequester")
+  primaryApprovedExtensions        ExtensionRequest[]           @relation("ExtensionPrimaryApprover")
+  secondaryApprovedExtensions      ExtensionRequest[]           @relation("ExtensionSecondaryApprover")
+  ownedVigilanceRecords            VigilanceDecisionTree[]      @relation("VigilanceOwner")
+  approvedVigilanceRecords         VigilanceDecisionTree[]      @relation("VigilanceApprover")
+  originatedTasks                  ComplaintTask[]              @relation("TaskOriginator")
+  assignedTasks                    ComplaintTask[]              @relation("TaskAssignee")
+  auditLogs                        AuditLog[]
+  recordLocks                      RecordLock[]
 
   @@index([email])
 }
@@ -73,6 +84,11 @@ model Organization {
   attachments                   Attachment[]
   complaintTasks                ComplaintTask[]
   capas                         Capa[]
+  capaInitiations               CapaInitiation[]
+  capaInvestigations            CapaInvestigation[]
+  capaImplementations           CapaImplementation[]
+  capaEffectivenesses           CapaEffectiveness[]
+  extensionRequests             ExtensionRequest[]
   formTemplates                 FormTemplate[]
   auditLogs                     AuditLog[]
   investigationSummaries        InvestigationSummary[]
@@ -265,7 +281,6 @@ model Complaint {
   vigilanceDecisionTrees VigilanceDecisionTree[]
   attachments            Attachment[]
   tasks                  ComplaintTask[]
-  capas                  Capa[]
   auditLogs              AuditLog[]
 
   @@unique([orgId, complaintNumber])
@@ -336,8 +351,8 @@ model CustomerCommunication {
   customerResponse  String?
   internalNotes     String?
   authorId          String // Clerk User ID
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id])
   complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
@@ -479,28 +494,38 @@ model VigilanceDecisionTree {
 }
 
 model Attachment {
-  id              String                 @id @default(cuid())
-  orgId           String // Multi-tenant isolation
-  complaintId     String
-  fileUrl         String
-  fileName        String
-  fileSize        Int?
-  mimeType        String?
-  uploadedById    String // Clerk User ID
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  id           String   @id @default(cuid())
+  orgId        String // Multi-tenant isolation
+  complaintId  String?
+  fileUrl      String
+  fileName     String
+  fileSize     Int?
+  mimeType     String?
+  uploadedById String // Clerk User ID
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  organization    Organization           @relation(fields: [orgId], references: [id])
-  complaint       Complaint              @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-  uploadedBy      User?                  @relation(fields: [uploadedById], references: [id])
-  investigationId String?
-  investigation   Investigation?         @relation(fields: [investigationId], references: [id], onDelete: Cascade)
-  vigilanceId     String?
-  vigilance       VigilanceDecisionTree? @relation(fields: [vigilanceId], references: [id], onDelete: Cascade)
-  communicationId String?
-  communication   CustomerCommunication? @relation(fields: [communicationId], references: [id], onDelete: Cascade)
-  taskId          String?
-  task            ComplaintTask?         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  organization         Organization           @relation(fields: [orgId], references: [id])
+  complaint            Complaint?             @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  uploadedBy           User?                  @relation(fields: [uploadedById], references: [id])
+  investigationId      String?
+  investigation        Investigation?         @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  vigilanceId          String?
+  vigilance            VigilanceDecisionTree? @relation(fields: [vigilanceId], references: [id], onDelete: Cascade)
+  communicationId      String?
+  communication        CustomerCommunication? @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  taskId               String?
+  task                 ComplaintTask?         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  capaId               String?
+  capa                 Capa?                  @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  capaInitiationId     String?
+  capaInitiation       CapaInitiation?        @relation(fields: [capaInitiationId], references: [id], onDelete: Cascade)
+  capaInvestigationId  String?
+  capaInvestigation    CapaInvestigation?     @relation(fields: [capaInvestigationId], references: [id], onDelete: Cascade)
+  capaImplementationId String?
+  capaImplementation   CapaImplementation?    @relation(fields: [capaImplementationId], references: [id], onDelete: Cascade)
+  capaEffectivenessId  String?
+  capaEffectiveness    CapaEffectiveness?     @relation(fields: [capaEffectivenessId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
   @@index([complaintId])
@@ -509,6 +534,11 @@ model Attachment {
   @@index([vigilanceId])
   @@index([communicationId])
   @@index([taskId])
+  @@index([capaId])
+  @@index([capaInitiationId])
+  @@index([capaInvestigationId])
+  @@index([capaImplementationId])
+  @@index([capaEffectivenessId])
 }
 
 // -------------------------------------------------------------
@@ -540,32 +570,32 @@ enum TaskSubType {
 }
 
 model ComplaintTask {
-  id               String       @id @default(cuid())
-  orgId            String
-  complaintId      String
-  
-  status           TaskStatus   @default(OPEN)
-  taskType         TaskType
-  taskSubType      TaskSubType? // Conditionally required if taskType is INTERNAL_FOLLOW_UP
-  
+  id          String @id @default(cuid())
+  orgId       String
+  complaintId String
+
+  status      TaskStatus   @default(OPEN)
+  taskType    TaskType
+  taskSubType TaskSubType? // Conditionally required if taskType is INTERNAL_FOLLOW_UP
+
   shortDescription String
-  taskDescription  String?      @db.Text
-  
-  dateOfRequest    DateTime     @default(now())
-  dateDue          DateTime?
-  
-  originatorId     String       // Clerk User ID of the creator
-  assignedToId     String?      // Clerk User ID of the assignee
-  
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  taskDescription  String? @db.Text
+
+  dateOfRequest DateTime  @default(now())
+  dateDue       DateTime?
+
+  originatorId String // Clerk User ID of the creator
+  assignedToId String? // Clerk User ID of the assignee
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  organization     Organization @relation(fields: [orgId], references: [id])
-  complaint        Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-  originator       User         @relation("TaskOriginator", fields: [originatorId], references: [id])
-  assignedTo       User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  attachments      Attachment[]
+  organization Organization @relation(fields: [orgId], references: [id])
+  complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  originator   User         @relation("TaskOriginator", fields: [originatorId], references: [id])
+  assignedTo   User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  attachments  Attachment[]
 
   @@index([orgId])
   @@index([complaintId])
@@ -576,12 +606,11 @@ model ComplaintTask {
 // CAPA Records (Corrective and Preventive Actions)
 // -------------------------------------------------------------
 
-enum CapaStatus {
-  DRAFT
-  ACTION_PLANNING
+enum CapaPhase {
+  INITIATION
+  INVESTIGATION
   IMPLEMENTATION
-  EFFECTIVENESS_CHECK
-  PENDING_APPROVAL
+  EFFECTIVENESS
   CLOSED
 }
 
@@ -590,39 +619,231 @@ enum CapaType {
   PREVENTIVE
 }
 
+enum ExtensionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Capa {
-  id                    String     @id @default(cuid())
-  orgId                 String // Multi-tenant isolation
-  capaNumber            String // e.g. CAPA-2026-0001
-  title                 String
-  problemStatement      String
-  type                  CapaType   @default(CORRECTIVE)
-  status                CapaStatus @default(DRAFT)
-  actionPlan            String?
-  effectivenessCriteria String?
-  closureRationale      String?
+  id               String    @id @default(cuid())
+  orgId            String
+  capaNumber       String // e.g., CAPA-2026-0001
+  shortDescription String
+  type             CapaType  @default(CORRECTIVE)
+  currentPhase     CapaPhase @default(INITIATION)
 
-  // Relations & Accountability (21 CFR Part 11)
-  complaintId     String?
-  createdById     String
-  assignedOwnerId String?
-  approvedById    String? // Must not equal assignedOwnerId
+  ownerId String // Clerk User ID
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime? // Soft delete (No hard deletes)
+  // CAPA Cancellation
+  cancellationRequested     Boolean @default(false)
+  cancellationJustification String? @db.Text
 
-  organization  Organization @relation(fields: [orgId], references: [id])
-  complaint     Complaint?   @relation(fields: [complaintId], references: [id])
-  createdBy     User         @relation("CapaCreator", fields: [createdById], references: [id])
-  assignedOwner User?        @relation("CapaOwner", fields: [assignedOwnerId], references: [id])
-  approvedBy    User?        @relation("CapaApprover", fields: [approvedById], references: [id])
-  auditLogs     AuditLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 1:1 Phase Relations
+  initiation     CapaInitiation?
+  investigation  CapaInvestigation?
+  implementation CapaImplementation?
+  effectiveness  CapaEffectiveness?
+
+  // Relations
+  organization      Organization       @relation(fields: [orgId], references: [id])
+  owner             User               @relation("CapaOwner", fields: [ownerId], references: [id])
+  extensionRequests ExtensionRequest[]
+  attachments       Attachment[]
+  auditLogs         AuditLog[]
 
   @@unique([orgId, capaNumber])
-  @@index([orgId, status])
-  @@index([createdById])
-  @@index([assignedOwnerId])
+  @@index([orgId, currentPhase])
+  @@index([ownerId])
+}
+
+model ExtensionRequest {
+  id     String @id @default(cuid())
+  orgId  String
+  capaId String
+
+  targetPhase             CapaPhase
+  requestedDueDate        DateTime
+  justification           String                 @db.Text
+  riskEvaluationRationale String?                @db.Text
+  status                  ExtensionRequestStatus @default(PENDING)
+
+  requesterId         String
+  primaryApproverId   String?
+  secondaryApproverId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  capa              Capa         @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  organization      Organization @relation(fields: [orgId], references: [id])
+  requester         User         @relation("ExtensionRequester", fields: [requesterId], references: [id])
+  primaryApprover   User?        @relation("ExtensionPrimaryApprover", fields: [primaryApproverId], references: [id])
+  secondaryApprover User?        @relation("ExtensionSecondaryApprover", fields: [secondaryApproverId], references: [id])
+
+  @@index([orgId])
+  @@index([capaId])
+  @@index([primaryApproverId])
+}
+
+model CapaInitiation {
+  id     String @id @default(cuid())
+  orgId  String
+  capaId String @unique
+
+  // Core Problem & Containment
+  problemStatement  String  @db.Text
+  containmentAction String? @db.Text
+
+  // Origin & Tracking
+  dateDue                   DateTime?
+  source                    String?
+  repeatCapa                Boolean   @default(false)
+  capaReference             String?
+  existingCapa              Boolean   @default(false)
+  existingOpenCapaReference String?
+  existingCapaDueDate       DateTime?
+
+  // Product & Process Impact
+  processOrProduct String?
+  affectedArea     String?
+  productDetails   String? @db.Text
+  relatedProcess   String?
+
+  // Risk Assessment
+  severityRanking     String?
+  severityRationale   String? @db.Text
+  occurrenceRanking   String?
+  occurrenceRationale String? @db.Text
+  riskCategory        String?
+
+  // Determination
+  capaRequired Boolean @default(true)
+  capaType     String?
+  capaSummary  String? @db.Text
+
+  // Regulatory / FSCA
+  fscaRequired  Boolean @default(false)
+  fscaRefNumber String?
+
+  // Gate Sign-off & Approvals
+  primaryApproverId   String?
+  secondaryApproverId String?
+  completedById       String?
+  completedAt         DateTime?
+
+  // Relations
+  capa         Capa         @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  primaryApprover   User?        @relation("InitiationPrimaryApprover", fields: [primaryApproverId], references: [id])
+  secondaryApprover User?        @relation("InitiationSecondaryApprover", fields: [secondaryApproverId], references: [id])
+  completedBy       User?        @relation("InitiationSignOff", fields: [completedById], references: [id])
+  attachments       Attachment[]
+
+  @@index([orgId])
+  @@index([primaryApproverId])
+  @@index([secondaryApproverId])
+}
+
+model CapaInvestigation {
+  id     String @id @default(cuid())
+  orgId  String
+  capaId String @unique
+
+  containmentSummary   String?  @db.Text
+  investigationSummary String?  @db.Text
+  rootCauseDescription String?  @db.Text
+  rootCauseTools       String[] @default([]) // Multiselect array
+
+  impactProductQuality          Boolean @default(false)
+  impactProductQualityRationale String? @db.Text
+
+  planDueDate DateTime?
+
+  // Ownership & Approvals
+  investigatorId      String?
+  primaryApproverId   String?
+  secondaryApproverId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  capa         Capa         @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  investigator      User? @relation("InvestigationInvestigator", fields: [investigatorId], references: [id])
+  primaryApprover   User? @relation("InvestigationPrimaryApprover", fields: [primaryApproverId], references: [id])
+  secondaryApprover User? @relation("InvestigationSecondaryApprover", fields: [secondaryApproverId], references: [id])
+
+  attachments Attachment[]
+
+  @@index([orgId])
+  @@index([investigatorId])
+  @@index([primaryApproverId])
+}
+
+model CapaImplementation {
+  id     String @id @default(cuid())
+  orgId  String
+  capaId String @unique
+
+  actionPlan        String? @db.Text
+  actionPlanSummary String? @db.Text
+  riskEvaluation    String? @db.Text
+
+  implementationDueDate  DateTime?
+  effectivenessCheckPlan String?   @db.Text
+  effectivenessDueDate   DateTime?
+
+  // Approvals
+  primaryApproverId   String?
+  secondaryApproverId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  capa         Capa         @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  primaryApprover   User? @relation("ImplementationPrimaryApprover", fields: [primaryApproverId], references: [id])
+  secondaryApprover User? @relation("ImplementationSecondaryApprover", fields: [secondaryApproverId], references: [id])
+
+  attachments Attachment[]
+
+  @@index([orgId])
+  @@index([primaryApproverId])
+}
+
+model CapaEffectiveness {
+  id     String @id @default(cuid())
+  orgId  String
+  capaId String @unique
+
+  effectivenessVerificationSummary String?   @db.Text
+  ineffectiveJustification         String?   @db.Text
+  dateDue                          DateTime?
+
+  // Approvals
+  primaryApproverId   String?
+  secondaryApproverId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  capa         Capa         @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  primaryApprover   User? @relation("EffectivenessPrimaryApprover", fields: [primaryApproverId], references: [id])
+  secondaryApprover User? @relation("EffectivenessSecondaryApprover", fields: [secondaryApproverId], references: [id])
+
+  attachments Attachment[]
+
+  @@index([orgId])
+  @@index([primaryApproverId])
 }
 
 // -------------------------------------------------------------
@@ -755,12 +976,12 @@ enum LockEntityType {
 
 model RecordLock {
   id         String         @id @default(cuid())
-  orgId      String         // Multi-tenant isolation
+  orgId      String // Multi-tenant isolation
   entityType LockEntityType
-  recordId   String         // ID of the entity instance (e.g. complaintId, investigationId)
-  lockedById String         // Clerk User ID
+  recordId   String // ID of the entity instance (e.g. complaintId, investigationId)
+  lockedById String // Clerk User ID
   lockedAt   DateTime       @default(now())
-  expiresAt  DateTime       // TTL expiration timestamp for stale lock auto-recovery
+  expiresAt  DateTime // TTL expiration timestamp for stale lock auto-recovery
 
   // Relations
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -772,4 +993,3 @@ model RecordLock {
   @@index([expiresAt])
   @@index([lockedById])
 }
-

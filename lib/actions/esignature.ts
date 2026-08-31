@@ -30,6 +30,7 @@ const ExecuteStatusTransitionSchema = z.object({
     "Vigilance",
     "CustomerCommunication",
     "ComplaintTask",
+    "Capa",
   ]),
   entityId: z.string().min(1, "Entity ID is required"),
   newStatus: z.string().min(1, "Target status is required"),
@@ -208,9 +209,6 @@ export async function executeStatusTransition(
           include: {
             investigation: true,
             vigilanceDecisionTrees: true,
-            capas: {
-              where: { deletedAt: null },
-            },
           },
         });
 
@@ -239,19 +237,6 @@ export async function executeStatusTransition(
           if (unfinalizedVigilance.length > 0) {
             blockingReasons.push(
               `Vigilance Decision Tree assessment is not finalized (${unfinalizedVigilance.length} assessment(s) pending/in-progress)`
-            );
-          }
-        }
-
-        // 3. Check CAPAs linkage
-        if (fullComplaint.capas && fullComplaint.capas.length > 0) {
-          const openCapas = fullComplaint.capas.filter(
-            (c) => c.status !== "CLOSED"
-          );
-          if (openCapas.length > 0) {
-            const capaNumbers = openCapas.map((c) => c.capaNumber).join(", ");
-            blockingReasons.push(
-              `Active CAPA(s) are not closed: ${capaNumbers}`
             );
           }
         }
@@ -341,11 +326,15 @@ export async function executeStatusTransition(
               ? (fieldChanges as unknown as Prisma.InputJsonValue)
               : Prisma.JsonNull,
           changedById: userId,
-          // Link to complaint if applicable
+          // Link to complaint or capa if applicable
           ...(entityType === "Complaint"
             ? { complaintId: entityId }
+            : entityType === "Capa"
+            ? { capaId: entityId }
             : (oldRecord as Record<string, unknown>).complaintId
             ? { complaintId: (oldRecord as Record<string, unknown>).complaintId as string }
+            : (oldRecord as Record<string, unknown>).capaId
+            ? { capaId: (oldRecord as Record<string, unknown>).capaId as string }
             : {}),
         },
       });
@@ -403,6 +392,10 @@ async function fetchRecord(
       return tx.complaintTask.findUnique({
         where: { id: entityId, orgId },
       });
+    case "Capa":
+      return tx.capa.findUnique({
+        where: { id: entityId, orgId },
+      });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);
   }
@@ -446,6 +439,13 @@ async function updateRecord(
       return tx.complaintTask.update({
         where: { id: entityId, orgId },
         data: { status: newStatus as Prisma.EnumTaskStatusFieldUpdateOperationsInput["set"] },
+      });
+    case "Capa":
+      return tx.capa.update({
+        where: { id: entityId, orgId },
+        data: {
+          currentPhase: newStatus as Prisma.EnumCapaPhaseFieldUpdateOperationsInput["set"],
+        },
       });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);

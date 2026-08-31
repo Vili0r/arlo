@@ -37,7 +37,7 @@ export default async function OrgOverviewPage({
       where: { orgId, status: "OPEN", deletedAt: null },
     }),
     prisma.capa.count({
-      where: { orgId, deletedAt: null },
+      where: { orgId },
     }),
     prisma.vigilanceDecisionTree.findMany({
       where: { orgId, status: { not: "CANCELLED" } },
@@ -72,15 +72,14 @@ export default async function OrgOverviewPage({
     prisma.capa.findMany({
       where: {
         orgId,
-        approvedById: userId,
-        status: "PENDING_APPROVAL",
-        deletedAt: null,
+        ownerId: userId,
+        currentPhase: { not: "CLOSED" },
       },
       take: 3,
       select: {
         id: true,
         capaNumber: true,
-        title: true,
+        shortDescription: true,
         createdAt: true,
       },
     }),
@@ -114,9 +113,9 @@ export default async function OrgOverviewPage({
       },
     }),
     prisma.capa.groupBy({
-      by: ["status"],
-      where: { orgId, deletedAt: null },
-      _count: { status: true },
+      by: ["currentPhase"],
+      where: { orgId },
+      _count: { currentPhase: true },
     }),
     prisma.sampleManagement.groupBy({
       by: ["status"],
@@ -193,7 +192,7 @@ export default async function OrgOverviewPage({
       id: cp.id,
       type: "CAPA" as const,
       number: cp.capaNumber,
-      title: cp.title,
+      title: cp.shortDescription,
       createdAt: cp.createdAt.toISOString(),
       href: `/capa`,
     })),
@@ -223,14 +222,14 @@ export default async function OrgOverviewPage({
   // Transform CAPA stats
   const capaStatMap: Record<string, number> = {};
   capaGroups.forEach((g) => {
-    capaStatMap[g.status] = g._count.status;
+    capaStatMap[g.currentPhase] = g._count.currentPhase;
   });
   const capaStats = {
-    draft: capaStatMap["DRAFT"] || 0,
-    actionPlanning: capaStatMap["ACTION_PLANNING"] || 0,
+    draft: capaStatMap["INITIATION"] || 0,
+    actionPlanning: capaStatMap["INVESTIGATION"] || 0,
     implementation: capaStatMap["IMPLEMENTATION"] || 0,
-    effectivenessCheck: capaStatMap["EFFECTIVENESS_CHECK"] || 0,
-    pendingApproval: capaStatMap["PENDING_APPROVAL"] || 0,
+    effectivenessCheck: capaStatMap["EFFECTIVENESS"] || 0,
+    pendingApproval: 0,
     closed: capaStatMap["CLOSED"] || 0,
     total: capaCount,
   };

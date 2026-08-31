@@ -42,6 +42,8 @@ function formatEntityLabel(entityType: EntityType): string {
       return "Communication";
     case "ComplaintTask":
       return "Task";
+    case "Capa":
+      return "CAPA";
     default:
       return entityType;
   }
@@ -95,7 +97,7 @@ export function StatusTransitionTracker({
     previousStatuses.length > 0 || nextStatuses.length > 0 || canCancel;
 
   return (
-    <div className="flex flex-wrap items-center gap-4">
+    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
       {/* Horizontal Stepper or Branch Badge */}
       {isBranchStatus ? (
         <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-muted/80 border text-xs">
@@ -110,69 +112,87 @@ export function StatusTransitionTracker({
           </span>
         </div>
       ) : (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {mainSteps.map((step, index) => {
-            const isCompleted = currentIndex > index;
-            const isCurrent = step.value === currentStatus;
-            const isFuture = currentIndex < index;
+        <>
+          {/* Mobile view (< md): Only show current state */}
+          <div className="flex lg:hidden items-center gap-2 px-2.5 py-1 rounded-md bg-muted/80 border border-border text-xs shrink-0">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                currentStepConfig?.color || "bg-primary"
+              )}
+            />
+            <span className="font-semibold text-foreground">
+              {currentStepConfig?.label || currentStatus.replace(/_/g, " ")}
+            </span>
+          </div>
 
-            return (
-              <React.Fragment key={step.value}>
-                <div className="flex items-center gap-1.5 group relative">
-                  {/* Dot */}
-                  <div
-                    className={cn(
-                      "flex h-5 w-5 items-center justify-center rounded-full text-[10px] transition-all shrink-0",
-                      isCompleted && "bg-primary text-primary-foreground",
-                      isCurrent &&
-                        "border border-primary bg-primary/10 text-primary font-bold",
-                      isFuture && "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {isCompleted ? (
-                      <Check className="h-3 w-3" strokeWidth={3} />
-                    ) : (
-                      <span>{index + 1}</span>
-                    )}
+          {/* Desktop / Tablet view (>= md): Full horizontal stepper */}
+          <div className="hidden lg:flex items-center gap-1 sm:gap-1.5 flex-nowrap shrink-0">
+            {mainSteps.map((step, index) => {
+              const isCompleted = currentIndex > index;
+              const isCurrent = step.value === currentStatus;
+              const isFuture = currentIndex < index;
+
+              return (
+                <React.Fragment key={step.value}>
+                  <div className="flex items-center gap-1 sm:gap-1.5 group relative shrink-0">
+                    {/* Dot */}
+                    <div
+                      className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded-full text-[10px] transition-all shrink-0",
+                        isCompleted && "bg-primary text-primary-foreground",
+                        isCurrent &&
+                          "border border-primary bg-primary/10 text-primary font-bold",
+                        isFuture && "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {isCompleted ? (
+                        <Check className="h-3 w-3" strokeWidth={3} />
+                      ) : (
+                        <span>{index + 1}</span>
+                      )}
+                    </div>
+
+                    {/* Label: Full label for current stage, gracefully truncated for non-current stages */}
+                    <span
+                      title={step.label}
+                      className={cn(
+                        "text-xs font-medium transition-all",
+                        isCompleted && "text-foreground",
+                        isCurrent && "text-primary font-semibold max-w-[140px]",
+                        isFuture && "text-muted-foreground",
+                        !isCurrent && "max-w-[46px] sm:max-w-[56px] md:max-w-[64px] truncate"
+                      )}
+                    >
+                      {step.label}
+                    </span>
+
+                    {/* Tooltip on hover */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 rounded bg-popover border text-popover-foreground text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-md">
+                      <span className="font-semibold">{step.label}</span>
+                      {step.description && <span className="block text-[9px] text-muted-foreground">{step.description}</span>}
+                    </div>
                   </div>
 
-                  {/* Label — hidden on small screens for non-current steps */}
-                  <span
-                    className={cn(
-                      "text-xs font-medium max-w-[100px] truncate",
-                      isCompleted && "text-foreground",
-                      isCurrent && "text-primary font-semibold",
-                      isFuture && "text-muted-foreground",
-                      !isCurrent && "hidden md:inline"
-                    )}
-                  >
-                    {step.label}
-                  </span>
-
-                  {/* Tooltip on hover */}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 rounded bg-popover border text-popover-foreground text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-md">
-                    {step.description}
-                  </div>
-                </div>
-
-                {/* Connector line — hidden on small screens */}
-                {index < mainSteps.length - 1 && (
-                  <div
-                    className={cn(
-                      "h-px w-4 transition-all hidden md:block",
-                      currentIndex > index ? "bg-primary" : "bg-border"
-                    )}
-                  />
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
+                  {/* Connector line — compact and responsive */}
+                  {index < mainSteps.length - 1 && (
+                    <div
+                      className={cn(
+                        "h-px w-2 sm:w-3 transition-all",
+                        currentIndex > index ? "bg-primary" : "bg-border"
+                      )}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Unified Action Dropdown Menu */}
       {hasActions && (
-        <div className="flex items-center border-l pl-4 border-border">
+        <div className="flex items-center border-l pl-2 sm:pl-3 border-border shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger
               type="button"

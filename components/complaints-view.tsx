@@ -72,6 +72,7 @@ import {
 } from "@/components/ui/context-menu";
 import { AuditHistoryDrawer } from "@/components/audit/audit-history-drawer";
 import { cn, formatUserName } from "@/lib/utils";
+import { useOrganization } from "@clerk/nextjs";
 
 
 export interface RelatedProduct {
@@ -209,16 +210,19 @@ export interface ComplaintRecord {
     firstName: string | null;
     lastName: string | null;
   } | null;
+  complaintOwnerId?: string | null;
   complaintOwner?: {
     email: string;
     firstName: string | null;
     lastName: string | null;
   } | null;
+  assignedInvestigatorId?: string | null;
   assignedInvestigator?: {
     email: string;
     firstName: string | null;
     lastName: string | null;
   } | null;
+  approvedById?: string | null;
   approvedBy?: {
     email: string;
     firstName: string | null;
@@ -249,6 +253,55 @@ interface ComplaintsViewProps {
 }
 
 export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
+  const { memberships } = useOrganization({
+    memberships: {
+      pageSize: 100,
+      keepPreviousData: true,
+    },
+  });
+
+  // Map of userId or email -> formatted Full Name (First + Last Name)
+  const memberNameMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    memberships?.data?.forEach((m) => {
+      if (m.publicUserData) {
+        const fullName = [m.publicUserData.firstName, m.publicUserData.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const displayName = fullName || m.publicUserData.identifier || "User";
+        if (m.publicUserData.userId) {
+          map.set(m.publicUserData.userId, displayName);
+        }
+        if (m.publicUserData.identifier) {
+          map.set(m.publicUserData.identifier, displayName);
+        }
+      }
+    });
+    return map;
+  }, [memberships]);
+
+  const resolveUserDisplayName = (
+    user?: {
+      email?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+    } | null,
+    userId?: string | null,
+    fallback = "Unassigned"
+  ) => {
+    if (userId && memberNameMap.has(userId)) {
+      return memberNameMap.get(userId)!;
+    }
+    if (user?.email && memberNameMap.has(user.email)) {
+      return memberNameMap.get(user.email)!;
+    }
+    if (user) {
+      return formatUserName(user, fallback);
+    }
+    return fallback;
+  };
+
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("list");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set());
@@ -1076,7 +1129,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                           <User className="h-2.5 w-2.5" /> Owner
                         </span>
                         <span className="font-medium text-foreground truncate block">
-                          {formatUserName(c.complaintOwner, "Unassigned")}
+                          {resolveUserDisplayName(c.complaintOwner, c.complaintOwnerId, "Unassigned")}
                         </span>
                       </div>
                       <div>
@@ -1143,7 +1196,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                   }
                                 : null,
                               ...tasks.map((task) => {
-                                const assigneeName = formatUserName(task.assignedTo, "Unassigned");
+                                const assigneeName = resolveUserDisplayName(task.assignedTo, task.assignedToId, "Unassigned");
                                 return {
                                   id: `task-${task.id}`,
                                   rawId: task.id,
@@ -1413,7 +1466,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
 
                           {/* Complaint Owner */}
                           <td className="py-3.5 px-4 text-xs text-muted-foreground">
-                            {formatUserName(c.complaintOwner, "Unassigned")}
+                            {resolveUserDisplayName(c.complaintOwner, c.complaintOwnerId, "Unassigned")}
                           </td>
 
                           {/* Awareness Date */}
@@ -1513,7 +1566,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                               <span>
                                                 Investigator:{" "}
                                                 <strong className="text-foreground font-medium">
-                                                  {formatUserName(investigation.investigator, "Unassigned")}
+                                                  {resolveUserDisplayName(investigation.investigator, investigation.investigatorId, "Unassigned")}
                                                 </strong>
                                               </span>
                                             ),
@@ -1542,7 +1595,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                           }
                                         : null,
                                       ...tasks.map((task) => {
-                                        const assigneeName = formatUserName(task.assignedTo, "Unassigned");
+                                        const assigneeName = resolveUserDisplayName(task.assignedTo, task.assignedToId, "Unassigned");
                                         return {
                                           id: `table-task-${task.id}`,
                                           rawId: task.id,
@@ -1917,7 +1970,7 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                 <span>
                                   By:{" "}
                                   <strong className="text-foreground font-sans font-medium">
-                                    {formatUserName(log.changedBy, log.changedById)}
+                                    {resolveUserDisplayName(log.changedBy, log.changedById, log.changedById)}
                                   </strong>
                                 </span>
                                 <span suppressHydrationWarning>{formatDateTime(log.timestamp)}</span>
