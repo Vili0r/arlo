@@ -71,6 +71,7 @@ import {
   ContextMenuLabel,
 } from "@/components/ui/context-menu";
 import { AuditHistoryDrawer } from "@/components/audit/audit-history-drawer";
+import { CustomerReportModal } from "@/components/customer-report-modal";
 import { cn, formatUserName } from "@/lib/utils";
 import { useOrganization } from "@clerk/nextjs";
 
@@ -125,6 +126,11 @@ export interface RelatedInvestigation {
     email: string;
     firstName: string | null;
     lastName: string | null;
+  } | null;
+  summary?: {
+    id?: string;
+    report?: string | null;
+    summary?: string | null;
   } | null;
 }
 
@@ -200,6 +206,10 @@ export interface ComplaintRecord {
   status: ComplaintStatus;
   awarenessDate: Date | string;
   dateReceived: Date | string;
+  customerName?: string;
+  customerType?: string;
+  email?: string;
+  country?: string;
   countryEventOccurred: string;
   deviceModel: string | null;
   lotNumber: string | null;
@@ -307,6 +317,8 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const [activeHistoryComplaint, setActiveHistoryComplaint] =
+    React.useState<ComplaintRecord | null>(null);
+  const [activeReportComplaint, setActiveReportComplaint] =
     React.useState<ComplaintRecord | null>(null);
   const [activeSubWorkflowHistory, setActiveSubWorkflowHistory] =
     React.useState<{
@@ -1086,6 +1098,15 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                 <span>Add Task</span>
                               </Link>
                             </DropdownMenuItem>
+                            {c.status === ComplaintStatus.PENDING_RESPONSE && (
+                              <DropdownMenuItem
+                                onClick={() => setActiveReportComplaint(c)}
+                                className="flex items-center gap-2 cursor-pointer font-medium"
+                              >
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span>Generate Report</span>
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() => setActiveHistoryComplaint(c)}
                               className="flex items-center gap-2"
@@ -1350,6 +1371,17 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                   <div className="pt-3 text-xs flex items-center justify-between text-muted-foreground font-mono border-t border-border">
                     <div className="flex items-center gap-2">
                       {getStatusBadge(c.status)}
+                      {c.status === ComplaintStatus.PENDING_RESPONSE && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveReportComplaint(c)}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted/60 text-foreground border border-border hover:bg-muted transition-colors cursor-pointer"
+                          title="Generate automated customer report"
+                        >
+                          <FileText className="h-3 w-3 text-muted-foreground" />
+                          <span>Report</span>
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-[11px]">
                       <span suppressHydrationWarning>{formatDate(c.dateReceived)}</span>
@@ -1509,6 +1541,15 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                     <span>Add Task</span>
                                   </Link>
                                 </DropdownMenuItem>
+                                {c.status === ComplaintStatus.PENDING_RESPONSE && (
+                                  <DropdownMenuItem
+                                    onClick={() => setActiveReportComplaint(c)}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span>Generate Report</span>
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem
                                   onClick={() => setActiveHistoryComplaint(c)}
                                   className="flex items-center gap-2"
@@ -2186,6 +2227,31 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
           title={activeSubWorkflowHistory.title}
           subtitle={activeSubWorkflowHistory.subtitle}
           identifier={activeSubWorkflowHistory.identifier}
+        />
+      )}
+
+      {/* Customer Report Modal */}
+      {activeReportComplaint && (
+        <CustomerReportModal
+          isOpen={Boolean(activeReportComplaint)}
+          onClose={() => setActiveReportComplaint(null)}
+          complaint={{
+            complaintNumber: activeReportComplaint.complaintNumber,
+            shortDescription: activeReportComplaint.shortDescription,
+            customerName: activeReportComplaint.customerName || "Customer",
+            customerType: activeReportComplaint.customerType,
+            email: activeReportComplaint.email || "N/A",
+            country: activeReportComplaint.country || activeReportComplaint.countryEventOccurred || "N/A",
+            countryEventOccurred: activeReportComplaint.countryEventOccurred,
+            dateReceived: activeReportComplaint.dateReceived,
+            awarenessDate: activeReportComplaint.awarenessDate,
+            deviceModel: activeReportComplaint.deviceModel,
+            lotNumber: activeReportComplaint.lotNumber,
+            deviceSerialNumber: activeReportComplaint.deviceSerialNumber,
+            productInformation: activeReportComplaint.productInformation,
+            investigation: activeReportComplaint.investigation,
+          }}
+          orgName={orgSlug}
         />
       )}
     </div>

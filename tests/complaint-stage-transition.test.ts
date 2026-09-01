@@ -202,45 +202,167 @@ describe("Complaint Stage Transitions & Electronic Signature (Password Verificat
     expect(loggedReason).toContain("Signed by: user_investigator_1");
   });
 
-  it("should prevent closing a complaint if linked investigation or vigilance assessment is still open", async () => {
-    mockVerifyPassword.mockResolvedValue({ verified: true });
-
-    // Complaint in PENDING_RESPONSE where investigation is still IN_PROGRESS
-    mockTx.complaint.findUnique.mockResolvedValue({
-      ...activeComplaint,
-      status: ComplaintStatus.PENDING_RESPONSE,
-      investigation: {
-        id: "inv_1",
-        status: InvestigationStatus.IN_PROGRESS,
-      },
-      vigilanceDecisionTrees: [
-        {
-          id: "vig_1",
-          status: VigilanceStatus.PENDING,
+  describe("Direct Linkages / Sub-folder Closure Guards", () => {
+    it("should prevent closing a complaint if linked investigation is IN_PROGRESS", async () => {
+      mockVerifyPassword.mockResolvedValue({ verified: true });
+      mockTx.complaint.findUnique.mockResolvedValue({
+        ...activeComplaint,
+        status: ComplaintStatus.PENDING_RESPONSE,
+        investigation: {
+          id: "inv_1",
+          status: InvestigationStatus.IN_PROGRESS,
         },
-      ],
+        vigilanceDecisionTrees: [
+          { id: "vig_1", status: VigilanceStatus.NOT_REPORTABLE },
+        ],
+      });
+
+      const formData = new FormData();
+      formData.set("entityType", "Complaint");
+      formData.set("entityId", "cmp_stage_1");
+      formData.set("newStatus", "CLOSED");
+      formData.set("password", "ValidSecurePass2026!");
+      formData.set("meaningOfSignature", "I approve closing this complaint");
+
+      const result = await executeStatusTransition(null, formData);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Cannot close complaint: All direct linkages must be closed first");
+      expect(result.error).toContain("Investigation is still open (current status: IN PROGRESS)");
+      expect(mockTx.complaint.update).not.toHaveBeenCalled();
     });
 
-    const formData = new FormData();
-    formData.set("entityType", "Complaint");
-    formData.set("entityId", "cmp_stage_1");
-    formData.set("newStatus", "CLOSED");
-    formData.set("password", "ValidSecurePass2026!");
-    formData.set("meaningOfSignature", "I approve closing this complaint");
+    it("should prevent closing a complaint if linked investigation is UNDER_REVIEW", async () => {
+      mockVerifyPassword.mockResolvedValue({ verified: true });
+      mockTx.complaint.findUnique.mockResolvedValue({
+        ...activeComplaint,
+        status: ComplaintStatus.PENDING_RESPONSE,
+        investigation: {
+          id: "inv_1",
+          status: InvestigationStatus.UNDER_REVIEW,
+        },
+        vigilanceDecisionTrees: [
+          { id: "vig_1", status: VigilanceStatus.NOT_REPORTABLE },
+        ],
+      });
 
-    const result = await executeStatusTransition(null, formData);
+      const formData = new FormData();
+      formData.set("entityType", "Complaint");
+      formData.set("entityId", "cmp_stage_1");
+      formData.set("newStatus", "CLOSED");
+      formData.set("password", "ValidSecurePass2026!");
+      formData.set("meaningOfSignature", "I approve closing this complaint");
 
-    expect(result.success).toBe(false);
-    expect(result.error).toContain("Cannot close complaint: All direct linkages must be closed first");
-    expect(result.error).toContain("Investigation is still open");
-    expect(result.error).toContain("Vigilance Decision Tree assessment is not finalized");
-    expect(mockTx.complaint.update).not.toHaveBeenCalled();
+      const result = await executeStatusTransition(null, formData);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Investigation is still open (current status: UNDER REVIEW)");
+      expect(mockTx.complaint.update).not.toHaveBeenCalled();
+    });
+
+    it("should prevent closing a complaint if linked vigilance assessment is PENDING or REPORTABLE", async () => {
+      mockVerifyPassword.mockResolvedValue({ verified: true });
+      mockTx.complaint.findUnique.mockResolvedValue({
+        ...activeComplaint,
+        status: ComplaintStatus.PENDING_RESPONSE,
+        investigation: {
+          id: "inv_1",
+          status: InvestigationStatus.COMPLETED,
+        },
+        vigilanceDecisionTrees: [
+          { id: "vig_1", status: VigilanceStatus.PENDING },
+          { id: "vig_2", status: VigilanceStatus.REPORTABLE },
+        ],
+      });
+
+      const formData = new FormData();
+      formData.set("entityType", "Complaint");
+      formData.set("entityId", "cmp_stage_1");
+      formData.set("newStatus", "CLOSED");
+      formData.set("password", "ValidSecurePass2026!");
+      formData.set("meaningOfSignature", "I approve closing this complaint");
+
+      const result = await executeStatusTransition(null, formData);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Vigilance Decision Tree assessment is not finalized (2 assessment(s) pending/in-progress)");
+      expect(mockTx.complaint.update).not.toHaveBeenCalled();
+    });
+
+    it("should allow closing a complaint when investigation is NOT_REQUIRED and vigilance is SUBMITTED", async () => {
+      mockVerifyPassword.mockResolvedValue({ verified: true });
+      const readyComplaint = {
+        ...activeComplaint,
+        status: ComplaintStatus.PENDING_RESPONSE,
+        investigation: {
+          id: "inv_1",
+          status: InvestigationStatus.NOT_REQUIRED,
+        },
+        vigilanceDecisionTrees: [
+          { id: "vig_1", status: VigilanceStatus.SUBMITTED },
+        ],
+      };
+
+      mockTx.complaint.findUnique.mockResolvedValue(readyComplaint);
+      mockTx.complaint.update.mockResolvedValue({
+        ...readyComplaint,
+        status: ComplaintStatus.CLOSED,
+      });
+      mockTx.auditLog.create.mockResolvedValue({ id: "audit_close_not_req" });
+
+      const formData = new FormData();
+      formData.set("entityType", "Complaint");
+      formData.set("entityId", "cmp_stage_1");
+      formData.set("newStatus", "CLOSED");
+      formData.set("password", "ValidSecurePass2026!");
+      formData.set("meaningOfSignature", "I approve closing this complaint");
+
+      const result = await executeStatusTransition(null, formData);
+
+      expect(result.success).toBe(true);
+      expect(result.updatedStatus).toBe("CLOSED");
+      expect(mockTx.complaint.update).toHaveBeenCalledWith({
+        where: { id: "cmp_stage_1", orgId: "org_test456" },
+        data: { status: "CLOSED" },
+      });
+    });
+
+    it("should allow closing a complaint when vigilance assessment is CANCELLED", async () => {
+      mockVerifyPassword.mockResolvedValue({ verified: true });
+      const readyComplaint = {
+        ...activeComplaint,
+        status: ComplaintStatus.PENDING_RESPONSE,
+        investigation: {
+          id: "inv_1",
+          status: InvestigationStatus.COMPLETED,
+        },
+        vigilanceDecisionTrees: [
+          { id: "vig_1", status: VigilanceStatus.CANCELLED },
+        ],
+      };
+
+      mockTx.complaint.findUnique.mockResolvedValue(readyComplaint);
+      mockTx.complaint.update.mockResolvedValue({
+        ...readyComplaint,
+        status: ComplaintStatus.CLOSED,
+      });
+      mockTx.auditLog.create.mockResolvedValue({ id: "audit_close_vig_cancelled" });
+
+      const formData = new FormData();
+      formData.set("entityType", "Complaint");
+      formData.set("entityId", "cmp_stage_1");
+      formData.set("newStatus", "CLOSED");
+      formData.set("password", "ValidSecurePass2026!");
+      formData.set("meaningOfSignature", "I approve closing this complaint");
+
+      const result = await executeStatusTransition(null, formData);
+
+      expect(result.success).toBe(true);
+      expect(result.updatedStatus).toBe("CLOSED");
+    });
   });
 
-  it("should successfully close a complaint when all direct linkages are completed and valid password is provided", async () => {
-    mockVerifyPassword.mockResolvedValue({ verified: true });
-
-    // Complaint in PENDING_RESPONSE where investigation is COMPLETED and vigilance is NOT_REPORTABLE
+  describe("User Permissions & Role Guardrails for Complaint Closure", () => {
     const readyComplaint = {
       ...activeComplaint,
       status: ComplaintStatus.PENDING_RESPONSE,
@@ -256,27 +378,126 @@ describe("Complaint Stage Transitions & Electronic Signature (Password Verificat
       ],
     };
 
-    mockTx.complaint.findUnique.mockResolvedValue(readyComplaint);
-    mockTx.complaint.update.mockResolvedValue({
-      ...readyComplaint,
-      status: ComplaintStatus.CLOSED,
+    it("should reject closing complaint when user is a standard member without QA/Admin approval rights", async () => {
+      mockVerifyPassword.mockResolvedValue({ verified: true });
+      mockTx.complaint.findUnique.mockResolvedValue(readyComplaint);
+
+      // Simulate standard member with no admin, qa_manager, or approve_close permissions
+      mockAuth.mockResolvedValueOnce({
+        userId: "user_member_1",
+        orgId: "org_test456",
+        orgRole: "org:member",
+        has: () => false,
+      });
+
+      const formData = new FormData();
+      formData.set("entityType", "Complaint");
+      formData.set("entityId", "cmp_stage_1");
+      formData.set("newStatus", "CLOSED");
+      formData.set("password", "ValidSecurePass2026!");
+      formData.set("meaningOfSignature", "I approve closing this complaint");
+
+      const result = await executeStatusTransition(null, formData);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain(
+        "403 Forbidden: Only QA Managers and Administrators have the required permissions to approve and complete this Complaint."
+      );
+      expect(mockTx.complaint.update).not.toHaveBeenCalled();
+      expect(mockTx.auditLog.create).not.toHaveBeenCalled();
     });
-    mockTx.auditLog.create.mockResolvedValue({ id: "audit_close_success" });
 
-    const formData = new FormData();
-    formData.set("entityType", "Complaint");
-    formData.set("entityId", "cmp_stage_1");
-    formData.set("newStatus", "CLOSED");
-    formData.set("password", "ValidSecurePass2026!");
-    formData.set("meaningOfSignature", "I approve and sign off on closing this complaint");
+    it("should allow closing complaint when user has QA_MANAGER role", async () => {
+      mockVerifyPassword.mockResolvedValue({ verified: true });
+      mockTx.complaint.findUnique.mockResolvedValue(readyComplaint);
+      mockTx.complaint.update.mockResolvedValue({
+        ...readyComplaint,
+        status: ComplaintStatus.CLOSED,
+      });
+      mockTx.auditLog.create.mockResolvedValue({ id: "audit_qa_close" });
 
-    const result = await executeStatusTransition(null, formData);
+      mockAuth.mockResolvedValueOnce({
+        userId: "user_qa_mgr",
+        orgId: "org_test456",
+        orgRole: "org:qa_manager",
+        has: (param: any) => param?.role === "org:qa_manager",
+      });
 
-    expect(result.success).toBe(true);
-    expect(result.updatedStatus).toBe("CLOSED");
-    expect(mockTx.complaint.update).toHaveBeenCalledWith({
-      where: { id: "cmp_stage_1", orgId: "org_test456" },
-      data: { status: "CLOSED" },
+      const formData = new FormData();
+      formData.set("entityType", "Complaint");
+      formData.set("entityId", "cmp_stage_1");
+      formData.set("newStatus", "CLOSED");
+      formData.set("password", "ValidSecurePass2026!");
+      formData.set("meaningOfSignature", "I approve closing this complaint");
+
+      const result = await executeStatusTransition(null, formData);
+
+      expect(result.success).toBe(true);
+      expect(result.updatedStatus).toBe("CLOSED");
+      expect(mockTx.complaint.update).toHaveBeenCalledWith({
+        where: { id: "cmp_stage_1", orgId: "org_test456" },
+        data: { status: "CLOSED" },
+      });
+    });
+
+    it("should allow closing complaint when user has custom COMPLAINTS_APPROVE_CLOSE permission", async () => {
+      mockVerifyPassword.mockResolvedValue({ verified: true });
+      mockTx.complaint.findUnique.mockResolvedValue(readyComplaint);
+      mockTx.complaint.update.mockResolvedValue({
+        ...readyComplaint,
+        status: ComplaintStatus.CLOSED,
+      });
+      mockTx.auditLog.create.mockResolvedValue({ id: "audit_perm_close" });
+
+      mockAuth.mockResolvedValueOnce({
+        userId: "user_custom_delegate",
+        orgId: "org_test456",
+        orgRole: "org:member",
+        has: (param: any) => param?.permission === "org:complaints:approve_close",
+      });
+
+      const formData = new FormData();
+      formData.set("entityType", "Complaint");
+      formData.set("entityId", "cmp_stage_1");
+      formData.set("newStatus", "CLOSED");
+      formData.set("password", "ValidSecurePass2026!");
+      formData.set("meaningOfSignature", "I approve closing this complaint");
+
+      const result = await executeStatusTransition(null, formData);
+
+      expect(result.success).toBe(true);
+      expect(result.updatedStatus).toBe("CLOSED");
+    });
+
+    it("should reject reopening a closed complaint when user lacks QA/Admin rights", async () => {
+      mockVerifyPassword.mockResolvedValue({ verified: true });
+      mockTx.complaint.findUnique.mockResolvedValue({
+        ...readyComplaint,
+        status: ComplaintStatus.CLOSED,
+      });
+
+      mockAuth.mockResolvedValueOnce({
+        userId: "user_unauthorized",
+        orgId: "org_test456",
+        orgRole: "org:member",
+        has: () => false,
+      });
+
+      const formData = new FormData();
+      formData.set("entityType", "Complaint");
+      formData.set("entityId", "cmp_stage_1");
+      formData.set("newStatus", "REOPENED");
+      formData.set("password", "ValidSecurePass2026!");
+      formData.set("meaningOfSignature", "I am author of this change");
+      formData.set("rationale", "New evidence discovered");
+
+      const result = await executeStatusTransition(null, formData);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain(
+        "403 Forbidden: Only QA Managers and Administrators have the required permissions to reopen / revert from completed this Complaint."
+      );
+      expect(mockTx.complaint.update).not.toHaveBeenCalled();
     });
   });
 });

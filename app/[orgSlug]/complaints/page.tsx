@@ -39,8 +39,10 @@ export default async function ComplaintsPage({
           investigator: {
             select: { email: true, firstName: true, lastName: true },
           },
+          summary: true,
         },
       },
+      productInformation: true,
       vigilanceDecisionTrees: true,
       customerCommunications: {
         where: { status: { not: "CANCELLED" } },

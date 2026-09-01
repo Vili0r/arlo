@@ -19,7 +19,11 @@ import {
   AlertOctagon,
   Globe,
   Box,
+  FileText,
 } from "lucide-react";
+import {
+  CustomerReportModal,
+} from "@/components/customer-report-modal";
 import {
   Priority,
   Death,
@@ -134,6 +138,15 @@ interface ComplaintEditFormProps {
       mimeType: string | null;
     }>;
     sampleManagement?: SampleManagementData | null;
+    investigation?: {
+      id?: string;
+      status?: string;
+      summary?: {
+        id?: string;
+        report?: string | null;
+        summary?: string | null;
+      } | null;
+    } | null;
     complaintOwner?: {
       email: string;
       firstName: string | null;
@@ -160,6 +173,7 @@ export function ComplaintEditForm({
   const [activeTab, setActiveTab] = React.useState("intake");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = React.useState(false);
 
   const { memberships } = useOrganization({
     memberships: {
@@ -444,12 +458,13 @@ export function ComplaintEditForm({
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <StatusTransitionTracker
               entityType="Complaint"
               entityId={complaint.id}
               currentStatus={complaint.status}
               disabled={isLockReadOnly}
+              onGenerateReport={() => setIsReportModalOpen(true)}
               onStatusChanged={() => {
                 router.refresh();
               }}
@@ -1299,6 +1314,13 @@ export function ComplaintEditForm({
           </div>
         </Tabs>
       </div>
+
+      <CustomerReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        complaint={complaint}
+        orgName={orgSlug}
+      />
     </div>
   );
 }

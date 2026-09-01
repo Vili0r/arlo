@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, ArrowRight, RotateCcw, Ban } from "lucide-react";
+import { Check, ChevronDown, ArrowRight, RotateCcw, Ban, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -28,6 +28,7 @@ interface StatusTransitionTrackerProps {
   entityId: string;
   currentStatus: string;
   onStatusChanged?: (newStatus: string) => void;
+  onGenerateReport?: () => void;
   disabled?: boolean;
 }
 
@@ -55,6 +56,7 @@ export function StatusTransitionTracker({
   entityId,
   currentStatus,
   onStatusChanged,
+  onGenerateReport,
   disabled = false,
 }: StatusTransitionTrackerProps) {
   const [modalOpen, setModalOpen] = React.useState(false);
@@ -216,6 +218,24 @@ export function StatusTransitionTracker({
               <ChevronDown className="h-3 w-3 opacity-80" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 p-1">
+              {entityType === "Complaint" &&
+                currentStatus === "PENDING_RESPONSE" &&
+                onGenerateReport && (
+                  <>
+                    <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1">
+                      Customer Report
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={onGenerateReport}
+                      className="cursor-pointer gap-2 px-2 py-1.5 text-xs font-medium text-foreground"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>Generate Customer Report</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="my-1" />
+                  </>
+                )}
+
               {nextStatuses.length > 0 && (
                 <>
                   <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1">

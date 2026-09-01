@@ -33,6 +33,11 @@ export default async function ComplaintDetailPage({
         },
       },
       sampleManagement: true,
+      investigation: {
+        include: {
+          summary: true,
+        },
+      },
     },
   });
 
