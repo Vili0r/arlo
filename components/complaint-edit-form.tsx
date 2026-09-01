@@ -25,7 +25,9 @@ import {
   Death,
   ComplaintStatus,
   SampleStatus,
+  LockEntityType,
 } from "@prisma/client";
+import { useRecordLock } from "@/hooks/useRecordLock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -150,6 +152,11 @@ export function ComplaintEditForm({
   complaint,
 }: ComplaintEditFormProps) {
   const router = useRouter();
+  const { isReadOnly: isLockReadOnly } = useRecordLock({
+    entityType: LockEntityType.Complaint,
+    recordId: complaint.id,
+  });
+
   const [activeTab, setActiveTab] = React.useState("intake");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -442,6 +449,7 @@ export function ComplaintEditForm({
               entityType="Complaint"
               entityId={complaint.id}
               currentStatus={complaint.status}
+              disabled={isLockReadOnly}
               onStatusChanged={() => {
                 router.refresh();
               }}
@@ -497,7 +505,8 @@ export function ComplaintEditForm({
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)}>
-              <div className="space-y-8">
+              <fieldset disabled={isLockReadOnly} className="contents space-y-8">
+                <div className="space-y-8">
                 {/* SECTION 1: Core Complaint Information */}
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -1159,7 +1168,7 @@ export function ComplaintEditForm({
                     <Button
                       type="submit"
                       size="lg"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isLockReadOnly}
                       className="gap-2 text-xs font-semibold"
                     >
                       {isSubmitting ? (
@@ -1176,7 +1185,8 @@ export function ComplaintEditForm({
                     </Button>
                   </div>
                 </div>
-              </form>
+              </fieldset>
+            </form>
           </TabsContent>
 
           {/* TAB 2: Sample & RMA Management */}
@@ -1196,7 +1206,8 @@ export function ComplaintEditForm({
             </div>
 
             <form onSubmit={handleSaveSample}>
-              <div className="space-y-6">
+              <fieldset disabled={isLockReadOnly} className="contents space-y-6">
+                <div className="space-y-6">
                 {/* Sample Availability Toggle */}
                   <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-2">
                     <label className="flex items-start gap-3 cursor-pointer">
@@ -1266,7 +1277,7 @@ export function ComplaintEditForm({
                 <div className="border-t border-border mt-5 pt-5 flex justify-end">
                   <Button
                     type="submit"
-                    disabled={isUpdatingSample}
+                    disabled={isUpdatingSample || isLockReadOnly}
                     className="gap-2 text-xs font-semibold"
                   >
                     {isUpdatingSample ? (
@@ -1282,7 +1293,8 @@ export function ComplaintEditForm({
                     )}
                   </Button>
                 </div>
-              </form>
+              </fieldset>
+            </form>
           </TabsContent>
           </div>
         </Tabs>

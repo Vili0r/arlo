@@ -8,7 +8,9 @@ import {
   CommunicationStatus,
   AuditAction,
   Prisma,
+  LockEntityType,
 } from "@prisma/client";
+import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import type { AttachmentInput } from "@/lib/actions/complaints";
 
 export interface UpdateCustomerCommunicationInput {
@@ -52,6 +54,15 @@ export async function updateCustomerCommunication(
     if (!existing) {
       throw new Error("Customer communication record not found or access denied.");
     }
+
+    // Concurrency Lock Check: Ensure record is not actively locked by another user
+    await assertRecordNotLocked(
+      tx,
+      orgId,
+      LockEntityType.FollowUp,
+      data.communicationId,
+      userId
+    );
 
     // 2. Attach any new files directly to this communication record
     if (data.newAttachments && data.newAttachments.length > 0) {

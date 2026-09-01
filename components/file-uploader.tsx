@@ -46,9 +46,10 @@ interface UploadedFile extends AttachmentInput {
 interface FileUploaderProps {
   attachments: AttachmentInput[];
   onChange: (attachments: AttachmentInput[]) => void;
+  disabled?: boolean;
 }
 
-export function FileUploader({ attachments, onChange }: FileUploaderProps) {
+export function FileUploader({ attachments, onChange, disabled }: FileUploaderProps) {
   const [uploads, setUploads] = React.useState<UploadedFile[]>([]);
   const [previewFile, setPreviewFile] = React.useState<UploadedFile | null>(null);
   const [isDownloading, setIsDownloading] = React.useState(false);
@@ -247,23 +248,25 @@ export function FileUploader({ attachments, onChange }: FileUploaderProps) {
   return (
     <div className="space-y-4">
       {/* Upload Dropzone */}
-      <div
-        className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer"
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <UploadCloud className="h-8 w-8 text-muted-foreground mb-2" />
-        <p className="text-sm font-medium text-foreground">Click to upload files</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Upload images, PDFs, reports, or evidence files
-        </p>
-        <input
-          type="file"
-          multiple
-          className="hidden"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-        />
-      </div>
+      {!disabled && (
+        <div
+          className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <UploadCloud className="h-8 w-8 text-muted-foreground mb-2" />
+          <p className="text-sm font-medium text-foreground">Click to upload files</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Upload images, PDFs, reports, or evidence files
+          </p>
+          <input
+            type="file"
+            multiple
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+          />
+        </div>
+      )}
 
       {/* Attachment Items Grid */}
       {uploads.length > 0 && (
@@ -353,18 +356,20 @@ export function FileUploader({ attachments, onChange }: FileUploaderProps) {
                   )}
 
                   {/* Remove Button */}
-                  <AttachmentAction
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile(upload.id);
-                    }}
-                    title="Remove attachment"
-                    className="hover:text-destructive hover:bg-destructive/10 transition-colors"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    <span className="sr-only">Remove</span>
-                  </AttachmentAction>
+                  {!disabled && (
+                    <AttachmentAction
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(upload.id);
+                      }}
+                      title="Remove attachment"
+                      className="hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      <span className="sr-only">Remove</span>
+                    </AttachmentAction>
+                  )}
                 </AttachmentActions>
               </Attachment>
             );

@@ -126,11 +126,18 @@ export async function updateCustomSection(
   const { orgId, userId } = await requireOrgAuth();
   
   const existing = await prisma.investigationCustomSection.findUnique({
-    where: { id, orgId }
+    where: { id, orgId },
+    include: {
+      investigation: { select: { status: true } },
+    },
   });
 
   if (!existing) {
     throw new Error("Custom section not found");
+  }
+
+  if (existing.investigation?.status === "COMPLETED") {
+    throw new Error("Cannot update custom section: Investigation is completed and locked.");
   }
 
   const updated = await prisma.investigationCustomSection.update({

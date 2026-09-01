@@ -27,11 +27,15 @@ export async function saveInvestigationSummaryDraft(data: SaveInvestigationSumma
   return await prisma.$transaction(async (tx) => {
     const investigation = await tx.investigation.findUnique({
       where: { id: data.investigationId, orgId },
-      select: { id: true, complaintId: true },
+      select: { id: true, complaintId: true, status: true },
     });
 
     if (!investigation) {
       throw new Error("Investigation not found or insufficient permissions.");
+    }
+
+    if (investigation.status === "COMPLETED") {
+      throw new Error("Cannot update investigation summary: Investigation is completed and locked.");
     }
 
     const existing = await tx.investigationSummary.findUnique({
@@ -113,6 +117,10 @@ export async function signAndCompleteInvestigationSummary(data: SaveInvestigatio
 
     if (!investigation) {
       throw new Error("Investigation not found or insufficient permissions.");
+    }
+
+    if (investigation.status === "COMPLETED") {
+      throw new Error("Investigation is already completed and locked.");
     }
 
     const existingSummary = await tx.investigationSummary.findUnique({

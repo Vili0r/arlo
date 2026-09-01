@@ -17,7 +17,9 @@ import {
 } from "lucide-react";
 import {
   CommunicationStatus,
+  LockEntityType,
 } from "@prisma/client";
+import { useRecordLock } from "@/hooks/useRecordLock";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,6 +98,11 @@ export function CommunicationDetail({
   onUpdated,
 }: CommunicationDetailProps) {
   const router = useRouter();
+  const { isReadOnly: isLockReadOnly } = useRecordLock({
+    entityType: LockEntityType.FollowUp,
+    recordId: initialComm.id,
+  });
+
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isStatusUpdating, setIsStatusUpdating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -124,6 +131,7 @@ export function CommunicationDetail({
 
   const currentStatus = form.watch("status");
   const isClosed = currentStatus === CommunicationStatus.CLOSED;
+  const isFormDisabled = isClosed || isLockReadOnly;
 
   // Handle status changes via top-right dropdown action menu
   const handleStatusChange = async (newStatus: CommunicationStatus) => {
@@ -260,6 +268,7 @@ export function CommunicationDetail({
                   entityType="CustomerCommunication"
                   entityId={initialComm.id}
                   currentStatus={currentStatus}
+                  disabled={isFormDisabled}
                   onStatusChanged={(newStatus) => {
                     form.setValue("status", newStatus as CommunicationStatus);
                     router.refresh();
@@ -270,7 +279,8 @@ export function CommunicationDetail({
           </CardHeader>
 
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-6 pt-6">
+            <fieldset disabled={isFormDisabled} className="contents">
+              <CardContent className="space-y-6 pt-6">
               {/* Row 1: Status (first half) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Status Display Box */}
@@ -411,7 +421,7 @@ export function CommunicationDetail({
               <Button
                 type="submit"
                 size="lg"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isFormDisabled}
                 className="min-w-[150px]"
               >
                 {isSubmitting ? (
@@ -427,6 +437,7 @@ export function CommunicationDetail({
                 )}
               </Button>
             </CardFooter>
+            </fieldset>
           </form>
         </Card>
       </div>

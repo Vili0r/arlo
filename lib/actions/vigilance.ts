@@ -2,7 +2,8 @@
 
 import { requireOrgAuth } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
-import { AuditAction, Prisma } from "@prisma/client";
+import { AuditAction, Prisma, LockEntityType } from "@prisma/client";
+import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import { revalidatePath } from "next/cache";
 import { generateAuditDiff } from "@/utils/auditDiff";
 
@@ -22,6 +23,15 @@ export async function updateVigilance(data: any) {
     if (!existing) {
       throw new Error("Vigilance record not found or insufficient permissions.");
     }
+
+    // Concurrency Lock Check: Ensure record is not actively locked by another user
+    await assertRecordNotLocked(
+      tx,
+      orgId,
+      LockEntityType.Vigilance,
+      data.id,
+      userId
+    );
 
     const updated = await tx.vigilanceDecisionTree.update({
       where: { id: data.id, orgId },

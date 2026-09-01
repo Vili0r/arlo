@@ -3,7 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { requireOrgAuth } from "@/lib/auth-guard";
 import { revalidatePath } from "next/cache";
-import { CapaType, CapaPhase, ExtensionRequestStatus, AuditAction } from "@prisma/client";
+import { CapaType, CapaPhase, ExtensionRequestStatus, AuditAction, LockEntityType } from "@prisma/client";
+import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import { CreateCapaSchema, type CreateCapaFormValues } from "@/lib/validations/capa";
 
 export interface AttachmentInput {
@@ -266,6 +267,15 @@ export async function updateCapa(capaId: string, data: CreateCapaFormValues) {
     if (!existing) {
       throw new Error("CAPA record not found");
     }
+
+    // Concurrency Lock Check: Ensure record is not actively locked by another user
+    await assertRecordNotLocked(
+      tx,
+      orgId,
+      LockEntityType.Capa,
+      capaId,
+      userId
+    );
 
     // 1. Update Core Capa
     const updatedCapa = await tx.capa.update({

@@ -10,7 +10,9 @@ import {
   TaskSubType,
   AuditAction,
   Prisma,
+  LockEntityType,
 } from "@prisma/client";
+import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import type { AttachmentInput } from "@/lib/actions/complaints";
 
 export interface CreateComplaintTaskInput {
@@ -164,6 +166,15 @@ export async function updateComplaintTask(data: UpdateComplaintTaskInput) {
     if (!existing) {
       throw new Error("Complaint task not found or access denied.");
     }
+
+    // Concurrency Lock Check: Ensure record is not actively locked by another user
+    await assertRecordNotLocked(
+      tx,
+      orgId,
+      LockEntityType.Task,
+      data.id,
+      userId
+    );
 
     // 2. Attach any new files directly to this task
     if (data.newAttachments && data.newAttachments.length > 0) {

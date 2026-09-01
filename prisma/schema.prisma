@@ -972,6 +972,7 @@ enum LockEntityType {
   Vigilance
   FollowUp
   Task
+  Capa
 }
 
 model RecordLock {

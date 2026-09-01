@@ -168,3 +168,46 @@ export async function releaseRecordLock(
 
   return { success: true };
 }
+
+/**
+ * Asserts that a record is not actively locked by another user.
+ * Throws an informative error if a concurrent edit lock is held by someone else.
+ */
+export async function assertRecordNotLocked(
+  tx: any,
+  orgId: string,
+  entityType: LockEntityType,
+  recordId: string,
+  userId: string
+): Promise<void> {
+  if (!tx?.recordLock?.findUnique) {
+    return;
+  }
+
+  const now = new Date();
+  const activeLock = await tx.recordLock.findUnique({
+    where: {
+      org_entity_record_lock_unique: {
+        orgId,
+        entityType,
+        recordId,
+      },
+    },
+    include: {
+      lockedBy: {
+        select: { firstName: true, lastName: true, email: true },
+      },
+    },
+  });
+
+  if (activeLock && activeLock.expiresAt > now && activeLock.lockedById !== userId) {
+    const holderName =
+      [activeLock.lockedBy?.firstName, activeLock.lockedBy?.lastName]
+        .filter(Boolean)
+        .join(" ") || activeLock.lockedBy?.email || "another user";
+    throw new Error(
+      `Cannot update ${entityType.toLowerCase()}: Record is currently locked and being edited by ${holderName}.`
+    );
+  }
+}
+

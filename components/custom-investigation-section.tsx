@@ -20,11 +20,13 @@ interface CustomInvestigationSectionProps {
     } | null;
   };
   onChange: (field: string, value: any) => void;
+  disabled?: boolean;
 }
 
 export function CustomInvestigationSection({
   section,
   onChange,
+  disabled,
 }: CustomInvestigationSectionProps) {
   const { memberships } = useOrganization({
     memberships: { pageSize: 100, keepPreviousData: true },
@@ -45,7 +47,8 @@ export function CustomInvestigationSection({
         <input
           type="checkbox"
           id={`req-${section.id}`}
-          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+          disabled={disabled}
+          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
           checked={!!section.isRequired}
           onChange={(e) => onChange("isRequired", e.target.checked)}
         />
@@ -60,9 +63,10 @@ export function CustomInvestigationSection({
             Assigned To {section.isRequired && <span className="text-destructive">*</span>}
           </Label>
           <select
+            disabled={disabled}
             value={section.assignedToId || ""}
             onChange={(e) => onChange("assignedToId", e.target.value || null)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="">Unassigned</option>
             {memberships?.data?.map((m) => (
@@ -81,6 +85,7 @@ export function CustomInvestigationSection({
           </Label>
           <Input
             type="date"
+            disabled={disabled}
             value={toDateString(section.assignedDate)}
             onChange={(e) => onChange("assignedDate", e.target.value)}
           />
@@ -93,6 +98,7 @@ export function CustomInvestigationSection({
         </Label>
         <Textarea
           rows={2}
+          disabled={disabled}
           value={section.exemptRationale || ""}
           onChange={(e) => onChange("exemptRationale", e.target.value)}
           placeholder="Rationale if this section is exempted..."
@@ -105,6 +111,7 @@ export function CustomInvestigationSection({
         </Label>
         <Textarea
           rows={4}
+          disabled={disabled}
           value={section.results || ""}
           onChange={(e) => onChange("results", e.target.value)}
           placeholder="Enter analysis results..."

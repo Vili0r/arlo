@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { ShieldAlert, Save, Loader2 } from "lucide-react";
-import { VigilanceStatus, VigilanceReportabilityDecision, VigilanceReportType } from "@prisma/client";
+import { VigilanceStatus, VigilanceReportabilityDecision, VigilanceReportType, LockEntityType } from "@prisma/client";
+import { useRecordLock } from "@/hooks/useRecordLock";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,6 +60,11 @@ export function VigilanceEditForm({
   vigilance,
 }: any) {
   const router = useRouter();
+  const { isReadOnly: isLockReadOnly } = useRecordLock({
+    entityType: LockEntityType.Vigilance,
+    recordId: vigilance.id,
+  });
+
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -140,6 +146,13 @@ export function VigilanceEditForm({
           </BreadcrumbList>
         </Breadcrumb>
 
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-xs text-destructive">
+            <span className="font-semibold block">Error</span>
+            {error}
+          </div>
+        )}
+
         <Card className="border-border shadow-sm">
           <CardHeader className="border-b border-border pb-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -157,6 +170,7 @@ export function VigilanceEditForm({
                   entityType="Vigilance"
                   entityId={vigilance.id}
                   currentStatus={currentStatus}
+                  disabled={isLockReadOnly}
                   onStatusChanged={(newStatus) => {
                     form.setValue("status", newStatus as VigilanceStatus);
                     router.refresh();
@@ -167,7 +181,8 @@ export function VigilanceEditForm({
           </CardHeader>
 
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-6 pt-6">
+            <fieldset disabled={isLockReadOnly} className="contents">
+              <CardContent className="space-y-6 pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Status</Label>
@@ -317,7 +332,7 @@ export function VigilanceEditForm({
               >
                 Cancel
               </Link>
-              <Button type="submit" size="lg" disabled={isSubmitting} className="min-w-[150px]">
+              <Button type="submit" size="lg" disabled={isSubmitting || isLockReadOnly} className="min-w-[150px]">
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
@@ -330,6 +345,7 @@ export function VigilanceEditForm({
                 )}
               </Button>
             </CardFooter>
+            </fieldset>
           </form>
         </Card>
       </div>

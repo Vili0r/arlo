@@ -18,7 +18,9 @@ import {
   TaskStatus,
   TaskType,
   TaskSubType,
+  LockEntityType,
 } from "@prisma/client";
+import { useRecordLock } from "@/hooks/useRecordLock";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -137,6 +139,12 @@ export function ComplaintTaskForm({
 }: ComplaintTaskFormProps) {
   const router = useRouter();
   const isNew = !task?.id;
+  const { isReadOnly: isLockReadOnly } = useRecordLock({
+    entityType: LockEntityType.Task,
+    recordId: task?.id || "",
+    enabled: !isNew,
+  });
+
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -308,11 +316,12 @@ export function ComplaintTaskForm({
               </div>
 
               <div className="flex items-center gap-2">
-                {!isNew && task?.id && (
+                {!isNew && (
                   <StatusTransitionTracker
                     entityType="ComplaintTask"
-                    entityId={task.id}
+                    entityId={task.id!}
                     currentStatus={currentStatus}
+                    disabled={isLockReadOnly}
                     onStatusChanged={(newStatus) => {
                       form.setValue("status", newStatus as TaskStatus);
                       router.refresh();
@@ -324,7 +333,8 @@ export function ComplaintTaskForm({
           </CardHeader>
 
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-6 pt-6">
+            <fieldset disabled={!isNew && isLockReadOnly} className="contents">
+              <CardContent className="space-y-6 pt-6">
               {/* Short Description */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium flex items-center gap-1.5">
@@ -502,7 +512,7 @@ export function ComplaintTaskForm({
               <Button
                 type="submit"
                 size="lg"
-                disabled={isSubmitting}
+                disabled={isSubmitting || (!isNew && isLockReadOnly)}
                 className="min-w-[150px]"
               >
                 {isSubmitting ? (
@@ -518,6 +528,7 @@ export function ComplaintTaskForm({
                 )}
               </Button>
             </CardFooter>
+            </fieldset>
           </form>
         </Card>
       </div>

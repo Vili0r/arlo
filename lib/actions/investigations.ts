@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireOrgAuth, PERMISSIONS } from "@/lib/auth-guard";
-import { InvestigationStatus, AuditAction, Prisma } from "@prisma/client";
+import { InvestigationStatus, AuditAction, Prisma, LockEntityType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { generateAuditDiff } from "@/utils/auditDiff";
 
@@ -85,6 +85,39 @@ export async function updateInvestigation(data: UpdateInvestigationInput) {
 
     if (!existing) {
       throw new Error("Investigation not found or insufficient permissions.");
+    }
+
+    if (existing.status === InvestigationStatus.COMPLETED) {
+      throw new Error(
+        "Cannot update investigation: Investigation is in Completed status and locked. Under 21 CFR Part 11 and ISO 13485 compliance, completed investigations cannot be modified under any circumstances."
+      );
+    }
+
+    // Concurrency Lock Check: Ensure record is not actively locked by another user
+    const now = new Date();
+    const activeLock = await tx.recordLock.findUnique({
+      where: {
+        org_entity_record_lock_unique: {
+          orgId,
+          entityType: LockEntityType.Investigation,
+          recordId: data.id,
+        },
+      },
+      include: {
+        lockedBy: {
+          select: { firstName: true, lastName: true, email: true },
+        },
+      },
+    });
+
+    if (activeLock && activeLock.expiresAt > now && activeLock.lockedById !== userId) {
+      const holderName =
+        [activeLock.lockedBy.firstName, activeLock.lockedBy.lastName]
+          .filter(Boolean)
+          .join(" ") || activeLock.lockedBy.email;
+      throw new Error(
+        `Cannot update investigation: Record is currently locked and being edited by ${holderName}.`
+      );
     }
 
     const summaryData = {

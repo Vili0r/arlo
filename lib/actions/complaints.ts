@@ -16,7 +16,9 @@ import {
   VigilanceStatus,
   AuditAction,
   Prisma,
+  LockEntityType,
 } from "@prisma/client";
+import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 
 // =============================================================================
 // Input Types for Relational Complaint Creation
@@ -438,6 +440,15 @@ export async function updateComplaintWithRelations(
     if (!existing) {
       throw new Error("Complaint not found or insufficient permissions.");
     }
+
+    // Concurrency Lock Check: Ensure record is not actively locked by another user
+    await assertRecordNotLocked(
+      tx,
+      orgId,
+      LockEntityType.Complaint,
+      data.complaintId,
+      userId
+    );
 
     const awarenessDate = new Date(data.awarenessDate);
     const dateReceived = data.dateReceived

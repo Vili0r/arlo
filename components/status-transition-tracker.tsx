@@ -28,6 +28,7 @@ interface StatusTransitionTrackerProps {
   entityId: string;
   currentStatus: string;
   onStatusChanged?: (newStatus: string) => void;
+  disabled?: boolean;
 }
 
 function formatEntityLabel(entityType: EntityType): string {
@@ -54,6 +55,7 @@ export function StatusTransitionTracker({
   entityId,
   currentStatus,
   onStatusChanged,
+  disabled = false,
 }: StatusTransitionTrackerProps) {
   const [modalOpen, setModalOpen] = React.useState(false);
   const [selectedTarget, setSelectedTarget] =
@@ -129,9 +131,14 @@ export function StatusTransitionTracker({
           {/* Desktop / Tablet view (>= md): Full horizontal stepper */}
           <div className="hidden lg:flex items-center gap-1 sm:gap-1.5 flex-nowrap shrink-0">
             {mainSteps.map((step, index) => {
-              const isCompleted = currentIndex > index;
               const isCurrent = step.value === currentStatus;
-              const isFuture = currentIndex < index;
+              const isTerminalStatus =
+                currentStatus.toUpperCase() === "CLOSED" ||
+                currentStatus.toUpperCase() === "COMPLETED" ||
+                (isCurrent && index === mainSteps.length - 1);
+              const isCompleted =
+                currentIndex > index || (isCurrent && isTerminalStatus);
+              const isFuture = currentIndex < index && !isCompleted;
 
               return (
                 <React.Fragment key={step.value}>
@@ -141,7 +148,8 @@ export function StatusTransitionTracker({
                       className={cn(
                         "flex h-5 w-5 items-center justify-center rounded-full text-[10px] transition-all shrink-0",
                         isCompleted && "bg-primary text-primary-foreground",
-                        isCurrent &&
+                        !isCompleted &&
+                          isCurrent &&
                           "border border-primary bg-primary/10 text-primary font-bold",
                         isFuture && "bg-muted text-muted-foreground"
                       )}
@@ -196,7 +204,13 @@ export function StatusTransitionTracker({
           <DropdownMenu>
             <DropdownMenuTrigger
               type="button"
-              className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium shadow-sm transition-colors cursor-pointer"
+              disabled={disabled}
+              className={cn(
+                "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium shadow-sm transition-colors",
+                disabled
+                  ? "opacity-50 cursor-not-allowed pointer-events-none"
+                  : "cursor-pointer"
+              )}
             >
               <span>Action</span>
               <ChevronDown className="h-3 w-3 opacity-80" />

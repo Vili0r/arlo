@@ -22,8 +22,9 @@ import {
   Layers,
   UserCheck,
 } from "lucide-react";
-import { CapaType, CapaPhase, ExtensionRequestStatus } from "@prisma/client";
+import { CapaType, CapaPhase, ExtensionRequestStatus, LockEntityType } from "@prisma/client";
 import { useOrganization, useUser } from "@clerk/nextjs";
+import { useRecordLock } from "@/hooks/useRecordLock";
 
 import { StatusTransitionTracker } from "@/components/status-transition-tracker";
 
@@ -119,6 +120,11 @@ interface CapaEditFormProps {
 export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
   const router = useRouter();
   const { user } = useUser();
+  const { isReadOnly: isLockReadOnly } = useRecordLock({
+    entityType: LockEntityType.Capa,
+    recordId: capa.id,
+  });
+
   const { memberships } = useOrganization({
     memberships: {
       pageSize: 100,
@@ -415,6 +421,7 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                 entityType="Capa"
                 entityId={capa.id}
                 currentStatus={currentPhase}
+                disabled={isLockReadOnly}
                 onStatusChanged={(newStatus) => {
                   setCurrentPhase(newStatus as CapaPhase);
                   router.refresh();
@@ -424,7 +431,8 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
           </CardHeader>
 
           <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-6 pt-6">
+            <fieldset disabled={isLockReadOnly} className="contents">
+              <CardContent className="space-y-6 pt-6">
               {error && (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-xs text-destructive flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -1074,7 +1082,7 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
               </Link>
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLockReadOnly}
                 className="text-xs h-9 gap-2 px-5 font-semibold shadow-sm"
               >
                 {isSubmitting ? (
@@ -1090,6 +1098,7 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                 )}
               </Button>
             </CardFooter>
+            </fieldset>
           </form>
         </Card>
       </div>

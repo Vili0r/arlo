@@ -10,7 +10,8 @@ import {
   getStatusConfig,
   type EntityType,
 } from "@/lib/constants/status-transitions";
-import { AuditAction, Prisma } from "@prisma/client";
+import { AuditAction, Prisma, LockEntityType } from "@prisma/client";
+import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import { clerkClient, auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import * as z from "zod";
@@ -157,6 +158,21 @@ export async function executeStatusTransition(
         throw new Error(
           `${entityType} record not found or access denied.`
         );
+      }
+
+      // Concurrency Lock Check: Ensure record is not actively locked by another user
+      const lockEntityTypeMap: Record<EntityType, LockEntityType> = {
+        Complaint: LockEntityType.Complaint,
+        Investigation: LockEntityType.Investigation,
+        Vigilance: LockEntityType.Vigilance,
+        CustomerCommunication: LockEntityType.FollowUp,
+        ComplaintTask: LockEntityType.Task,
+        Capa: LockEntityType.Capa,
+      };
+
+      const lockType = lockEntityTypeMap[entityType as EntityType];
+      if (lockType) {
+        await assertRecordNotLocked(tx, orgId, lockType, entityId, userId);
       }
 
       const currentStatus = (oldRecord as Record<string, unknown>)[

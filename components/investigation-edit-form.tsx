@@ -292,8 +292,15 @@ export function InvestigationEditForm({
     });
   };
 
+  const isCompleted = (status as string) === "COMPLETED";
+  const isFormDisabled = isReadOnly || isCompleted;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCompleted) {
+      toast.error("Cannot save changes: this investigation is completed and locked.");
+      return;
+    }
     if (isReadOnly) {
       toast.error("Cannot save changes: this record is locked by another user.");
       return;
@@ -396,6 +403,7 @@ export function InvestigationEditForm({
                   entityType="Investigation"
                   entityId={investigation.id}
                   currentStatus={status}
+                  disabled={isReadOnly}
                   onStatusChanged={(newStatus) => {
                     setStatus(newStatus as InvestigationStatus);
                     router.refresh();
@@ -473,9 +481,10 @@ export function InvestigationEditForm({
                       Investigator <span className="text-destructive">*</span>
                     </Label>
                     <select
+                      disabled={isFormDisabled}
                       value={investigatorId}
                       onChange={(e) => setInvestigatorId(e.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="">Unassigned</option>
                       {memberships?.data?.map((m) => (
@@ -488,7 +497,7 @@ export function InvestigationEditForm({
                 </div>
                 <div className="space-y-1.5">
                   <Label>Attachments</Label>
-                  <FileUploader attachments={attachments} onChange={setAttachments} />
+                  <FileUploader attachments={attachments} onChange={setAttachments} disabled={isFormDisabled} />
                 </div>
               </TabsContent>
 
@@ -499,7 +508,8 @@ export function InvestigationEditForm({
                   <input 
                     type="checkbox"
                     id="sampleRequired" 
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    disabled={isFormDisabled}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
                     checked={sampleAnalysisRequired} 
                     onChange={(e) => setSampleAnalysisRequired(e.target.checked)} 
                   />
@@ -508,33 +518,34 @@ export function InvestigationEditForm({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Quantity</Label>
-                    <Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                    <Input type="number" disabled={isFormDisabled} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Sample Received Date</Label>
-                    <Input type="date" value={sampleReceivedDate} onChange={(e) => setSampleReceivedDate(e.target.value)} />
+                    <Input type="date" disabled={isFormDisabled} value={sampleReceivedDate} onChange={(e) => setSampleReceivedDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Assigned Date <span className="text-destructive">*</span>
                     </Label>
-                    <Input type="date" value={sampleAnalysisAssignedDate} onChange={(e) => setSampleAnalysisAssignedDate(e.target.value)} />
+                    <Input type="date" disabled={isFormDisabled} value={sampleAnalysisAssignedDate} onChange={(e) => setSampleAnalysisAssignedDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Complete Date <span className="text-destructive">*</span>
                     </Label>
-                    <Input type="date" value={sampleAnalysisCompleteDate} onChange={(e) => setSampleAnalysisCompleteDate(e.target.value)} />
+                    <Input type="date" disabled={isFormDisabled} value={sampleAnalysisCompleteDate} onChange={(e) => setSampleAnalysisCompleteDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Decontaminated At</Label>
-                    <Input type="date" value={decontaminatedAt} onChange={(e) => setDecontaminatedAt(e.target.value)} />
+                    <Input type="date" disabled={isFormDisabled} value={decontaminatedAt} onChange={(e) => setDecontaminatedAt(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Exempt Rationale</Label>
                   <Textarea 
                     rows={2} 
+                    disabled={isFormDisabled}
                     value={sampleAnalysisExemptRationale} 
                     onChange={(e) => setSampleAnalysisExemptRationale(e.target.value)} 
                   />
@@ -543,6 +554,7 @@ export function InvestigationEditForm({
                   <Label className="text-sm font-medium">Analysis Results</Label>
                   <Textarea 
                     rows={4} 
+                    disabled={isFormDisabled}
                     value={sampleAnalysisResults} 
                     onChange={(e) => setSampleAnalysisResults(e.target.value)} 
                   />
@@ -556,7 +568,8 @@ export function InvestigationEditForm({
                   <input 
                     type="checkbox"
                     id="riskRequired" 
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    disabled={isFormDisabled}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
                     checked={riskReviewRequired} 
                     onChange={(e) => setRiskReviewRequired(e.target.checked)} 
                   />
@@ -568,6 +581,7 @@ export function InvestigationEditForm({
                   </Label>
                   <Textarea 
                     rows={2} 
+                    disabled={isFormDisabled}
                     value={riskReviewExemptRationale} 
                     onChange={(e) => setRiskReviewExemptRationale(e.target.value)} 
                   />
@@ -578,9 +592,10 @@ export function InvestigationEditForm({
                       Completed By {riskReviewRequired && <span className="text-destructive">*</span>}
                     </Label>
                     <select
+                      disabled={isFormDisabled}
                       value={riskReviewCompletedById}
                       onChange={(e) => setRiskReviewCompletedById(e.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="">Unassigned</option>
                       {memberships?.data?.map((m) => (
@@ -594,7 +609,7 @@ export function InvestigationEditForm({
                     <Label className="text-sm font-medium">
                       Completed At {riskReviewRequired && <span className="text-destructive">*</span>}
                     </Label>
-                    <Input type="date" value={riskReviewCompletedAt} onChange={(e) => setRiskReviewCompletedAt(e.target.value)} />
+                    <Input type="date" disabled={isFormDisabled} value={riskReviewCompletedAt} onChange={(e) => setRiskReviewCompletedAt(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2 pt-2">
@@ -603,6 +618,7 @@ export function InvestigationEditForm({
                   </Label>
                   <Textarea 
                     rows={4} 
+                    disabled={isFormDisabled}
                     value={riskReviewResults} 
                     onChange={(e) => setRiskReviewResults(e.target.value)} 
                     placeholder="Enter risk review results..." 
@@ -618,14 +634,14 @@ export function InvestigationEditForm({
                   <Label className="text-sm font-medium">
                     Summary <span className="text-destructive">*</span>
                   </Label>
-                  <Textarea rows={3} value={summaryText} onChange={(e) => setSummaryText(e.target.value)} />
+                  <Textarea rows={3} disabled={isFormDisabled} value={summaryText} onChange={(e) => setSummaryText(e.target.value)} />
                 </div>
                 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">
                     Report <span className="text-destructive">*</span>
                   </Label>
-                  <Textarea rows={4} value={report} onChange={(e) => setReport(e.target.value)} />
+                  <Textarea rows={4} disabled={isFormDisabled} value={report} onChange={(e) => setReport(e.target.value)} />
                 </div>
  
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -633,7 +649,8 @@ export function InvestigationEditForm({
                     <input 
                       type="checkbox"
                       id="capaRequired" 
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      disabled={isFormDisabled}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
                       checked={capaRequired} 
                       onChange={(e) => setCapaRequired(e.target.checked)} 
                     />
@@ -643,7 +660,8 @@ export function InvestigationEditForm({
                     <input 
                       type="checkbox"
                       id="fscaRequired" 
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      disabled={isFormDisabled}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
                       checked={fscaRequired} 
                       onChange={(e) => setFscaRequired(e.target.checked)} 
                     />
@@ -655,6 +673,7 @@ export function InvestigationEditForm({
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">CAPA Reference #</Label>
                     <Input
+                      disabled={isFormDisabled}
                       value={capaRef}
                       onChange={(e) => setCapaRef(e.target.value)}
                       placeholder="e.g. CAPA-2026-042"
@@ -663,6 +682,7 @@ export function InvestigationEditForm({
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">FSCA Reference #</Label>
                     <Input
+                      disabled={isFormDisabled}
                       value={fscaRef}
                       onChange={(e) => setFscaRef(e.target.value)}
                       placeholder="e.g. FSCA-2026-001"
@@ -676,6 +696,7 @@ export function InvestigationEditForm({
                   </Label>
                   <Textarea
                     rows={2}
+                    disabled={isFormDisabled}
                     value={capaFscaRationale}
                     onChange={(e) => setCapaFscaRationale(e.target.value)}
                     placeholder="Provide rationale for CAPA and FSCA determination..."
@@ -686,6 +707,7 @@ export function InvestigationEditForm({
                   <Label className="text-sm font-medium">Notes</Label>
                   <Textarea 
                     rows={2} 
+                    disabled={isFormDisabled}
                     value={notes} 
                     onChange={(e) => setNotes(e.target.value)} 
                     placeholder="General investigation notes..." 
@@ -706,17 +728,19 @@ export function InvestigationEditForm({
                   <div className="bg-muted/10 p-4 rounded-lg border border-border flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium">{imdrfGroups.length} IMDRF Coding Group{imdrfGroups.length !== 1 && "s"} Added</p>
-                      <p className="text-xs text-muted-foreground mt-1">Manage product finding categories and codes.</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {isCompleted ? "View product finding categories and codes." : "Manage product finding categories and codes."}
+                      </p>
                     </div>
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button type="button" variant="outline">
-                          Manage IMDRF Codes
+                          {isCompleted ? "View IMDRF Codes" : "Manage IMDRF Codes"}
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-[95vw] xl:max-w-[1400px] w-full max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
-                          <DialogTitle>Manage IMDRF Coding Groups</DialogTitle>
+                          <DialogTitle>{isCompleted ? "IMDRF Coding Groups (Locked)" : "Manage IMDRF Coding Groups"}</DialogTitle>
                         </DialogHeader>
                         <div className="mt-4">
                           <div className="rounded-md border border-border overflow-hidden bg-background overflow-x-auto">
@@ -765,6 +789,7 @@ export function InvestigationEditForm({
                                       <div className="flex flex-col gap-2">
                                         <select
                                           required
+                                          disabled={isFormDisabled}
                                           value={codeObj?.category || ""}
                                           onChange={(e) => {
                                             const selectedCat = e.target.value;
@@ -786,7 +811,7 @@ export function InvestigationEditForm({
                                               handleImdrfCodeChange(groupIdx, actualIndex, "term", "");
                                             }
                                           }}
-                                          className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring"
+                                          className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                           <option value="">{annex === "ANNEX_B" ? "Code..." : "Category..."}</option>
                                           {categories.map(opt => (
@@ -799,6 +824,7 @@ export function InvestigationEditForm({
                                         {annex !== "ANNEX_B" && codeObj?.category && subCodes.length > 0 && (
                                           <select
                                             required
+                                            disabled={isFormDisabled}
                                             value={codeObj?.code || ""}
                                             onChange={(e) => {
                                               const selectedVal = e.target.value;
@@ -806,7 +832,7 @@ export function InvestigationEditForm({
                                               handleImdrfCodeChange(groupIdx, actualIndex, "code", selectedVal);
                                               handleImdrfCodeChange(groupIdx, actualIndex, "term", option ? option.label.split(" - ")[1] || option.label : "");
                                             }}
-                                            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring"
+                                            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                                           >
                                             <option value="">Code...</option>
                                             {subCodes.map(opt => (
@@ -836,9 +862,10 @@ export function InvestigationEditForm({
                                     <TableRow key={groupIdx} className="align-top hover:bg-muted/10 group">
                                       <TableCell className="p-3">
                                         <select
+                                          disabled={isFormDisabled}
                                           value={group[0]?.productInformationId || ""}
                                           onChange={(e) => handleGroupProductChange(groupIdx, e.target.value)}
-                                          className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring"
+                                          className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                           <option value="">-- No Product --</option>
                                           {productInformation.map(p => (
@@ -862,14 +889,15 @@ export function InvestigationEditForm({
                                       </TableCell>
                                       <TableCell className="p-3 align-top min-w-[200px]">
                                         <textarea
+                                          disabled={isFormDisabled}
                                           placeholder="Notes (optional)"
                                           value={group[0]?.notes || ""}
                                           onChange={(e) => handleGroupNotesChange(groupIdx, e.target.value)}
-                                          className="w-full min-h-[60px] rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring resize-y"
+                                          className="w-full min-h-[60px] rounded-md border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-ring resize-y disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                       </TableCell>
                                       <TableCell className="p-3 text-center align-middle opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {imdrfGroups.length > 1 && (
+                                        {!isFormDisabled && imdrfGroups.length > 1 && (
                                           <Button 
                                             type="button" 
                                             variant="ghost" 
@@ -887,9 +915,11 @@ export function InvestigationEditForm({
                               </TableBody>
                             </Table>
                           </div>
-                          <Button type="button" variant="outline" onClick={handleAddImdrfGroup} className="w-full border-dashed mt-4">
-                            <Plus className="h-4 w-4 mr-2" /> Add IMDRF Coding Row
-                          </Button>
+                          {!isFormDisabled && (
+                            <Button type="button" variant="outline" onClick={handleAddImdrfGroup} className="w-full border-dashed mt-4">
+                              <Plus className="h-4 w-4 mr-2" /> Add IMDRF Coding Row
+                            </Button>
+                          )}
                         </div>
                       </DialogContent>
                     </Dialog>
@@ -901,9 +931,10 @@ export function InvestigationEditForm({
                       Summary Completed By <span className="text-destructive">*</span>
                     </Label>
                     <select
+                      disabled={isFormDisabled}
                       value={investigationSummaryCompletedById}
                       onChange={(e) => setInvestigationSummaryCompletedById(e.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="">Unassigned</option>
                       {memberships?.data?.map((m) => (
@@ -917,14 +948,15 @@ export function InvestigationEditForm({
                     <Label className="text-sm font-medium">
                       Summary Completed At <span className="text-destructive">*</span>
                     </Label>
-                    <Input type="date" value={investigationSummaryCompletedAt} onChange={(e) => setInvestigationSummaryCompletedAt(e.target.value)} />
+                    <Input type="date" disabled={isFormDisabled} value={investigationSummaryCompletedAt} onChange={(e) => setInvestigationSummaryCompletedAt(e.target.value)} />
                   </div>
                 </div>
                 <div className="flex items-center space-x-2 pt-4">
                   <input 
                     type="checkbox"
                     id="repRequired" 
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    disabled={isFormDisabled}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
                     checked={reportabilityReviewRequired} 
                     onChange={(e) => setReportabilityReviewRequired(e.target.checked)} 
                   />
@@ -938,6 +970,7 @@ export function InvestigationEditForm({
                   <h2 className="text-xl font-semibold border-b pb-2">{section.template?.sectionName || "Custom Section"}</h2>
                   <CustomInvestigationSection
                     section={section}
+                    disabled={isFormDisabled}
                     onChange={(field, value) => handleCustomSectionChange(section.id, field, value)}
                   />
                 </TabsContent>
@@ -956,13 +989,17 @@ export function InvestigationEditForm({
           <Button
             type="submit"
             size="lg"
-            disabled={isSubmitting || isReadOnly || isLockLoading}
+            disabled={isSubmitting || isFormDisabled || isLockLoading}
             className="min-w-[150px]"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                 Saving...
+              </>
+            ) : isCompleted ? (
+              <>
+                <Lock className="w-4 h-4 mr-1.5" /> Completed & Locked
               </>
             ) : isReadOnly ? (
               <>
