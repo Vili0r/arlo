@@ -263,7 +263,7 @@ export default async function OrgOverviewPage({
     id: log.id,
     action: log.action,
     entityType: log.entityType,
-    timestamp: new Date(log.timestamp).toLocaleTimeString([], {
+    timestamp: new Date(log.timestamp).toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
     }),

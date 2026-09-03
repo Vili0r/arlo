@@ -17,10 +17,10 @@ export default async function ComplaintDetailPage({
     where: { id, orgId, deletedAt: null },
     include: {
       createdBy: {
-        select: { email: true, firstName: true, lastName: true },
+        select: { id: true, email: true, firstName: true, lastName: true },
       },
       complaintOwner: {
-        select: { email: true, firstName: true, lastName: true },
+        select: { id: true, email: true, firstName: true, lastName: true },
       },
       productInformation: true,
       patientInformation: true,

@@ -1,0 +1,131 @@
+<SectionCard
+              id="reporter"
+              title="Reporter and location"
+              description="Who reported it, where they are, and where the event occurred."
+            >
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Customer or facility"
+                    htmlFor="customerName"
+                    required
+                    error={errors.customerName?.message}
+                  >
+                    <Input
+                      id="customerName"
+                      placeholder="St. Jude Regional Hospital"
+                      {...register("customerName")}
+                    />
+                  </Field>
+                  <Field label="Facility type" htmlFor="customerType" required>
+                    <select
+                      id="customerType"
+                      {...register("customerType")}
+                      className={selectClass}
+                    >
+                      {CUSTOMER_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Reporter first name"
+                    htmlFor="initialReporterName"
+                    required
+                    error={errors.initialReporterName?.message}
+                  >
+                    <Input
+                      id="initialReporterName"
+                      placeholder="Sarah"
+                      {...register("initialReporterName")}
+                    />
+                  </Field>
+                  <Field
+                    label="Reporter surname"
+                    htmlFor="initialReporterSurname"
+                    required
+                    error={errors.initialReporterSurname?.message}
+                  >
+                    <Input
+                      id="initialReporterSurname"
+                      placeholder="Jenkins"
+                      {...register("initialReporterSurname")}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Reporter email"
+                    htmlFor="email"
+                    required
+                    error={errors.email?.message}
+                  >
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="s.jenkins@hospital.org"
+                      {...register("email")}
+                    />
+                  </Field>
+                  <Field label="Reporter phone" htmlFor="telNumber">
+                    <Input
+                      id="telNumber"
+                      placeholder="+44 20 7946 0958"
+                      {...register("telNumber")}
+                    />
+                  </Field>
+                </div>
+
+                <Field label="Customer address" htmlFor="address">
+                  <Input
+                    id="address"
+                    placeholder="100 Medical Center Blvd, Suite 400"
+                    {...register("address")}
+                  />
+                </Field>
+
+                <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-3">
+                  <Field label="Customer country" htmlFor="country" required>
+                    <select id="country" {...register("country")} className={selectClass}>
+                      {COUNTRIES.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field
+                    label="Country event occurred"
+                    htmlFor="countryEventOccurred"
+                    required
+                  >
+                    <select
+                      id="countryEventOccurred"
+                      {...register("countryEventOccurred")}
+                      className={selectClass}
+                    >
+                      {COUNTRIES.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Regulatory region" htmlFor="region" required>
+                    <select id="region" {...register("region")} className={selectClass}>
+                      {REGIONS.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              </div>
+            </SectionCard>

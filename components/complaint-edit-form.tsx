@@ -7,23 +7,21 @@ import Link from "next/link";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  User,
-  Package,
-  HeartPulse,
-  Activity,
   Plus,
   Trash2,
   Save,
   Loader2,
-  CheckCircle,
-  AlertOctagon,
-  Globe,
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  Lock,
+  LockOpen,
   Box,
-  FileText,
+  Paperclip,
+  Truck,
+  ShieldCheck,
 } from "lucide-react";
-import {
-  CustomerReportModal,
-} from "@/components/customer-report-modal";
+import { CustomerReportModal } from "@/components/customer-report-modal";
 import {
   Priority,
   Death,
@@ -38,21 +36,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   updateComplaintWithRelations,
   updateSampleManagement,
@@ -68,9 +59,16 @@ import {
 } from "@/lib/constants/qms-options";
 import { useOrganization } from "@clerk/nextjs";
 import { FileUploader } from "@/components/file-uploader";
-import { ComplaintFormSchema, type ComplaintFormValues } from "@/lib/validations/complaint";
+import {
+  ComplaintFormSchema,
+  type ComplaintFormValues,
+} from "@/lib/validations/complaint";
 import { StatusTransitionTracker } from "@/components/status-transition-tracker";
-import { formatUserName } from "@/lib/utils";
+import { formatUserName, cn } from "@/lib/utils";
+
+/* ------------------------------------------------------------------ */
+/* Types                                                               */
+/* ------------------------------------------------------------------ */
 
 interface SampleManagementData {
   id: string;
@@ -148,17 +146,165 @@ interface ComplaintEditFormProps {
       } | null;
     } | null;
     complaintOwner?: {
+      id?: string;
       email: string;
       firstName: string | null;
       lastName: string | null;
     } | null;
     createdBy?: {
+      id?: string;
       email: string;
       firstName: string | null;
       lastName: string | null;
     } | null;
+    createdById?: string | null;
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Shared styles and small helpers                                     */
+/* ------------------------------------------------------------------ */
+
+const selectClass =
+  "h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+
+const SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "reporter", label: "Reporter" },
+  { id: "devices", label: "Devices" },
+  { id: "patients", label: "Patients" },
+] as const;
+
+type SectionId = (typeof SECTIONS)[number]["id"];
+type Completion = "done" | "attention" | "empty";
+
+const STATUS_LABEL: Record<string, string> = {
+  OPEN: "Open",
+  UNDER_INVESTIGATION: "Under investigation",
+  PENDING_REVIEW: "Pending review",
+  CLOSED: "Closed",
+};
+
+const SAMPLE_STEPS: Array<{ status: SampleStatus; label: string }> = [
+  { status: SampleStatus.PENDING, label: "Pending return" },
+  { status: SampleStatus.RECEIVED, label: "Received" },
+  { status: SampleStatus.UNDER_EVALUATION, label: "Under evaluation" },
+  { status: SampleStatus.RETURNED, label: "Returned" },
+];
+
+function humanize(value: string) {
+  return (
+    STATUS_LABEL[value] ??
+    value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, " ")
+  );
+}
+
+function formatDate(d?: Date | string | null) {
+  if (!d) return "—";
+  const date = typeof d === "string" ? new Date(d) : d;
+  return date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function CompletionDot({ state }: { state: Completion }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "h-1.5 w-1.5 shrink-0 rounded-full",
+        state === "done" && "bg-emerald-500",
+        state === "attention" && "bg-amber-500",
+        state === "empty" && "bg-border"
+      )}
+    />
+  );
+}
+
+function Field({
+  label,
+  htmlFor,
+  required,
+  error,
+  className,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  required?: boolean;
+  error?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      <Label htmlFor={htmlFor} className="text-xs text-muted-foreground">
+        {label}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
+      </Label>
+      {children}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function SectionCard({
+  id,
+  title,
+  description,
+  action,
+  children,
+}: {
+  id: SectionId;
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      className="scroll-mt-32 rounded-xl border border-border bg-card p-5 sm:p-6"
+    >
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-medium text-foreground">{title}</h2>
+          {description && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+          )}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function PanelCard({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Component                                                           */
+/* ------------------------------------------------------------------ */
 
 export function ComplaintEditForm({
   orgSlug,
@@ -170,19 +316,81 @@ export function ComplaintEditForm({
     recordId: complaint.id,
   });
 
-  const [activeTab, setActiveTab] = React.useState("intake");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = React.useState(false);
+  const [isSampleSheetOpen, setIsSampleSheetOpen] = React.useState(false);
+  const [activeSection, setActiveSection] = React.useState<SectionId>("overview");
+  const [openProduct, setOpenProduct] = React.useState<number | null>(0);
+  const [openPatient, setOpenPatient] = React.useState<number | null>(0);
 
   const { memberships } = useOrganization({
-    memberships: {
-      pageSize: 100,
-      keepPreviousData: true,
-    },
+    memberships: { pageSize: 100, keepPreviousData: true },
   });
 
-  // Setup Default Products
+  // Map of userId or email/identifier -> formatted Full Name (First + Last Name)
+  const memberNameMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    memberships?.data?.forEach((m) => {
+      if (m.publicUserData) {
+        const fullName = [m.publicUserData.firstName, m.publicUserData.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const displayName = fullName || m.publicUserData.identifier || "";
+        if (m.publicUserData.userId && displayName) {
+          map.set(m.publicUserData.userId, displayName);
+        }
+        if (m.publicUserData.identifier && displayName) {
+          map.set(m.publicUserData.identifier, displayName);
+        }
+      }
+    });
+    return map;
+  }, [memberships]);
+
+  const resolveUserDisplayName = React.useCallback(
+    (
+      user?: {
+        id?: string | null;
+        email?: string | null;
+        firstName?: string | null;
+        lastName?: string | null;
+      } | null,
+      userId?: string | null,
+      fallback = "Unassigned"
+    ) => {
+      // 1. Direct First + Last name if available
+      if (user) {
+        const directFullName = [user.firstName, user.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        if (directFullName) return directFullName;
+      }
+
+      // 2. Lookup in Clerk organization memberships map by userId
+      const targetId = userId || user?.id;
+      if (targetId && memberNameMap.has(targetId)) {
+        return memberNameMap.get(targetId)!;
+      }
+
+      // 3. Lookup in Clerk organization memberships map by email
+      if (user?.email && memberNameMap.has(user.email)) {
+        return memberNameMap.get(user.email)!;
+      }
+
+      // 4. Fallback to formatUserName (which uses email if no name), or fallback
+      if (user) {
+        return formatUserName(user, fallback);
+      }
+      return fallback;
+    },
+    [memberNameMap]
+  );
+
+  /* ---------- defaults (unchanged from original) ---------- */
+
   const defaultProducts = React.useMemo(() => {
     if (complaint.productInformation && complaint.productInformation.length > 0) {
       return complaint.productInformation.map((p) => {
@@ -219,7 +427,6 @@ export function ComplaintEditForm({
     ];
   }, [complaint]);
 
-  // Setup Default Patients
   const defaultPatients = React.useMemo(() => {
     if (complaint.patientInformation && complaint.patientInformation.length > 0) {
       return complaint.patientInformation.map((pt) => ({
@@ -275,12 +482,13 @@ export function ComplaintEditForm({
       telNumber: complaint.telNumber || "",
       countryEventOccurred: complaint.countryEventOccurred || "United States",
       region: complaint.region || REGIONS[0].value,
-      attachments: complaint.attachments?.map((a) => ({
-        fileUrl: a.fileUrl,
-        fileName: a.fileName,
-        fileSize: a.fileSize,
-        mimeType: a.mimeType,
-      })) || [],
+      attachments:
+        complaint.attachments?.map((a) => ({
+          fileUrl: a.fileUrl,
+          fileName: a.fileName,
+          fileSize: a.fileSize,
+          mimeType: a.mimeType,
+        })) || [],
       products: defaultProducts,
       patients: defaultPatients,
     },
@@ -290,21 +498,16 @@ export function ComplaintEditForm({
     fields: productFields,
     append: appendProduct,
     remove: removeProduct,
-  } = useFieldArray({
-    control,
-    name: "products",
-  });
+  } = useFieldArray({ control, name: "products" });
 
   const {
     fields: patientFields,
     append: appendPatient,
     remove: removePatient,
-  } = useFieldArray({
-    control,
-    name: "patients",
-  });
+  } = useFieldArray({ control, name: "patients" });
 
-  // Sample Management State
+  /* ---------- sample management state (unchanged) ---------- */
+
   const [sampleAvailable, setSampleAvailable] = React.useState(
     complaint.sampleManagement?.sampleAvailable ?? false
   );
@@ -320,6 +523,144 @@ export function ComplaintEditForm({
       : undefined
   );
   const [isUpdatingSample, setIsUpdatingSample] = React.useState(false);
+
+  /* ---------- watched values for header / completion ---------- */
+
+  const watchProducts = watch("products");
+  const watchPatients = watch("patients");
+  const watchDeath = watch("death");
+  const watchPriority = watch("priority");
+  const watchShort = watch("shortDescription");
+  const watchCustomer = watch("customerName");
+  const watchReporterName = watch("initialReporterName");
+  const watchEmail = watch("email");
+  const watchAttachments = watch("attachments");
+  const watchComplaintOwnerId = watch("complaintOwnerId");
+
+  const displayedOwner = React.useMemo(() => {
+    const currentOwnerId = watchComplaintOwnerId !== undefined ? watchComplaintOwnerId : complaint.complaintOwnerId;
+    if (!currentOwnerId) return "Unassigned";
+    return resolveUserDisplayName(
+      complaint.complaintOwner,
+      currentOwnerId,
+      "Unassigned"
+    );
+  }, [watchComplaintOwnerId, complaint.complaintOwnerId, complaint.complaintOwner, resolveUserDisplayName]);
+
+  const displayedLoggedBy = React.useMemo(() => {
+    return resolveUserDisplayName(
+      complaint.createdBy,
+      complaint.createdById,
+      "System"
+    );
+  }, [complaint.createdBy, complaint.createdById, resolveUserDisplayName]);
+
+  const isAdverse =
+    watchDeath === Death.YES || watchPriority === Priority.CRITICAL;
+
+  const completion = React.useMemo<Record<SectionId, Completion>>(() => {
+    const overview: Completion = watchShort ? "done" : "attention";
+    const reporter: Completion =
+      watchCustomer && watchReporterName && watchEmail ? "done" : "attention";
+
+    const devicesFilled = watchProducts?.some(
+      (p) => p.materialDescription || p.serialNumber || p.batchNumber || p.udi
+    );
+    const devicesCoded = watchProducts?.every(
+      (p) => !(p.materialDescription || p.serialNumber) || p.asReportedCode1
+    );
+    const devices: Completion = !devicesFilled
+      ? "empty"
+      : devicesCoded
+        ? "done"
+        : "attention";
+
+    const patientsFilled = watchPatients?.some(
+      (pt) => pt.patientName || pt.patientImpactDesc || pt.age
+    );
+    const patientsCoded = watchPatients?.every(
+      (pt) => !(pt.patientName || pt.patientImpactDesc) || pt.annexF_Code
+    );
+    const patients: Completion = !patientsFilled
+      ? "empty"
+      : patientsCoded
+        ? "done"
+        : "attention";
+
+    return { overview, reporter, devices, patients };
+  }, [
+    watchShort,
+    watchCustomer,
+    watchReporterName,
+    watchEmail,
+    watchProducts,
+    watchPatients,
+  ]);
+
+  /* ---------- scroll-spy for the anchor tabs ---------- */
+
+  const rootRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    // WorkspaceShell's <main> is the scroll container, not window.
+    // Walk up until we find whatever actually scrolls.
+    let scroller: HTMLElement | null = root.parentElement;
+    while (scroller && scroller !== document.body) {
+      const { overflowY } = getComputedStyle(scroller);
+      if (overflowY === "auto" || overflowY === "scroll") break;
+      scroller = scroller.parentElement;
+    }
+    if (scroller === document.body) scroller = null;
+    const target: HTMLElement | Window = scroller ?? window;
+
+    const update = () => {
+      const els = SECTIONS.map((s) => document.getElementById(s.id)).filter(
+        Boolean
+      ) as HTMLElement[];
+      if (els.length === 0) return;
+
+      const scrollTop = scroller ? scroller.scrollTop : window.scrollY;
+      const viewport = scroller ? scroller.clientHeight : window.innerHeight;
+      const scrollHeight = scroller
+        ? scroller.scrollHeight
+        : document.documentElement.scrollHeight;
+
+      // At (or within a few px of) the bottom, the last section is active
+      // even if its top never reaches the activation line.
+      if (scrollTop + viewport >= scrollHeight - 4) {
+        setActiveSection(els[els.length - 1].id as SectionId);
+        return;
+      }
+
+      // Otherwise: the last section whose top has crossed the activation
+      // line, which sits just under the sticky record bar.
+      const line = 140;
+      const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
+      let current: SectionId = els[0].id as SectionId;
+      for (const el of els) {
+        const top = el.getBoundingClientRect().top - containerTop;
+        if (top <= line) current = el.id as SectionId;
+      }
+      setActiveSection(current);
+    };
+
+    update();
+    target.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      target.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  const scrollTo = (id: SectionId) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  /* ---------- submit (logic unchanged) ---------- */
 
   const onSubmit = async (data: ComplaintFormValues) => {
     setIsSubmitting(true);
@@ -346,8 +687,7 @@ export function ComplaintEditForm({
           batchNumber: p.batchNumber || null,
           udi: p.udi || null,
           asReportedCode1:
-            p.asReportedCode1 ||
-            (p.annexA_Category ? p.annexA_Category : null),
+            p.asReportedCode1 || (p.annexA_Category ? p.annexA_Category : null),
           asReportedCode2: p.asReportedCode2 || null,
           softwareVersion: p.softwareVersion || null,
         }));
@@ -370,7 +710,9 @@ export function ComplaintEditForm({
           patientImpactDesc: pt.patientImpactDesc || null,
           sex: pt.sex || null,
           age: pt.age ? parseInt(pt.age, 10) : null,
-          eventOccurred: pt.eventOccurred ? new Date(pt.eventOccurred) : data.awarenessDate,
+          eventOccurred: pt.eventOccurred
+            ? new Date(pt.eventOccurred)
+            : data.awarenessDate,
           annexE_Codes: pt.annexE_Code ? [pt.annexE_Code] : [],
           annexF_Codes: pt.annexF_Code ? [pt.annexF_Code] : [],
         }));
@@ -398,7 +740,8 @@ export function ComplaintEditForm({
         deviceModel: filteredProducts[0]?.materialDescription || null,
         deviceSerialNumber: filteredProducts[0]?.serialNumber || null,
         lotNumber: filteredProducts[0]?.batchNumber || null,
-        isAdverseEvent: data.death === Death.YES || data.priority === Priority.CRITICAL,
+        isAdverseEvent:
+          data.death === Death.YES || data.priority === Priority.CRITICAL,
         products: filteredProducts,
         patients: filteredPatients,
         newAttachments: data.attachments.filter(
@@ -406,17 +749,16 @@ export function ComplaintEditForm({
         ),
       });
 
-      toast.success("Success", { description: "Complaint details updated successfully." });
+      toast.success("Changes saved");
       router.refresh();
     } catch (err: any) {
       console.error("[Complaint Update Error]", err);
-      setError(err?.message || "Failed to update complaint. Please try again.");
+      setError(err?.message || "Couldn't save the complaint. Try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Save Sample Management Handler
   const handleSaveSample = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdatingSample(true);
@@ -429,891 +771,1068 @@ export function ComplaintEditForm({
         status: sampleStatus,
         receivedDate: sampleReceivedDate ? sampleReceivedDate.toISOString() : null,
       });
-      toast.success("Success", { description: "Sample & RMA management updated successfully." });
+      toast.success("Sample details saved");
+      setIsSampleSheetOpen(false);
       router.refresh();
     } catch (err: any) {
       console.error("[Sample Update Error]", err);
-      setError(err?.message || "Failed to update sample management.");
+      setError(err?.message || "Couldn't save the sample details.");
     } finally {
       setIsUpdatingSample(false);
     }
   };
 
-  const watchProducts = watch("products");
+  const sampleStepIndex = SAMPLE_STEPS.findIndex((s) => s.status === sampleStatus);
+  const sampleIsTerminal =
+    sampleStatus === SampleStatus.DISPOSED ||
+    sampleStatus === SampleStatus.NOT_AVAILABLE;
+
+  /* ------------------------------------------------------------------ */
+  /* Render                                                              */
+  /* ------------------------------------------------------------------ */
 
   return (
-    <div className="w-full flex justify-center py-6 px-4">
-      {/* Centered Container */}
-      <div className="w-full max-w-6xl space-y-6">
-        {/* Navigation & Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/complaints">Complaints</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{complaint.complaintNumber}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="flex items-center gap-2.5">
-            <StatusTransitionTracker
-              entityType="Complaint"
-              entityId={complaint.id}
-              currentStatus={complaint.status}
-              disabled={isLockReadOnly}
-              onGenerateReport={() => setIsReportModalOpen(true)}
-              onStatusChanged={() => {
-                router.refresh();
-              }}
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-xs text-destructive">
-            <span className="font-semibold block">Error</span>
-            {error}
-          </div>
-        )}
-
-        {/* Shadcn Tabs Navigation */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full sm:w-auto flex flex-wrap h-auto p-1 bg-muted/50 gap-1 rounded-lg">
-            <TabsTrigger value="intake" className="gap-2 text-xs py-2">
-              <Activity className="h-4 w-4" /> Intake &amp; Overview
-            </TabsTrigger>
-            <TabsTrigger value="sample" className="gap-2 text-xs py-2">
-              <Box className="h-4 w-4" /> Sample &amp; RMA
-            </TabsTrigger>
-          </TabsList>
-          <div className="mt-6 bg-card border border-border rounded-xl p-6">
-          {/* TAB 1: Intake & Overview Form */}
-          <TabsContent value="intake" className="mt-0 outline-none">
-            <div className="border-b border-border pb-5 mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">
-                    Complaint Details &amp; Intake Form
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    View and update post-market surveillance data, customer details, device metrics, and IMDRF coding.
-                  </p>
-                </div>
-                <div className="hidden sm:flex flex-col items-end gap-1 text-[11px] text-muted-foreground">
-                  <span>
-                    Owner:{" "}
-                    <strong className="text-foreground">
-                      {formatUserName(complaint.complaintOwner, "Unassigned")}
-                    </strong>
-                  </span>
-                  <span>
-                    Logged by:{" "}
-                    <strong className="text-foreground">
-                      {formatUserName(complaint.createdBy, "System")}
-                    </strong>
-                  </span>
-                </div>
-              </div>
+    <div ref={rootRef} className="-m-6 lg:-m-8">
+      {/* ---------- Sticky record bar ---------- */}
+      <div className="sticky -top-10 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="px-6 pt-3 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Link
+                href="/complaints"
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Complaints
+              </Link>
+              <span className="text-xs text-muted-foreground/60">/</span>
+              <span className="font-mono text-sm font-medium text-foreground">
+                {complaint.complaintNumber}
+              </span>
+              <Badge
+                variant="outline"
+                className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+              >
+                {humanize(complaint.status)}
+              </Badge>
+              {isAdverse && (
+                <Badge
+                  variant="outline"
+                  className="border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400"
+                >
+                  Adverse event
+                </Badge>
+              )}
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)}>
-              <fieldset disabled={isLockReadOnly} className="contents space-y-8">
-                <div className="space-y-8">
-                {/* SECTION 1: Core Complaint Information */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      <Activity className="h-4 w-4 text-primary" />
-                      <span>Complaint Core Information</span>
-                    </div>
+            <div className="flex items-center gap-2 lg:mt-2">
+              <StatusTransitionTracker
+                entityType="Complaint"
+                entityId={complaint.id}
+                currentStatus={complaint.status}
+                disabled={isLockReadOnly}
+                onGenerateReport={() => setIsReportModalOpen(true)}
+                onStatusChanged={() => router.refresh()}
+              />
+              <Button
+                type="submit"
+                form="complaint-form"
+                size="sm"
+                disabled={isSubmitting || isLockReadOnly}
+                className="gap-2"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                {isSubmitting ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
+          </div>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="shortDescription" className="text-xs">
-                        Short Description / Title{" "}
-                        <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        id="shortDescription"
-                        placeholder="Brief summary of the issue..."
-                        {...register("shortDescription")}
-                        className="text-xs h-9"
-                      />
-                      {errors.shortDescription && (
-                        <p className="text-destructive text-xs">{errors.shortDescription.message}</p>
+          {/* Anchor tabs */}
+          <nav className="-mb-px mt-2 flex gap-1 overflow-x-auto" aria-label="Sections">
+            {SECTIONS.map((s) => {
+              const active = activeSection === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => scrollTo(s.id)}
+                  className={cn(
+                    "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors",
+                    active
+                      ? "border-foreground font-medium text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <CompletionDot state={completion[s.id]} />
+                  {s.label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
+
+      {/* ---------- Body ---------- */}
+      <div className="grid gap-6 p-6 lg:p-8 xl:grid-cols-[minmax(0,1fr)_280px]">
+        {/* Main column */}
+        <form
+          id="complaint-form"
+          onSubmit={handleSubmit(onSubmit)}
+          className="min-w-0 max-w-5xl space-y-4"
+        >
+          {error && (
+            <div
+              role="alert"
+              className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            >
+              {error}
+            </div>
+          )}
+
+          <fieldset disabled={isLockReadOnly} className="contents space-y-6">
+            {/* ---------- Overview ---------- */}
+            <SectionCard
+              id="overview"
+              title="Overview"
+              description="What happened, how severe it is, and when you learned of it."
+            >
+              <div className="space-y-4">
+                <Field
+                  label="Short description"
+                  htmlFor="shortDescription"
+                  required
+                  error={errors.shortDescription?.message}
+                >
+                  <Input
+                    id="shortDescription"
+                    placeholder="Audible alarm failed during low-pressure event"
+                    {...register("shortDescription")}
+                  />
+                </Field>
+
+                <Field
+                  label="Event narrative"
+                  htmlFor="description"
+                  error={errors.description?.message}
+                >
+                  <Textarea
+                    id="description"
+                    rows={5}
+                    placeholder="Describe the incident in full: setting, sequence of events, device behaviour, and any intervention."
+                    className="leading-relaxed"
+                    {...register("description")}
+                  />
+                </Field>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Field label="Priority" htmlFor="priority" required>
+                    <select id="priority" {...register("priority")} className={selectClass}>
+                      <option value={Priority.LOW}>Low</option>
+                      <option value={Priority.MEDIUM}>Medium</option>
+                      <option value={Priority.HIGH}>High</option>
+                      <option value={Priority.CRITICAL}>Critical</option>
+                    </select>
+                  </Field>
+
+                  <Field label="Owner" htmlFor="complaintOwnerId">
+                    <select
+                      id="complaintOwnerId"
+                      {...register("complaintOwnerId")}
+                      className={selectClass}
+                    >
+                      <option value="">Unassigned</option>
+                      {memberships?.data?.map((m) => (
+                        <option
+                          key={m.publicUserData?.userId || m.id}
+                          value={m.publicUserData?.userId || ""}
+                        >
+                          {formatUserName(m.publicUserData, "User")}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Awareness date" required>
+                    <Controller
+                      control={control}
+                      name="awarenessDate"
+                      render={({ field }) => (
+                        <DatePicker
+                          value={field.value}
+                          onChange={(d) => d && field.onChange(d)}
+                          placeholder="Select date"
+                        />
                       )}
-                    </div>
+                    />
+                  </Field>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="description" className="text-xs">
-                        Detailed Event Narrative / Description
-                      </Label>
-                      <Textarea
-                        id="description"
-                        rows={4}
-                        placeholder="Provide a comprehensive narrative of the incident..."
-                        {...register("description")}
-                        className="text-xs leading-relaxed"
-                      />
-                      {errors.description && (
-                        <p className="text-destructive text-xs">{errors.description.message}</p>
+                  <Field label="Date received" required>
+                    <Controller
+                      control={control}
+                      name="dateReceived"
+                      render={({ field }) => (
+                        <DatePicker
+                          value={field.value}
+                          onChange={(d) => d && field.onChange(d)}
+                          placeholder="Select date"
+                        />
                       )}
-                    </div>
-                    
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Attachments</Label>
-                      <Controller
-                        control={control}
-                        name="attachments"
-                        render={({ field }) => (
-                          <FileUploader attachments={field.value} onChange={field.onChange} />
-                        )}
-                      />
-                    </div>
+                    />
+                  </Field>
+                </div>
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-5">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="priority" className="text-xs">
-                          Priority / Severity <span className="text-destructive">*</span>
-                        </Label>
-                        <select
-                          id="priority"
-                          {...register("priority")}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          <option value={Priority.LOW}>Low</option>
-                          <option value={Priority.MEDIUM}>Medium</option>
-                          <option value={Priority.HIGH}>High</option>
-                          <option value={Priority.CRITICAL}>Critical</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="complaintOwnerId" className="text-xs">
-                          Complaint Owner
-                        </Label>
-                        <select
-                          id="complaintOwnerId"
-                          {...register("complaintOwnerId")}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          <option value="">Unassigned</option>
-                          {memberships?.data?.map((m) => (
-                            <option
-                              key={m.publicUserData?.userId || m.id}
-                              value={m.publicUserData?.userId || ""}
-                            >
-                              {formatUserName(m.publicUserData, "User")}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">
-                          Awareness Date <span className="text-destructive">*</span>
-                        </Label>
-                        <Controller
-                          control={control}
-                          name="awarenessDate"
-                          render={({ field }) => (
-                            <DatePicker
-                              value={field.value}
-                              onChange={(d) => d && field.onChange(d)}
-                              placeholder="Select awareness date"
-                            />
-                          )}
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">
-                          Date Received <span className="text-destructive">*</span>
-                        </Label>
-                        <Controller
-                          control={control}
-                          name="dateReceived"
-                          render={({ field }) => (
-                            <DatePicker
-                              value={field.value}
-                              onChange={(d) => d && field.onChange(d)}
-                              placeholder="Select received date"
-                            />
-                          )}
-                        />
+                {/* Death / serious injury segmented control */}
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          Did the incident involve death or serious injury?
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Yes flags this record as an adverse event for reporting.
+                        </p>
                       </div>
                     </div>
-
-                    {/* Patient Death / Serious Injury Alert Radio Group */}
-                    <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-2">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                        <AlertOctagon className="h-4 w-4 text-amber-500" />
-                        <span>Did the incident involve Patient Death or Serious Injury?</span>
-                      </div>
-                      <div className="flex items-center gap-6 pt-1">
-                        {[
-                          { label: "No (Standard Incident)", value: Death.NO },
-                          { label: "Yes (Adverse Event / Death)", value: Death.YES },
-                          { label: "Unknown / Under Evaluation", value: Death.UNKNOWN },
-                        ].map((opt) => (
-                          <label
-                            key={opt.value}
-                            className="flex items-center gap-2 text-xs cursor-pointer select-none"
-                          >
-                            <input
-                              type="radio"
-                              value={opt.value}
-                              {...register("death")}
-                              className="h-3.5 w-3.5 text-primary border-border focus:ring-ring"
-                            />
-                            <span className="text-foreground">
-                              {opt.label}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* SECTION 2: Customer & Initial Reporter Information */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      <User className="h-4 w-4 text-primary" />
-                      <span>Customer &amp; Initial Reporter Information</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="customerName" className="text-xs">
-                          Customer / Hospital / Clinic Name{" "}
-                          <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          id="customerName"
-                          placeholder="e.g. St. Jude Regional Hospital"
-                          {...register("customerName")}
-                          className="text-xs h-9"
-                        />
-                        {errors.customerName && (
-                          <p className="text-destructive text-xs">{errors.customerName.message}</p>
-                        )}
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="customerType" className="text-xs">
-                          Customer Facility Type <span className="text-destructive">*</span>
-                        </Label>
-                        <select
-                          id="customerType"
-                          {...register("customerType")}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          {CUSTOMER_TYPES.map((t) => (
-                            <option key={t.value} value={t.value}>
-                              {t.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="initialReporterName" className="text-xs">
-                          Reporter First Name <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          id="initialReporterName"
-                          placeholder="e.g. Dr. Sarah"
-                          {...register("initialReporterName")}
-                          className="text-xs h-9"
-                        />
-                        {errors.initialReporterName && (
-                          <p className="text-destructive text-xs">{errors.initialReporterName.message}</p>
-                        )}
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="initialReporterSurname" className="text-xs">
-                          Reporter Surname <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          id="initialReporterSurname"
-                          placeholder="e.g. Jenkins"
-                          {...register("initialReporterSurname")}
-                          className="text-xs h-9"
-                        />
-                        {errors.initialReporterSurname && (
-                          <p className="text-destructive text-xs">{errors.initialReporterSurname.message}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="email" className="text-xs">
-                          Reporter Email Address <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="s.jenkins@hospital.org"
-                          {...register("email")}
-                          className="text-xs h-9"
-                        />
-                        {errors.email && (
-                          <p className="text-destructive text-xs">{errors.email.message}</p>
-                        )}
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="telNumber" className="text-xs">
-                          Reporter Contact Phone
-                        </Label>
-                        <Input
-                          id="telNumber"
-                          placeholder="+1 (555) 019-2834"
-                          {...register("telNumber")}
-                          className="text-xs h-9"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="address" className="text-xs">
-                        Customer Physical Address
-                      </Label>
-                      <Input
-                        id="address"
-                        placeholder="100 Medical Center Blvd, Suite 400"
-                        {...register("address")}
-                        className="text-xs h-9"
-                      />
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* SECTION 3: Geographic & Location Information */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      <Globe className="h-4 w-4 text-primary" />
-                      <span>Geographic &amp; Location Information</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="country" className="text-xs">
-                          Reporter Country <span className="text-destructive">*</span>
-                        </Label>
-                        <select
-                          id="country"
-                          {...register("country")}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          {COUNTRIES.map((c) => (
-                            <option key={c.value} value={c.value}>
-                              {c.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="countryEventOccurred" className="text-xs">
-                          Country Event Occurred <span className="text-destructive">*</span>
-                        </Label>
-                        <select
-                          id="countryEventOccurred"
-                          {...register("countryEventOccurred")}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          {COUNTRIES.map((c) => (
-                            <option key={c.value} value={c.value}>
-                              {c.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="region" className="text-xs">
-                          Regulatory Region <span className="text-destructive">*</span>
-                        </Label>
-                        <select
-                          id="region"
-                          {...register("region")}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          {REGIONS.map((r) => (
-                            <option key={r.value} value={r.value}>
-                              {r.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* SECTION 4: Product / Medical Device Information (1:N) */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        <Package className="h-4 w-4 text-primary" />
-                        <span>Medical Devices ({productFields.length})</span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        onClick={() => appendProduct({
-                          occurrence: `Device #${productFields.length + 1}`,
-                          materialNumber: "",
-                          materialDescription: "",
-                          serialNumber: "",
-                          batchNumber: "",
-                          udi: "",
-                          annexA_Category: "",
-                          asReportedCode1: "",
-                          asReportedCode2: "",
-                          softwareVersion: "",
-                        })}
-                        className="gap-1 text-xs"
-                      >
-                        <Plus className="h-3 w-3" /> Add Device
-                      </Button>
-                    </div>
-
-                    <div className="space-y-4">
-                      {productFields.map((field, index) => {
-                        const currentCat = watchProducts?.[index]?.annexA_Category;
-                        const subcatList = currentCat
-                          ? IMDRF_ANNEX_A_SUBCAT_MAP[currentCat] || []
-                          : [];
-
-                        return (
-                          <div
-                            key={field.id}
-                            className="rounded-lg border border-border bg-card p-4 space-y-4 relative"
-                          >
-                            <div className="flex items-center justify-between border-b border-border pb-2">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-[10px] font-mono">
-                                  #{index + 1}
-                                </Badge>
-                              </div>
-                              {productFields.length > 1 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="xs"
-                                  onClick={() => removeProduct(index)}
-                                  className="text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
-                                </Button>
-                              )}
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-                              <div className="space-y-1">
-                                <Label className="text-[11px]">Occurrence Label</Label>
-                                <Input
-                                  placeholder="e.g. Primary Implant"
-                                  {...register(`products.${index}.occurrence` as const)}
-                                  className="text-xs h-8"
-                                />
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px]">Model / Description</Label>
-                                <Input
-                                  placeholder="e.g. EndoVent Ventilator V2"
-                                  {...register(`products.${index}.materialDescription` as const)}
-                                  className="text-xs h-8"
-                                />
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px]">Material Number</Label>
-                                <Input
-                                  placeholder="e.g. MAT-94812"
-                                  {...register(`products.${index}.materialNumber` as const)}
-                                  className="text-xs h-8 font-mono"
-                                />
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px]">Serial Number</Label>
-                                <Input
-                                  placeholder="e.g. SN-8921-X"
-                                  {...register(`products.${index}.serialNumber` as const)}
-                                  className="text-xs h-8 font-mono"
-                                />
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px]">Lot / Batch Number</Label>
-                                <Input
-                                  placeholder="e.g. LOT-2026-04"
-                                  {...register(`products.${index}.batchNumber` as const)}
-                                  className="text-xs h-8 font-mono"
-                                />
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px]">UDI (Unique Device Identifier)</Label>
-                                <Input
-                                  placeholder="e.g. (01)00844588003287"
-                                  {...register(`products.${index}.udi` as const)}
-                                  className="text-xs h-8 font-mono"
-                                />
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px]">Software Version</Label>
-                                <Input
-                                  placeholder="e.g. v3.4.1"
-                                  {...register(`products.${index}.softwareVersion` as const)}
-                                  className="text-xs h-8 font-mono"
-                                />
-                              </div>
-
-                              {/* IMDRF Annex A Level 1 */}
-                              <div className="space-y-1">
-                                <Label className="text-[11px]">IMDRF Problem Category</Label>
-                                <select
-                                  {...register(`products.${index}.annexA_Category` as const)}
-                                  className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                                >
-                                  <option value="">-- Select Category --</option>
-                                  {IMDRF_ANNEX_A_CATEGORIES.map((cat) => (
-                                    <option key={cat.value} value={cat.value}>
-                                      {cat.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-
-                              {/* IMDRF Annex A Level 2 */}
-                              <div className="space-y-1">
-                                <Label className="text-[11px]">IMDRF Problem Code</Label>
-                                <select
-                                  disabled={!currentCat || subcatList.length === 0}
-                                  {...register(`products.${index}.asReportedCode1` as const)}
-                                  className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-                                >
-                                  <option value="">
-                                    {currentCat ? "-- Select Specific Code --" : "-- Select Category First --"}
-                                  </option>
-                                  {subcatList.map((code) => (
-                                    <option key={code.value} value={code.value}>
-                                      {code.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* SECTION 5: Patient Impact & Health Effects (1:N) */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        <HeartPulse className="h-4 w-4 text-primary" />
-                        <span>Patient Impact &amp; Clinical Health Effects ({patientFields.length})</span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        onClick={() => appendPatient({
-                          patientName: "",
-                          patientImpact: "",
-                          patientImpactDesc: "",
-                          sex: "UNKNOWN",
-                          age: "",
-                          eventOccurred: undefined,
-                          annexE_Code: "",
-                          annexF_Code: "",
-                        })}
-                        className="gap-1 text-xs"
-                      >
-                        <Plus className="h-3 w-3" /> Add Patient
-                      </Button>
-                    </div>
-
-                    <div className="space-y-4">
-                      {patientFields.map((pt, index) => (
+                    <Controller
+                      control={control}
+                      name="death"
+                      render={({ field }) => (
                         <div
-                          key={pt.id}
-                          className="rounded-lg border border-border bg-card p-4 space-y-4"
+                          role="radiogroup"
+                          className="inline-flex shrink-0 rounded-md border border-border bg-background p-0.5"
                         >
-                          <div className="flex items-center justify-between border-b border-border pb-2">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-[10px] font-mono">
-                                Patient #{index + 1}
-                              </Badge>
-                            </div>
-                            {patientFields.length > 1 && (
-                              <Button
+                          {[
+                            { label: "No", value: Death.NO },
+                            { label: "Yes", value: Death.YES },
+                            { label: "Unknown", value: Death.UNKNOWN },
+                          ].map((opt) => {
+                            const selected = field.value === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
                                 type="button"
-                                variant="ghost"
-                                size="xs"
-                                onClick={() => removePatient(index)}
-                                className="text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
+                                role="radio"
+                                aria-checked={selected}
+                                onClick={() => field.onChange(opt.value)}
+                                className={cn(
+                                  "rounded px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                                  selected
+                                    ? "bg-foreground font-medium text-background"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
                               >
-                                <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
-                              </Button>
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+
+            {/* ---------- Reporter and location ---------- */}
+            <SectionCard
+              id="reporter"
+              title="Reporter and location"
+              description="Who reported it, where they are, and where the event occurred."
+            >
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Customer or facility"
+                    htmlFor="customerName"
+                    required
+                    error={errors.customerName?.message}
+                  >
+                    <Input
+                      id="customerName"
+                      placeholder="St. Jude Regional Hospital"
+                      {...register("customerName")}
+                    />
+                  </Field>
+                  <Field label="Facility type" htmlFor="customerType" required>
+                    <select
+                      id="customerType"
+                      {...register("customerType")}
+                      className={selectClass}
+                    >
+                      {CUSTOMER_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Reporter first name"
+                    htmlFor="initialReporterName"
+                    required
+                    error={errors.initialReporterName?.message}
+                  >
+                    <Input
+                      id="initialReporterName"
+                      placeholder="Sarah"
+                      {...register("initialReporterName")}
+                    />
+                  </Field>
+                  <Field
+                    label="Reporter surname"
+                    htmlFor="initialReporterSurname"
+                    required
+                    error={errors.initialReporterSurname?.message}
+                  >
+                    <Input
+                      id="initialReporterSurname"
+                      placeholder="Jenkins"
+                      {...register("initialReporterSurname")}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Reporter email"
+                    htmlFor="email"
+                    required
+                    error={errors.email?.message}
+                  >
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="s.jenkins@hospital.org"
+                      {...register("email")}
+                    />
+                  </Field>
+                  <Field label="Reporter phone" htmlFor="telNumber">
+                    <Input
+                      id="telNumber"
+                      placeholder="+44 20 7946 0958"
+                      {...register("telNumber")}
+                    />
+                  </Field>
+                </div>
+
+                <Field label="Customer address" htmlFor="address">
+                  <Input
+                    id="address"
+                    placeholder="100 Medical Center Blvd, Suite 400"
+                    {...register("address")}
+                  />
+                </Field>
+
+                <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-3">
+                  <Field label="Reporter country" htmlFor="country" required>
+                    <select id="country" {...register("country")} className={selectClass}>
+                      {COUNTRIES.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field
+                    label="Country event occurred"
+                    htmlFor="countryEventOccurred"
+                    required
+                  >
+                    <select
+                      id="countryEventOccurred"
+                      {...register("countryEventOccurred")}
+                      className={selectClass}
+                    >
+                      {COUNTRIES.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Regulatory region" htmlFor="region" required>
+                    <select id="region" {...register("region")} className={selectClass}>
+                      {REGIONS.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              </div>
+            </SectionCard>
+
+            {/* ---------- Devices ---------- */}
+            <SectionCard
+              id="devices"
+              title={`Devices · ${productFields.length}`}
+              description="Every device involved, with identifiers and IMDRF problem coding."
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    appendProduct({
+                      occurrence: `Device #${productFields.length + 1}`,
+                      materialNumber: "",
+                      materialDescription: "",
+                      serialNumber: "",
+                      batchNumber: "",
+                      udi: "",
+                      annexA_Category: "",
+                      asReportedCode1: "",
+                      asReportedCode2: "",
+                      softwareVersion: "",
+                    });
+                    setOpenProduct(productFields.length);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add device
+                </Button>
+              }
+            >
+              <div className="space-y-2">
+                {productFields.map((field, index) => {
+                  const current = watchProducts?.[index];
+                  const currentCat = current?.annexA_Category;
+                  const subcatList = currentCat
+                    ? IMDRF_ANNEX_A_SUBCAT_MAP[currentCat] || []
+                    : [];
+                  const isOpen = openProduct === index;
+                  const identifiers = [
+                    current?.serialNumber,
+                    current?.batchNumber,
+                    current?.asReportedCode1,
+                  ].filter(Boolean);
+                  const needsCode =
+                    (current?.materialDescription || current?.serialNumber) &&
+                    !current?.asReportedCode1;
+
+                  return (
+                    <div
+                      key={field.id}
+                      className="rounded-lg border border-border bg-background"
+                    >
+                      {/* Row summary */}
+                      <button
+                        type="button"
+                        onClick={() => setOpenProduct(isOpen ? null : index)}
+                        aria-expanded={isOpen}
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                      >
+                        {isOpen ? (
+                          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium text-foreground">
+                              {current?.materialDescription || current?.occurrence || `Device #${index + 1}`}
+                            </span>
+                            {index === 0 && (
+                              <Badge variant="secondary" className="text-[11px]">
+                                Primary
+                              </Badge>
                             )}
                           </div>
-
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-                            <div className="space-y-1">
-                              <Label className="text-[11px]">Patient Identifier / Name</Label>
-                              <Input
-                                placeholder="e.g. PT-4019 or Anonymous"
-                                {...register(`patients.${index}.patientName` as const)}
-                                className="text-xs h-8"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label className="text-[11px]">Date of Event</Label>
-                              <Controller
-                                control={control}
-                                name={`patients.${index}.eventOccurred`}
-                                render={({ field }) => (
-                                  <DatePicker
-                                    value={field.value ? new Date(field.value) : null}
-                                    onChange={(date) => field.onChange(date)}
-                                    placeholder="Pick event date"
-                                  />
-                                )}
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label className="text-[11px]">Biological Sex</Label>
-                              <select
-                                {...register(`patients.${index}.sex` as const)}
-                                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                              >
-                                <option value="UNKNOWN">Unknown / Not Reported</option>
-                                <option value="MALE">Male</option>
-                                <option value="FEMALE">Female</option>
-                                <option value="OTHER">Other</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label className="text-[11px]">Age (Years)</Label>
-                              <Input
-                                type="number"
-                                placeholder="e.g. 58"
-                                {...register(`patients.${index}.age` as const)}
-                                className="text-xs h-8 font-mono"
-                              />
-                            </div>
-
-                            <div className="space-y-1 sm:col-span-2">
-                              <Label className="text-[11px]">IMDRF Annex E (Clinical Signs)</Label>
-                              <select
-                                {...register(`patients.${index}.annexE_Code` as const)}
-                                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                              >
-                                <option value="">-- Select Annex E Code --</option>
-                                {IMDRF_ANNEX_E_CODES.map((eCode) => (
-                                  <option key={eCode.value} value={eCode.value}>
-                                    {eCode.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div className="space-y-1 sm:col-span-2">
-                              <Label className="text-[11px]">IMDRF Annex F (Health Impact)</Label>
-                              <select
-                                {...register(`patients.${index}.annexF_Code` as const)}
-                                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                              >
-                                <option value="">-- Select Annex F Code --</option>
-                                {IMDRF_ANNEX_F_CODES.map((fCode) => (
-                                  <option key={fCode.value} value={fCode.value}>
-                                    {fCode.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div className="space-y-1 sm:col-span-4">
-                              <Label className="text-[11px]">Clinical Impact Narrative</Label>
-                              <Input
-                                placeholder="e.g. Transient arrhythmia requiring medical intervention"
-                                {...register(`patients.${index}.patientImpactDesc` as const)}
-                                className="text-xs h-8"
-                              />
-                            </div>
+                          <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+                            {identifiers.length > 0
+                              ? identifiers.join(" · ")
+                              : "No identifiers yet"}
+                            {needsCode && (
+                              <span className="ml-2 font-sans text-amber-600 dark:text-amber-400">
+                                IMDRF code missing
+                              </span>
+                            )}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                        {productFields.length > 1 && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeProduct(index);
+                              setOpenProduct(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                removeProduct(index);
+                                setOpenProduct(null);
+                              }
+                            }}
+                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                            aria-label="Remove device"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+                      </button>
 
-                <div className="border-t border-border mt-5 pt-5 flex items-center justify-between">
-                  <Link
-                    href="/complaints"
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Cancel &amp; Return
-                  </Link>
-                  <div className="flex items-center gap-3">
-                    <Button
-                      type="submit"
-                      size="lg"
-                      disabled={isSubmitting || isLockReadOnly}
-                      className="gap-2 text-xs font-semibold"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span>Saving Changes...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-3.5 w-3.5" />
-                          <span>Save Changes</span>
-                        </>
+                      {/* Row detail */}
+                      {isOpen && (
+                        <div className="grid grid-cols-1 gap-3 border-t border-border p-4 sm:grid-cols-2 lg:grid-cols-3">
+                          <Field label="Occurrence label">
+                            <Input
+                              placeholder="Primary implant"
+                              {...register(`products.${index}.occurrence` as const)}
+                            />
+                          </Field>
+                          <Field label="Model or description">
+                            <Input
+                              placeholder="EndoVent Ventilator V2"
+                              {...register(`products.${index}.materialDescription` as const)}
+                            />
+                          </Field>
+                          <Field label="Material number">
+                            <Input
+                              placeholder="MAT-94812"
+                              className="font-mono"
+                              {...register(`products.${index}.materialNumber` as const)}
+                            />
+                          </Field>
+                          <Field label="Serial number">
+                            <Input
+                              placeholder="SN-8921-X"
+                              className="font-mono"
+                              {...register(`products.${index}.serialNumber` as const)}
+                            />
+                          </Field>
+                          <Field label="Lot or batch number">
+                            <Input
+                              placeholder="LOT-2026-04"
+                              className="font-mono"
+                              {...register(`products.${index}.batchNumber` as const)}
+                            />
+                          </Field>
+                          <Field label="UDI">
+                            <Input
+                              placeholder="(01)00844588003287"
+                              className="font-mono"
+                              {...register(`products.${index}.udi` as const)}
+                            />
+                          </Field>
+                          <Field label="Software version">
+                            <Input
+                              placeholder="v3.4.1"
+                              className="font-mono"
+                              {...register(`products.${index}.softwareVersion` as const)}
+                            />
+                          </Field>
+                          <Field label="IMDRF problem category">
+                            <select
+                              {...register(`products.${index}.annexA_Category` as const)}
+                              className={selectClass}
+                            >
+                              <option value="">Select category</option>
+                              {IMDRF_ANNEX_A_CATEGORIES.map((cat) => (
+                                <option key={cat.value} value={cat.value}>
+                                  {cat.label}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <Field label="IMDRF problem code">
+                            <select
+                              disabled={!currentCat || subcatList.length === 0}
+                              {...register(`products.${index}.asReportedCode1` as const)}
+                              className={selectClass}
+                            >
+                              <option value="">
+                                {currentCat ? "Select code" : "Select a category first"}
+                              </option>
+                              {subcatList.map((code) => (
+                                <option key={code.value} value={code.value}>
+                                  {code.label}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                        </div>
                       )}
-                    </Button>
-                  </div>
-                </div>
-              </fieldset>
-            </form>
-          </TabsContent>
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionCard>
 
-          {/* TAB 2: Sample & RMA Management */}
-          <TabsContent value="sample" className="mt-0 outline-none">
-            <div className="border-b border-border pb-5 mb-6">
-              <div className="flex items-center justify-between">
+            {/* ---------- Patients ---------- */}
+            <SectionCard
+              id="patients"
+              title={`Patients · ${patientFields.length}`}
+              description="Clinical impact and IMDRF health-effect coding for each patient."
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    appendPatient({
+                      patientName: "",
+                      patientImpact: "",
+                      patientImpactDesc: "",
+                      sex: "UNKNOWN",
+                      age: "",
+                      eventOccurred: undefined,
+                      annexE_Code: "",
+                      annexF_Code: "",
+                    });
+                    setOpenPatient(patientFields.length);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add patient
+                </Button>
+              }
+            >
+              <div className="space-y-2">
+                {patientFields.map((pt, index) => {
+                  const current = watchPatients?.[index];
+                  const isOpen = openPatient === index;
+                  const summary = [
+                    current?.age ? `${current.age} y` : null,
+                    current?.sex && current.sex !== "UNKNOWN"
+                      ? humanize(current.sex)
+                      : null,
+                    current?.annexF_Code,
+                  ].filter(Boolean);
+
+                  return (
+                    <div
+                      key={pt.id}
+                      className="rounded-lg border border-border bg-background"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setOpenPatient(isOpen ? null : index)}
+                        aria-expanded={isOpen}
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                      >
+                        {isOpen ? (
+                          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium text-foreground">
+                            {current?.patientName || `Patient #${index + 1}`}
+                          </div>
+                          <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {current?.patientImpactDesc ||
+                              (summary.length > 0 ? summary.join(" · ") : "No details yet")}
+                          </div>
+                        </div>
+                        {patientFields.length > 1 && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removePatient(index);
+                              setOpenPatient(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                removePatient(index);
+                                setOpenPatient(null);
+                              }
+                            }}
+                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                            aria-label="Remove patient"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+                      </button>
+
+                      {isOpen && (
+                        <div className="grid grid-cols-1 gap-3 border-t border-border p-4 sm:grid-cols-2 lg:grid-cols-4">
+                          <Field label="Patient identifier">
+                            <Input
+                              placeholder="PT-4019 or Anonymous"
+                              {...register(`patients.${index}.patientName` as const)}
+                            />
+                          </Field>
+                          <Field label="Date of event">
+                            <Controller
+                              control={control}
+                              name={`patients.${index}.eventOccurred`}
+                              render={({ field }) => (
+                                <DatePicker
+                                  value={field.value ? new Date(field.value) : null}
+                                  onChange={(date) => field.onChange(date)}
+                                  placeholder="Select date"
+                                />
+                              )}
+                            />
+                          </Field>
+                          <Field label="Biological sex">
+                            <select
+                              {...register(`patients.${index}.sex` as const)}
+                              className={selectClass}
+                            >
+                              <option value="UNKNOWN">Unknown or not reported</option>
+                              <option value="MALE">Male</option>
+                              <option value="FEMALE">Female</option>
+                              <option value="OTHER">Other</option>
+                            </select>
+                          </Field>
+                          <Field label="Age (years)">
+                            <Input
+                              type="number"
+                              placeholder="58"
+                              className="font-mono"
+                              {...register(`patients.${index}.age` as const)}
+                            />
+                          </Field>
+                          <Field label="IMDRF Annex E (clinical signs)" className="sm:col-span-2">
+                            <select
+                              {...register(`patients.${index}.annexE_Code` as const)}
+                              className={selectClass}
+                            >
+                              <option value="">Select Annex E code</option>
+                              {IMDRF_ANNEX_E_CODES.map((eCode) => (
+                                <option key={eCode.value} value={eCode.value}>
+                                  {eCode.label}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <Field label="IMDRF Annex F (health impact)" className="sm:col-span-2">
+                            <select
+                              {...register(`patients.${index}.annexF_Code` as const)}
+                              className={selectClass}
+                            >
+                              <option value="">Select Annex F code</option>
+                              {IMDRF_ANNEX_F_CODES.map((fCode) => (
+                                <option key={fCode.value} value={fCode.value}>
+                                  {fCode.label}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <Field label="Clinical impact narrative" className="sm:col-span-2 lg:col-span-4">
+                            <Input
+                              placeholder="Transient arrhythmia requiring medical intervention"
+                              {...register(`patients.${index}.patientImpactDesc` as const)}
+                            />
+                          </Field>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionCard>
+
+            {/* Footer actions (duplicate of header save for long scrolls) */}
+            <div className="flex items-center justify-between pt-2">
+              <Link
+                href="/complaints"
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Cancel and return
+              </Link>
+              {/* <Button
+                type="submit"
+                size="sm"
+                disabled={isSubmitting || isLockReadOnly}
+                className="gap-2"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                {isSubmitting ? "Saving…" : "Save changes"}
+              </Button> */}
+            </div>
+          </fieldset>
+        </form>
+
+        {/* ---------- Right context panel ---------- */}
+        <aside className="space-y-4 xl:sticky xl:top-[120px] xl:self-start">
+          <PanelCard title="Details">
+            <dl className="divide-y divide-border text-sm">
+              {[
+                ["Owner", displayedOwner],
+                ["Logged by", displayedLoggedBy],
+                ["Region", complaint.region || "—"],
+                ["Received", formatDate(complaint.dateReceived)],
+              ].map(([k, v]) => (
+                <div key={k} className="flex items-start justify-between gap-3 py-2 first:pt-0 last:pb-0">
+                  <dt className="shrink-0 text-xs text-muted-foreground">{k}</dt>
+                  <dd className="text-right text-xs text-foreground break-words">{v}</dd>
+                </div>
+              ))}
+              <div className="flex items-center justify-between py-2 last:pb-0">
+                <dt className="text-xs text-muted-foreground">Lock</dt>
+                <dd
+                  className={cn(
+                    "flex items-center gap-1.5 text-xs",
+                    isLockReadOnly
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  )}
+                >
+                  {isLockReadOnly ? (
+                    <>
+                      <Lock className="h-3 w-3" /> Held by another user
+                    </>
+                  ) : (
+                    <>
+                      <LockOpen className="h-3 w-3" /> Yours
+                    </>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </PanelCard>
+
+          <PanelCard
+            title="Sample custody"
+            action={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={isLockReadOnly}
+                onClick={() => setIsSampleSheetOpen(true)}
+              >
+                Update
+              </Button>
+            }
+          >
+            {sampleIsTerminal ? (
+              <p className="text-sm text-foreground">{humanize(sampleStatus)}</p>
+            ) : (
+              <ol className="space-y-2">
+                {SAMPLE_STEPS.map((step, i) => {
+                  const state =
+                    i < sampleStepIndex ? "done" : i === sampleStepIndex ? "current" : "todo";
+                  return (
+                    <li key={step.status} className="flex items-center gap-2.5 text-xs">
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "h-2 w-2 shrink-0 rounded-full",
+                          state === "done" && "bg-emerald-500",
+                          state === "current" && "bg-foreground ring-4 ring-foreground/10",
+                          state === "todo" && "bg-border"
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          state === "current" && "font-medium text-foreground",
+                          state === "done" && "text-foreground",
+                          state === "todo" && "text-muted-foreground"
+                        )}
+                      >
+                        {step.label}
+                        {step.status === SampleStatus.RECEIVED && sampleReceivedDate && (
+                          <span className="ml-1 text-muted-foreground">
+                            {formatDate(sampleReceivedDate)}
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+            {sampleTracking && (
+              <p className="mt-3 truncate font-mono text-xs text-muted-foreground">
+                {sampleTracking}
+              </p>
+            )}
+            {!sampleAvailable && !sampleIsTerminal && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Customer hasn't agreed to return the device.
+              </p>
+            )}
+          </PanelCard>
+
+          <PanelCard title={`Attachments · ${watchAttachments?.length ?? 0}`}>
+            <Controller
+              control={control}
+              name="attachments"
+              render={({ field }) => (
+                <FileUploader attachments={field.value} onChange={field.onChange} />
+              )}
+            />
+            {(watchAttachments?.length ?? 0) === 0 && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Paperclip className="h-3 w-3" /> Add photos, logs, or statements.
+              </p>
+            )}
+          </PanelCard>
+        </aside>
+      </div>
+
+      {/* ---------- Sample and RMA sheet ---------- */}
+      <Sheet open={isSampleSheetOpen} onOpenChange={setIsSampleSheetOpen}>
+        <SheetContent className="sm:max-w-md p-0 flex flex-col gap-0 overflow-hidden">
+          <form onSubmit={handleSaveSample} className="flex h-full flex-col min-h-0">
+            <SheetHeader className="border-b border-border/70 bg-muted/20 px-6 py-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/80 bg-background text-foreground shadow-xs">
+                  <Box className="h-5 w-5 text-primary" />
+                </div>
                 <div>
-                  <h2 className="text-xl font-semibold flex items-center gap-2">
-                    <Box className="h-5 w-5 text-amber-500" />
-                    <span>Physical Sample &amp; RMA Management</span>
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Track the return authorization, courier logistics, lab custody, and decontamination status of the complaint device.
+                  <SheetTitle className="text-base font-semibold tracking-tight text-foreground">
+                    Sample and RMA
+                  </SheetTitle>
+                  <SheetDescription className="mt-0.5 text-xs text-muted-foreground">
+                    Track return authorisation, courier logistics, and lab custody for the complaint device.
+                  </SheetDescription>
+                </div>
+              </div>
+            </SheetHeader>
+
+            <fieldset disabled={isLockReadOnly} className="flex-1 min-h-0 overflow-y-auto px-6 py-6 space-y-5">
+              {/* Device Return Agreement Toggle Card */}
+              <div
+                onClick={() => !isLockReadOnly && setSampleAvailable(!sampleAvailable)}
+                className={cn(
+                  "relative flex cursor-pointer select-none items-start gap-3.5 rounded-xl border p-4 transition-all duration-150",
+                  sampleAvailable
+                    ? "border-primary/40 bg-primary/[0.03] ring-1 ring-primary/20 shadow-xs"
+                    : "border-border bg-card/60 hover:border-border/80 hover:bg-muted/30",
+                  isLockReadOnly && "pointer-events-none opacity-60"
+                )}
+              >
+                <div className="pt-0.5">
+                  <input
+                    type="checkbox"
+                    id="sampleAvailable"
+                    checked={sampleAvailable}
+                    onChange={(e) => setSampleAvailable(e.target.checked)}
+                    className="h-4 w-4 rounded border-border accent-primary focus:ring-primary"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <label
+                      htmlFor="sampleAvailable"
+                      className="text-sm font-medium text-foreground cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Device available for return
+                    </label>
+                    <Badge
+                      variant={sampleAvailable ? "default" : "secondary"}
+                      className="text-[11px] font-normal"
+                    >
+                      {sampleAvailable ? "Agreed" : "Pending"}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    The customer agreed to return the device for lab evaluation.
                   </p>
                 </div>
               </div>
-            </div>
 
-            <form onSubmit={handleSaveSample}>
-              <fieldset disabled={isLockReadOnly} className="contents space-y-6">
-                <div className="space-y-6">
-                {/* Sample Availability Toggle */}
-                  <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-2">
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={sampleAvailable}
-                        onChange={(e) => setSampleAvailable(e.target.checked)}
-                        className="h-4 w-4 rounded border-border text-primary focus:ring-ring mt-0.5"
-                      />
-                      <div>
-                        <span className="text-xs font-semibold text-foreground block">
-                          Physical Device Sample Available for Return
-                        </span>
-                        <span className="text-[11px] text-muted-foreground block leading-relaxed">
-                          Check this if the customer or hospital agreed to return the physical medical device for lab evaluation and root-cause analysis.
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="sampleStatus" className="text-xs">
-                        Physical Sample Status *
-                      </Label>
-                      <select
-                        id="sampleStatus"
-                        value={sampleStatus}
-                        onChange={(e) => setSampleStatus(e.target.value as SampleStatus)}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                      >
-                        <option value={SampleStatus.PENDING}>Pending Return from Customer</option>
-                        <option value={SampleStatus.RECEIVED}>Received at Evaluation Facility</option>
-                        <option value={SampleStatus.UNDER_EVALUATION}>Under Evaluation / Lab Analysis</option>
-                        <option value={SampleStatus.RETURNED}>Returned to Customer</option>
-                        <option value={SampleStatus.DISPOSED}>Disposed / Biohazard Scrapped</option>
-                        <option value={SampleStatus.NOT_AVAILABLE}>Not Available / Destroyed at Site</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Sample Receipt Date</Label>
-                      <DatePicker
-                        value={sampleReceivedDate}
-                        onChange={(d) => setSampleReceivedDate(d)}
-                        placeholder="Select receipt date"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="sampleTracking" className="text-xs">
-                      RMA Number &amp; Courier Tracking Details
-                    </Label>
-                    <Input
-                      id="sampleTracking"
-                      placeholder="e.g. RMA-2026-0891 (FedEx Tracking # 7829-1928-4912)"
-                      value={sampleTracking}
-                      onChange={(e) => setSampleTracking(e.target.value)}
-                      className="text-xs h-9 font-mono"
-                    />
-                    <span className="text-[10px] text-muted-foreground block">
-                      Include return merchandise authorization (RMA) identifier, courier service, tracking numbers, or lab bin location.
-                    </span>
-                  </div>
+              {/* Custody Status Card */}
+              <div className="space-y-4 rounded-xl border border-border/80 bg-card/50 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                  Custody & Status
                 </div>
-                <div className="border-t border-border mt-5 pt-5 flex justify-end">
-                  <Button
-                    type="submit"
-                    disabled={isUpdatingSample || isLockReadOnly}
-                    className="gap-2 text-xs font-semibold"
-                  >
-                    {isUpdatingSample ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Updating Sample Status...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-3.5 w-3.5" />
-                        <span>Save Sample Details</span>
-                      </>
-                    )}
-                  </Button>
+
+                <Field label="Sample status" htmlFor="sampleStatus" required>
+                  <div className="relative">
+                    <select
+                      id="sampleStatus"
+                      value={sampleStatus}
+                      onChange={(e) => setSampleStatus(e.target.value as SampleStatus)}
+                      className={cn(selectClass, "appearance-none pr-9 font-medium")}
+                    >
+                      <option value={SampleStatus.PENDING}>Pending return from customer</option>
+                      <option value={SampleStatus.RECEIVED}>Received at evaluation facility</option>
+                      <option value={SampleStatus.UNDER_EVALUATION}>Under evaluation in lab</option>
+                      <option value={SampleStatus.RETURNED}>Returned to customer</option>
+                      <option value={SampleStatus.DISPOSED}>Disposed / Decontaminated</option>
+                      <option value={SampleStatus.NOT_AVAILABLE}>Not available</option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  </div>
+                </Field>
+
+                <Field label="Receipt date" htmlFor="sampleReceivedDate">
+                  <DatePicker
+                    value={sampleReceivedDate}
+                    onChange={(d) => setSampleReceivedDate(d)}
+                    placeholder="Select receipt date"
+                  />
+                </Field>
+              </div>
+
+              {/* Logistics & Tracking Card */}
+              <div className="space-y-4 rounded-xl border border-border/80 bg-card/50 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Truck className="h-3.5 w-3.5 text-primary" />
+                  Logistics & Tracking
                 </div>
-              </fieldset>
-            </form>
-          </TabsContent>
-          </div>
-        </Tabs>
-      </div>
+
+                <Field label="RMA number and courier tracking" htmlFor="sampleTracking">
+                  <Input
+                    id="sampleTracking"
+                    placeholder="e.g. RMA-2026-0891, FedEx 7829-1928-4912"
+                    value={sampleTracking}
+                    onChange={(e) => setSampleTracking(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-normal">
+                    RMA identifier, courier, tracking number, or lab bin location.
+                  </p>
+                </Field>
+              </div>
+            </fieldset>
+
+            <SheetFooter className="mt-auto border-t border-border/80 bg-muted/20 px-6 py-4 flex flex-row items-center justify-end gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsSampleSheetOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isUpdatingSample || isLockReadOnly}
+                className="gap-2"
+              >
+                {isUpdatingSample ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                {isUpdatingSample ? "Saving…" : "Save sample details"}
+              </Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
 
       <CustomerReportModal
         isOpen={isReportModalOpen}
