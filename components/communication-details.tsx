@@ -390,6 +390,10 @@ export function CommunicationDetail({
   /* ---------- Scroll spy for navigation tabs ---------- */
 
   const rootRef = React.useRef<HTMLDivElement>(null);
+  // Set when the user clicks a tab; cleared on the next user-initiated scroll.
+  // Prevents the spy from "correcting" the highlight after a programmatic scroll
+  // that couldn't reach the section's top (short page).
+  const pinnedRef = React.useRef<SectionId | null>(null);
 
   React.useEffect(() => {
     const root = rootRef.current;
@@ -404,7 +408,11 @@ export function CommunicationDetail({
     if (scroller === document.body) scroller = null;
     const target: HTMLElement | Window = scroller ?? window;
 
+    const LINE = 140; // px below the top of the scroll container
+
     const update = () => {
+      if (pinnedRef.current) return;
+
       const els = SECTIONS.map((s) => document.getElementById(s.id)).filter(
         Boolean
       ) as HTMLElement[];
@@ -415,32 +423,67 @@ export function CommunicationDetail({
       const scrollHeight = scroller
         ? scroller.scrollHeight
         : document.documentElement.scrollHeight;
-
-      if (scrollTop + viewport >= scrollHeight - 4) {
-        setActiveSection(els[els.length - 1].id as SectionId);
-        return;
-      }
-
-      const line = 140;
+      const maxScroll = Math.max(0, scrollHeight - viewport);
       const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
-      let current: SectionId = els[0].id as SectionId;
-      for (const el of els) {
-        const top = el.getBoundingClientRect().top - containerTop;
-        if (top <= line) current = el.id as SectionId;
+
+      // Natural threshold: scrollTop at which the section's top reaches LINE.
+      const thresholds = els.map((el, i) =>
+        i === 0
+          ? 0
+          : el.getBoundingClientRect().top - containerTop + scrollTop - LINE
+      );
+
+      // Sections that can never reach LINE (page too short) get the remaining
+      // scroll room split evenly, with the last one activating at the bottom.
+      const k = thresholds.findIndex((t) => t > maxScroll);
+      if (k > 0) {
+        const base = thresholds[k - 1];
+        const room = maxScroll - base;
+        const count = thresholds.length - k;
+        for (let i = k; i < thresholds.length; i++) {
+          thresholds[i] = base + (room * (i - k + 1)) / count;
+        }
       }
-      setActiveSection(current);
+
+      let current = 0;
+      for (let i = 0; i < thresholds.length; i++) {
+        if (scrollTop >= thresholds[i] - 1) current = i;
+      }
+      setActiveSection(els[current].id as SectionId);
+    };
+
+    const unpin = () => {
+      if (!pinnedRef.current) return;
+      pinnedRef.current = null;
+      update();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(
+          e.key
+        )
+      )
+        unpin();
     };
 
     update();
     target.addEventListener("scroll", update, { passive: true });
+    target.addEventListener("wheel", unpin, { passive: true });
+    target.addEventListener("touchmove", unpin, { passive: true });
+    window.addEventListener("keydown", onKey);
     window.addEventListener("resize", update);
     return () => {
       target.removeEventListener("scroll", update);
+      target.removeEventListener("wheel", unpin);
+      target.removeEventListener("touchmove", unpin);
+      window.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", update);
     };
   }, []);
 
   const scrollTo = (id: SectionId) => {
+    pinnedRef.current = id;
+    setActiveSection(id);
     document.getElementById(id)?.scrollIntoView({
       behavior: "smooth",
       block: "start",
@@ -513,13 +556,13 @@ export function CommunicationDetail({
               <span className="text-xs text-muted-foreground/60">/</span>
               <Link
                 href={complaintHref}
-                className="font-mono text-sm font-medium text-foreground hover:underline"
+                className="text-xs font-mono text-muted-foreground transition-colors hover:text-foreground"
               >
                 {complaintNumber || initialComm.complaintId}
               </Link>
               <span className="text-xs text-muted-foreground/60">/</span>
-              <span className="text-xs font-medium text-muted-foreground">
-                Follow-up #{initialComm.id.slice(-6)}
+              <span className="text-sm font-medium text-foreground">
+                Follow-up #{initialComm.id.slice(-6)}§
               </span>
               <Badge
                 variant="outline"
@@ -554,22 +597,12 @@ export function CommunicationDetail({
             </div>
 
             <div className="flex items-center gap-2 lg:mt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setIsAuditDrawerOpen(true)}
-                className="gap-1.5 h-8 text-xs"
-              >
-                <History className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>Audit log</span>
-              </Button>
 
               <StatusTransitionTracker
                 entityType="CustomerCommunication"
                 entityId={initialComm.id}
                 currentStatus={currentStatus}
-                disabled={isFormDisabled}
+                disabled={isLockReadOnly}
                 onStatusChanged={(newStatus) => {
                   setValue("status", newStatus as CommunicationStatus);
                   router.refresh();

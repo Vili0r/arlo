@@ -97,8 +97,24 @@ export function StatusTransitionTracker({
     onStatusChanged?.(newStatus);
   }
 
+  const isClosedOrCompleted =
+    currentStatus.trim().toUpperCase() === "CLOSED" ||
+    currentStatus.trim().toUpperCase() === "COMPLETED";
+
+  // When a file is closed or completed, the action button should remain clickable
+  // (to allow reopening, reverting stages, or cancelling) even if form-level disabled is passed.
+  const isActionDisabled = isClosedOrCompleted ? false : disabled;
+
+  const hasCustomerReportAction =
+    entityType === "Complaint" &&
+    (currentStatus === "PENDING_RESPONSE" || currentStatus === "CLOSED") &&
+    Boolean(onGenerateReport);
+
   const hasActions =
-    previousStatuses.length > 0 || nextStatuses.length > 0 || canCancel;
+    previousStatuses.length > 0 ||
+    nextStatuses.length > 0 ||
+    canCancel ||
+    hasCustomerReportAction;
 
   return (
     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -206,10 +222,10 @@ export function StatusTransitionTracker({
           <DropdownMenu>
             <DropdownMenuTrigger
               type="button"
-              disabled={disabled}
+              disabled={isActionDisabled}
               className={cn(
                 "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium shadow-sm transition-colors",
-                disabled
+                isActionDisabled
                   ? "opacity-50 cursor-not-allowed pointer-events-none"
                   : "cursor-pointer"
               )}
@@ -219,7 +235,7 @@ export function StatusTransitionTracker({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 p-1">
               {entityType === "Complaint" &&
-                currentStatus === "PENDING_RESPONSE" &&
+                (currentStatus === "PENDING_RESPONSE" || currentStatus === "CLOSED") &&
                 onGenerateReport && (
                   <>
                     <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1">

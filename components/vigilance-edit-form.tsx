@@ -549,7 +549,7 @@ export function VigilanceEditForm({
               <span className="text-xs text-muted-foreground/60">/</span>
               <Link
                 href={`/complaints/${vigilance.complaintId}`}
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className="text-xs font-mono text-muted-foreground transition-colors hover:text-foreground"
               >
                 {complaintNumber}
               </Link>

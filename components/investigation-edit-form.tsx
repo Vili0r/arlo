@@ -148,7 +148,7 @@ function humanize(value?: string | null) {
 
 function formatDate(d?: string | Date | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return new Date(d).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function CompletionDot({ state }: { state: Completion }) {
