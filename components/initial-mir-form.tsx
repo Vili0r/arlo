@@ -15,7 +15,6 @@ import {
   LockOpen,
   ExternalLink,
   ShieldCheck,
-  Info,
 } from "lucide-react";
 import { MIRStatus, LockEntityType } from "@prisma/client";
 import { useRecordLock } from "@/hooks/useRecordLock";
@@ -27,6 +26,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { useOrganization } from "@clerk/nextjs";
 import { updateInitialMIR } from "@/lib/actions/mir";
+import { StatusTransitionTracker } from "@/components/status-transition-tracker";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -488,6 +488,7 @@ export function InitialMIREditForm({
 
   /* ---------- Scroll spy for navigation tabs ---------- */
   const rootRef = React.useRef<HTMLDivElement>(null);
+  const barRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     const root = rootRef.current;
@@ -508,25 +509,47 @@ export function InitialMIREditForm({
       ) as HTMLElement[];
       if (els.length === 0) return;
 
-      const scrollTop = scroller ? scroller.scrollTop : window.scrollY;
+      const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
       const viewport = scroller ? scroller.clientHeight : window.innerHeight;
+      const scrollTop = scroller ? scroller.scrollTop : window.scrollY;
       const scrollHeight = scroller
         ? scroller.scrollHeight
         : document.documentElement.scrollHeight;
+      const maxScroll = Math.max(0, scrollHeight - viewport);
 
-      if (scrollTop + viewport >= scrollHeight - 4) {
-        setActiveSection(els[els.length - 1].id as SectionId);
-        return;
+      const barBottom = (barRef.current?.getBoundingClientRect().bottom ?? 0) - containerTop;
+      const line = barBottom + 16;
+
+      // scrollTop at which each section's top would sit on the line
+      const thresholds = els.map(
+        (el) => scrollTop + el.getBoundingClientRect().top - containerTop - line
+      );
+
+      // Sections whose threshold the page can't scroll to (short tail) get
+      // their thresholds compressed into the remaining scroll range, so no
+      // tab is skipped and the last one activates exactly at the bottom.
+      const MIN_RANGE = 48; // px of scroll each fitting section keeps
+      let lastFit = -1;
+      for (let i = 0; i < thresholds.length; i++) {
+        if (thresholds[i] <= maxScroll - MIN_RANGE) lastFit = i;
+      }
+      if (lastFit < thresholds.length - 1) {
+        const from = lastFit >= 0 ? thresholds[lastFit] : 0;
+        const span = thresholds[thresholds.length - 1] - from;
+        for (let i = lastFit + 1; i < thresholds.length; i++) {
+          thresholds[i] =
+            span > 0
+              ? from + ((thresholds[i] - from) / span) * (maxScroll - from)
+              : maxScroll;
+        }
       }
 
-      const line = 140;
-      const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
       let current: SectionId = els[0].id as SectionId;
-      for (const el of els) {
-        const top = el.getBoundingClientRect().top - containerTop;
-        if (top <= line) current = el.id as SectionId;
+      for (let i = 0; i < els.length; i++) {
+        if (scrollTop >= thresholds[i] - 1) current = els[i].id as SectionId;
       }
-      setActiveSection(current);
+
+      setActiveSection((prev) => (prev === current ? prev : current));
     };
 
     update();
@@ -577,7 +600,8 @@ export function InitialMIREditForm({
       router.refresh();
     } catch (err: unknown) {
       console.error("[Initial MIR Update Error]", err);
-      const message = err instanceof Error ? err.message : "Failed to update Initial MIR report. Please try again.";
+      const message =
+        err instanceof Error ? err.message : "Failed to update Initial MIR report. Please try again.";
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -592,7 +616,10 @@ export function InitialMIREditForm({
   return (
     <div ref={rootRef} className="-m-6 lg:-m-8">
       {/* ---------- Sticky Record Bar ---------- */}
-      <div className="sticky -top-10 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+      <div
+        ref={barRef}
+        className="sticky -top-10 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80"
+      >
         <div className="px-6 pt-3 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -635,21 +662,16 @@ export function InitialMIREditForm({
             </div>
 
             <div className="flex items-center gap-2 lg:mt-2">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground hidden sm:inline">Status:</span>
-                <select
-                  value={currentStatus}
-                  disabled={isLockReadOnly || isSubmitting}
-                  onChange={(e) => setValue("status", e.target.value as MIRStatus)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {Object.keys(STATUS_LABEL).map((s) => (
-                    <option key={s} value={s}>
-                      {STATUS_LABEL[s]}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <StatusTransitionTracker
+                entityType="InitialMIR"
+                entityId={mir.id}
+                currentStatus={currentStatus}
+                disabled={isLockReadOnly}
+                onStatusChanged={(newStatus) => {
+                  setValue("status", newStatus as MIRStatus);
+                  router.refresh();
+                }}
+              />
 
               <Button
                 type="submit"
@@ -1231,29 +1253,6 @@ export function InitialMIREditForm({
                 </dd>
               </div>
             </dl>
-          </PanelCard>
-
-          <PanelCard title="Statutory Guidance">
-            <div className="space-y-3 text-xs text-muted-foreground">
-              <div className="flex items-start gap-2">
-                <Info className="h-3.5 w-3.5 mt-0.5 text-sky-500 shrink-0" />
-                <p>
-                  <strong>EU MDR Article 87(3):</strong> Serious public health threats must be reported within <strong>2 days</strong>.
-                </p>
-              </div>
-              <div className="flex items-start gap-2">
-                <Info className="h-3.5 w-3.5 mt-0.5 text-amber-500 shrink-0" />
-                <p>
-                  <strong>EU MDR Article 87(4):</strong> Death or unanticipated serious health deterioration within <strong>10 days</strong>.
-                </p>
-              </div>
-              <div className="flex items-start gap-2">
-                <Info className="h-3.5 w-3.5 mt-0.5 text-emerald-500 shrink-0" />
-                <p>
-                  <strong>General incidents:</strong> All other reportable incidents within <strong>15 days</strong> of awareness.
-                </p>
-              </div>
-            </div>
           </PanelCard>
         </aside>
       </div>

@@ -111,9 +111,9 @@ const selectClass =
   "h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 const SECTIONS = [
-  { id: "decision", label: "Reportability" },
-  { id: "timeline", label: "Timeline & Owners" },
-  { id: "rationale", label: "Rationale & Notes" },
+  { id: "section-decision", label: "Reportability" },
+  { id: "section-timeline", label: "Timeline & Owners" },
+  { id: "section-rationale", label: "Rationale & Notes" },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
@@ -289,7 +289,7 @@ export function VigilanceEditForm({
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [activeSection, setActiveSection] = React.useState<SectionId>("decision");
+  const [activeSection, setActiveSection] = React.useState<SectionId>("section-decision");
 
   const { memberships } = useOrganization({
     memberships: { pageSize: 100, keepPreviousData: true },
@@ -433,15 +433,18 @@ export function VigilanceEditForm({
     const rationaleComp: Completion = watchRationale && watchRationale.trim().length > 0 ? "done" : "attention";
 
     return {
-      decision: decisionComp,
-      timeline: timelineComp,
-      rationale: rationaleComp,
+      "section-decision": decisionComp,
+      "section-timeline": timelineComp,
+      "section-rationale": rationaleComp,
     };
   }, [watchReportable, watchDecision, watchReportType, watchAwarenessDate, watchDueDate, watchOwnerId, watchApproverId, watchRationale]);
 
   /* ---------- Scroll spy for navigation tabs ---------- */
 
+ /* ---------- Scroll spy for navigation tabs ---------- */
+
   const rootRef = React.useRef<HTMLDivElement>(null);
+  const barRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     const root = rootRef.current;
@@ -457,30 +460,44 @@ export function VigilanceEditForm({
     const target: HTMLElement | Window = scroller ?? window;
 
     const update = () => {
-      const els = SECTIONS.map((s) => document.getElementById(s.id)).filter(
-        Boolean
-      ) as HTMLElement[];
-      if (els.length === 0) return;
+      const els = SECTIONS.map((s) => document.getElementById(s.id)).filter(Boolean) as HTMLElement[];
+      if (!els.length) return;
 
-      const scrollTop = scroller ? scroller.scrollTop : window.scrollY;
-      const viewport = scroller ? scroller.clientHeight : window.innerHeight;
-      const scrollHeight = scroller
-        ? scroller.scrollHeight
-        : document.documentElement.scrollHeight;
-
-      if (scrollTop + viewport >= scrollHeight - 4) {
-        setActiveSection(els[els.length - 1].id as SectionId);
-        return;
-      }
-
-      const line = 140;
       const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
-      let current: SectionId = els[0].id as SectionId;
-      for (const el of els) {
-        const top = el.getBoundingClientRect().top - containerTop;
-        if (top <= line) current = el.id as SectionId;
+      const viewport = scroller ? scroller.clientHeight : window.innerHeight;
+      const scrollTop = scroller ? scroller.scrollTop : window.scrollY;
+      const scrollHeight = scroller ? scroller.scrollHeight : document.documentElement.scrollHeight;
+      const maxScroll = Math.max(0, scrollHeight - viewport);
+
+      const barBottom = (barRef.current?.getBoundingClientRect().bottom ?? 0) - containerTop;
+      const line = barBottom + 16;
+
+      // scrollTop at which each section's top would sit on the line
+      const thresholds = els.map(
+        (el) => scrollTop + el.getBoundingClientRect().top - containerTop - line
+      );
+
+      // Compress thresholds the page can't scroll to into the remaining range
+      const MIN_RANGE = 48;
+      let lastFit = -1;
+      for (let i = 0; i < thresholds.length; i++) {
+        if (thresholds[i] <= maxScroll - MIN_RANGE) lastFit = i;
       }
-      setActiveSection(current);
+      if (lastFit < thresholds.length - 1) {
+        const from = lastFit >= 0 ? thresholds[lastFit] : 0;
+        const span = thresholds[thresholds.length - 1] - from;
+        for (let i = lastFit + 1; i < thresholds.length; i++) {
+          thresholds[i] =
+            span > 0 ? from + ((thresholds[i] - from) / span) * (maxScroll - from) : maxScroll;
+        }
+      }
+
+      let current: SectionId = els[0].id as SectionId;
+      for (let i = 0; i < els.length; i++) {
+        if (scrollTop >= thresholds[i] - 1) current = els[i].id as SectionId;
+      }
+
+      setActiveSection((prev) => (prev === current ? prev : current));
     };
 
     update();
@@ -490,7 +507,7 @@ export function VigilanceEditForm({
       target.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };
-  }, []);
+  }, []);;
 
   const scrollTo = (id: SectionId) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -536,7 +553,7 @@ export function VigilanceEditForm({
   return (
     <div ref={rootRef} className="-m-6 lg:-m-8">
       {/* ---------- Sticky record bar ---------- */}
-      <div className="sticky -top-10 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+      <div ref={barRef} className="sticky -top-10 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="px-6 pt-3 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -647,7 +664,7 @@ export function VigilanceEditForm({
           <fieldset disabled={isLockReadOnly} className="contents space-y-6">
             {/* ---------- Section 1: Reportability ---------- */}
             <SectionCard
-              id="decision"
+              id="section-decision"
               title="Reportability & Classification"
               description="Determine reportability status, regulatory decision classification, and authority filing tier."
             >
@@ -783,12 +800,12 @@ export function VigilanceEditForm({
 
             {/* ---------- Section 2: Timeline & Owners ---------- */}
             <SectionCard
-              id="timeline"
+              id="section-timeline"
               title="Timeline & Regulatory Roles"
               description="Statutory deadlines, manufacturer awareness dates, and separation of review duties."
             >
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Awareness date">
                     <Controller
                       control={control}
@@ -867,7 +884,7 @@ export function VigilanceEditForm({
 
             {/* ---------- Section 3: Rationale & Notes ---------- */}
             <SectionCard
-              id="rationale"
+              id="section-rationale"
               title="Clinical & Regulatory Rationale"
               description="Document legal justification, authority communication, or rationale for non-reportability."
             >

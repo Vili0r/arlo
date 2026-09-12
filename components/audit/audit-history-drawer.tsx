@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   ChevronDown,
   ClipboardCheck,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AuditAction } from "@prisma/client";
@@ -378,6 +379,10 @@ export function AuditHistoryDrawer({
         return <ShieldAlert className="h-4 w-4 text-purple-500" />;
       case "CustomerCommunication":
         return <MessageSquare className="h-4 w-4 text-blue-500" />;
+      case "InitialMIR":
+        return <FileSpreadsheet className="h-4 w-4 text-sky-500" />;
+      case "FinalMIR":
+        return <FileSpreadsheet className="h-4 w-4 text-emerald-500" />;
       default:
         return <History className="h-4 w-4 text-amber-500" />;
     }

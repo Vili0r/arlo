@@ -24,6 +24,14 @@ const { mockAuthCtx, mockTx, mockPrisma } = vi.hoisted(() => {
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    initialMIR: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
+    finalMIR: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
     capa: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -115,6 +123,8 @@ import { updateCustomerCommunication } from "@/lib/actions/communication";
 import { updateVigilance } from "@/lib/actions/vigilance";
 import { updateComplaintTask } from "@/lib/actions/task";
 import { updateCapa } from "@/lib/actions/capa";
+import { updateInitialMIR, updateFinalMIR } from "@/lib/actions/mir";
+import { MIRStatus } from "@prisma/client";
 
 describe("Entity Concurrency Control & Record Locking", () => {
   beforeEach(() => {
@@ -324,6 +334,50 @@ describe("Entity Concurrency Control & Record Locking", () => {
         } as any)
       ).rejects.toThrow(
         "Cannot update capa: Record is currently locked and being edited by Alex Smith."
+      );
+    });
+
+    it("Initial MIR: updateInitialMIR should fail when locked by another user", async () => {
+      mockTx.initialMIR.findUnique.mockResolvedValue({
+        id: "imir_1",
+        orgId: "org_test456",
+        complaintId: "cmp_1",
+        status: MIRStatus.DRAFT,
+      });
+      mockTx.recordLock.findUnique.mockResolvedValue({
+        ...activeLockByOther,
+        entityType: LockEntityType.Vigilance,
+        recordId: "imir_1",
+      });
+
+      await expect(
+        updateInitialMIR("imir_1", {
+          submissionCountry: "DE",
+        })
+      ).rejects.toThrow(
+        "Cannot update vigilance: Record is currently locked and being edited by Alex Smith."
+      );
+    });
+
+    it("Final MIR: updateFinalMIR should fail when locked by another user", async () => {
+      mockTx.finalMIR.findUnique.mockResolvedValue({
+        id: "fmir_1",
+        orgId: "org_test456",
+        complaintId: "cmp_1",
+        status: MIRStatus.DRAFT,
+      });
+      mockTx.recordLock.findUnique.mockResolvedValue({
+        ...activeLockByOther,
+        entityType: LockEntityType.Vigilance,
+        recordId: "fmir_1",
+      });
+
+      await expect(
+        updateFinalMIR("fmir_1", {
+          manufacturerConclusion: "Updated conclusion",
+        })
+      ).rejects.toThrow(
+        "Cannot update vigilance: Record is currently locked and being edited by Alex Smith."
       );
     });
 

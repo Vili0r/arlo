@@ -5,6 +5,7 @@ import {
   CommunicationStatus,
   TaskStatus,
   CapaPhase,
+  MIRStatus,
 } from "@prisma/client";
 
 // =============================================================================
@@ -21,7 +22,9 @@ export type EntityType =
   | "Vigilance"
   | "CustomerCommunication"
   | "ComplaintTask"
-  | "Capa";
+  | "Capa"
+  | "InitialMIR"
+  | "FinalMIR";
 
 export interface StatusStepConfig {
   /** The enum value stored in the database */
@@ -48,9 +51,12 @@ export interface EntityStatusConfig {
     | "investigation"
     | "vigilanceDecisionTree"
     | "customerCommunication"
-    | "complaintTask";
+    | "complaintTask"
+    | "capa"
+    | "initialMIR"
+    | "finalMIR";
   /** The field name that holds the status */
-  statusField: "status";
+  statusField: "status" | "currentPhase";
   /** Ordered array of steps for the horizontal stepper */
   steps: StatusStepConfig[];
 }
@@ -398,7 +404,7 @@ export const COMPLAINT_TASK_STATUS_CONFIG: EntityStatusConfig = {
 export const CAPA_STATUS_CONFIG: EntityStatusConfig = {
   entityType: "Capa",
   modelName: "capa" as any,
-  statusField: "status",
+  statusField: "currentPhase",
   steps: [
     {
       value: CapaPhase.INITIATION,
@@ -449,6 +455,108 @@ export const CAPA_STATUS_CONFIG: EntityStatusConfig = {
 };
 
 // -----------------------------------------------------------------------------
+// Initial MIR Lifecycle
+// DRAFT → IN_REVIEW → SUBMITTED
+// CANCELLED is a branch
+// -----------------------------------------------------------------------------
+
+export const INITIAL_MIR_STATUS_CONFIG: EntityStatusConfig = {
+  entityType: "InitialMIR",
+  modelName: "initialMIR",
+  statusField: "status",
+  steps: [
+    {
+      value: MIRStatus.DRAFT,
+      label: "Draft",
+      description:
+        "Initial MIR report is in draft preparation and assessment data is being collected.",
+      color: "bg-blue-500",
+      allowedNextStatuses: [MIRStatus.IN_REVIEW],
+      allowedPreviousStatuses: [],
+    },
+    {
+      value: MIRStatus.IN_REVIEW,
+      label: "In Review",
+      description:
+        "Initial MIR report is undergoing regulatory and QA review.",
+      color: "bg-amber-500",
+      allowedNextStatuses: [MIRStatus.SUBMITTED],
+      allowedPreviousStatuses: [MIRStatus.DRAFT],
+    },
+    {
+      value: MIRStatus.SUBMITTED,
+      label: "Submitted",
+      description:
+        "Initial MIR report has been officially submitted to the competent authority.",
+      color: "bg-purple-500",
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [MIRStatus.IN_REVIEW],
+    },
+    {
+      value: MIRStatus.CANCELLED,
+      label: "Cancelled",
+      description:
+        "Initial MIR report has been cancelled with documented rationale.",
+      color: "bg-red-500",
+      isBranch: true,
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [],
+    },
+  ],
+};
+
+// -----------------------------------------------------------------------------
+// Final MIR Lifecycle
+// DRAFT → IN_REVIEW → SUBMITTED
+// CANCELLED is a branch
+// -----------------------------------------------------------------------------
+
+export const FINAL_MIR_STATUS_CONFIG: EntityStatusConfig = {
+  entityType: "FinalMIR",
+  modelName: "finalMIR",
+  statusField: "status",
+  steps: [
+    {
+      value: MIRStatus.DRAFT,
+      label: "Draft",
+      description:
+        "Final MIR report is in draft preparation following investigation conclusion.",
+      color: "bg-blue-500",
+      allowedNextStatuses: [MIRStatus.IN_REVIEW],
+      allowedPreviousStatuses: [],
+    },
+    {
+      value: MIRStatus.IN_REVIEW,
+      label: "In Review",
+      description:
+        "Final MIR report is undergoing regulatory and QA review.",
+      color: "bg-amber-500",
+      allowedNextStatuses: [MIRStatus.SUBMITTED],
+      allowedPreviousStatuses: [MIRStatus.DRAFT],
+    },
+    {
+      value: MIRStatus.SUBMITTED,
+      label: "Submitted",
+      description:
+        "Final MIR report has been officially submitted to the competent authority.",
+      color: "bg-purple-500",
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [MIRStatus.IN_REVIEW],
+    },
+    {
+      value: MIRStatus.CANCELLED,
+      label: "Cancelled",
+      description:
+        "Final MIR report has been cancelled with documented rationale.",
+      color: "bg-red-500",
+      isBranch: true,
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [],
+    },
+  ],
+};
+
+// -----------------------------------------------------------------------------
 // Lookup helpers
 // -----------------------------------------------------------------------------
 
@@ -459,6 +567,8 @@ const CONFIG_MAP: Record<EntityType, EntityStatusConfig> = {
   CustomerCommunication: CUSTOMER_COMMUNICATION_STATUS_CONFIG,
   ComplaintTask: COMPLAINT_TASK_STATUS_CONFIG,
   Capa: CAPA_STATUS_CONFIG,
+  InitialMIR: INITIAL_MIR_STATUS_CONFIG,
+  FinalMIR: FINAL_MIR_STATUS_CONFIG,
 };
 
 export function getStatusConfig(entityType: EntityType): EntityStatusConfig {

@@ -10,7 +10,7 @@ import {
   getStatusConfig,
   type EntityType,
 } from "@/lib/constants/status-transitions";
-import { AuditAction, Prisma, LockEntityType } from "@prisma/client";
+import { AuditAction, Prisma, LockEntityType, MIRStatus } from "@prisma/client";
 import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import { clerkClient, auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
@@ -32,6 +32,8 @@ const ExecuteStatusTransitionSchema = z.object({
     "CustomerCommunication",
     "ComplaintTask",
     "Capa",
+    "InitialMIR",
+    "FinalMIR",
   ]),
   entityId: z.string().min(1, "Entity ID is required"),
   newStatus: z.string().min(1, "Target status is required"),
@@ -168,6 +170,8 @@ export async function executeStatusTransition(
         CustomerCommunication: LockEntityType.FollowUp,
         ComplaintTask: LockEntityType.Task,
         Capa: LockEntityType.Capa,
+        InitialMIR: LockEntityType.Vigilance,
+        FinalMIR: LockEntityType.Vigilance,
       };
 
       const lockType = lockEntityTypeMap[entityType as EntityType];
@@ -328,7 +332,7 @@ export async function executeStatusTransition(
             where: { complaintId: vigilance.complaintId }
           });
           if (!existingInitial) {
-            await tx.initialMIR.create({
+            const newInitial = await tx.initialMIR.create({
               data: {
                 orgId,
                 complaintId: vigilance.complaintId,
@@ -336,13 +340,25 @@ export async function executeStatusTransition(
                 reportType: "INITIAL",
               }
             });
+            await tx.auditLog.create({
+              data: {
+                orgId,
+                entityType: "InitialMIR",
+                entityId: newInitial.id,
+                action: AuditAction.CREATE,
+                changedById: userId,
+                newData: newInitial as unknown as Prisma.InputJsonValue,
+                reason: "Initial MIR record created upon Reportable Vigilance determination",
+                complaintId: vigilance.complaintId,
+              },
+            });
           }
         }
       }
 
       if (entityType === "Investigation" && newStatus === "COMPLETED") {
         const investigation = updatedRecord as any;
-        if (investigation.complaintId) {
+        if (investigation.complaintId && typeof tx.vigilanceDecisionTree?.findFirst === "function") {
           // Check if reportable
           const vigilance = await tx.vigilanceDecisionTree.findFirst({
             where: {
@@ -351,18 +367,30 @@ export async function executeStatusTransition(
               status: { in: ["REPORTABLE", "SUBMITTED"] }
             }
           });
-          if (vigilance) {
+          if (vigilance && typeof tx.finalMIR?.findUnique === "function") {
             const existingFinal = await tx.finalMIR.findUnique({
               where: { complaintId: investigation.complaintId }
             });
             if (!existingFinal) {
-              await tx.finalMIR.create({
+              const newFinal = await tx.finalMIR.create({
                 data: {
                   orgId,
                   complaintId: investigation.complaintId,
                   status: "DRAFT",
                   reportType: "FINAL",
                 }
+              });
+              await tx.auditLog.create({
+                data: {
+                  orgId,
+                  entityType: "FinalMIR",
+                  entityId: newFinal.id,
+                  action: AuditAction.CREATE,
+                  changedById: userId,
+                  newData: newFinal as unknown as Prisma.InputJsonValue,
+                  reason: "Final MIR record created upon Investigation completion",
+                  complaintId: investigation.complaintId,
+                },
               });
             }
           }
@@ -470,6 +498,14 @@ async function fetchRecord(
       return tx.capa.findUnique({
         where: { id: entityId, orgId },
       });
+    case "InitialMIR":
+      return tx.initialMIR.findUnique({
+        where: { id: entityId, orgId },
+      });
+    case "FinalMIR":
+      return tx.finalMIR.findUnique({
+        where: { id: entityId, orgId },
+      });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);
   }
@@ -519,6 +555,22 @@ async function updateRecord(
         where: { id: entityId, orgId },
         data: {
           currentPhase: newStatus as Prisma.EnumCapaPhaseFieldUpdateOperationsInput["set"],
+        },
+      });
+    case "InitialMIR":
+      return tx.initialMIR.update({
+        where: { id: entityId, orgId },
+        data: {
+          status: newStatus as MIRStatus,
+          ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
+        },
+      });
+    case "FinalMIR":
+      return tx.finalMIR.update({
+        where: { id: entityId, orgId },
+        data: {
+          status: newStatus as MIRStatus,
+          ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
         },
       });
     default:
@@ -682,7 +734,7 @@ async function validateComplaintClosure(tx: PrismaTx, complaintId: string, orgId
     }
 
     // Check Vigilance Decision Tree
-    for (const tree of fullComplaint.vigilanceDecisionTrees) {
+    for (const tree of fullComplaint.vigilanceDecisionTrees || []) {
       if (tree.status !== "SUBMITTED" && tree.status !== "NOT_REPORTABLE" && tree.status !== "CANCELLED") {
         activeFolders.push(`Vigilance Decision Tree is currently in ${tree.status} status (must be SUBMITTED or NOT_REPORTABLE)`);
       }
@@ -699,15 +751,15 @@ async function validateComplaintClosure(tx: PrismaTx, complaintId: string, orgId
     }
 
     // Check Follow-ups / Communications
-    for (const comm of fullComplaint.customerCommunications) {
+    for (const comm of fullComplaint.customerCommunications || []) {
       if (comm.status !== "CLOSED" && comm.status !== "CANCELLED") { // Assuming OPEN / CLOSED / CANCELLED
         activeFolders.push(`Customer Communication (${comm.id}) is not closed`);
       }
     }
 
     // Check Tasks
-    for (const task of fullComplaint.tasks) {
-      if (task.status !== "DONE" && task.status !== "CANCELLED") {
+    for (const task of fullComplaint.tasks || []) {
+      if (task.status !== "CLOSED" && task.status !== "DONE" && task.status !== "CANCELLED") {
         activeFolders.push(`Task (${task.shortDescription || task.id}) is not completed`);
       }
     }
@@ -716,7 +768,7 @@ async function validateComplaintClosure(tx: PrismaTx, complaintId: string, orgId
     if (fullComplaint.investigation && fullComplaint.investigation.status !== "CANCELLED") {
       activeFolders.push(`Investigation must be CANCELLED before the complaint can be cancelled`);
     }
-    for (const tree of fullComplaint.vigilanceDecisionTrees) {
+    for (const tree of fullComplaint.vigilanceDecisionTrees || []) {
       if (tree.status !== "CANCELLED") activeFolders.push(`Vigilance Decision Tree must be CANCELLED`);
     }
     if (fullComplaint.initialMIR && fullComplaint.initialMIR.status !== "CANCELLED") {
@@ -725,10 +777,10 @@ async function validateComplaintClosure(tx: PrismaTx, complaintId: string, orgId
     if (fullComplaint.finalMIR && fullComplaint.finalMIR.status !== "CANCELLED") {
       activeFolders.push(`Final MIR must be CANCELLED`);
     }
-    for (const comm of fullComplaint.customerCommunications) {
+    for (const comm of fullComplaint.customerCommunications || []) {
       if (comm.status !== "CANCELLED") activeFolders.push(`Customer Communication must be CANCELLED`);
     }
-    for (const task of fullComplaint.tasks) {
+    for (const task of fullComplaint.tasks || []) {
       if (task.status !== "CANCELLED") activeFolders.push(`Task must be CANCELLED`);
     }
   }

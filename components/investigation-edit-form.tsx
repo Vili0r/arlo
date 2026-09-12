@@ -1164,7 +1164,7 @@ export function InvestigationEditForm({
                       )}
                     </div>
                     <div className="space-y-3">
-                      <CheckRow id="fscaRequired" checked={fscaRequired} onChange={setFscaRequired} label="FSCA required" hint="Field safety corrective action" />
+                      <CheckRow id="fscaRequired" checked={fscaRequired} onChange={setFscaRequired} label="Field safety corrective action (FSCA) required" />
                       {fscaRequired && (
                         <Field label="FSCA reference" htmlFor="fscaRef">
                           <Input id="fscaRef" className="font-mono" value={fscaRef} onChange={(e) => setFscaRef(e.target.value)} placeholder="FSCA-2026-001" />

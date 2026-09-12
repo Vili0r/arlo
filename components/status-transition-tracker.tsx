@@ -46,6 +46,10 @@ function formatEntityLabel(entityType: EntityType): string {
       return "Task";
     case "Capa":
       return "CAPA";
+    case "InitialMIR":
+      return "Initial MIR";
+    case "FinalMIR":
+      return "Final MIR";
     default:
       return entityType;
   }

@@ -1222,6 +1222,38 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                     icon: <ShieldAlert className="h-3.5 w-3.5 text-purple-500" />,
                                   }
                                 : null,
+                              initialMIR
+                                ? {
+                                    id: `grid-imir-${initialMIR.id}`,
+                                    rawId: initialMIR.id,
+                                    entityType: "InitialMIR",
+                                    href: `/${orgSlug}/complaints/${c.id}/initial-mir`,
+                                    title: "Initial MIR",
+                                    badge: (
+                                      <Badge variant="outline" className="text-[10px] bg-sky-500/10 text-sky-600 border-sky-500/20">
+                                        {initialMIR.status}
+                                      </Badge>
+                                    ),
+                                    desc: `Initial Manufacturer Incident Report • MIR #${initialMIR.id.slice(-6)}`,
+                                    icon: <FileSpreadsheet className="h-3.5 w-3.5 text-sky-500" />,
+                                  }
+                                : null,
+                              finalMIR
+                                ? {
+                                    id: `grid-fmir-${finalMIR.id}`,
+                                    rawId: finalMIR.id,
+                                    entityType: "FinalMIR",
+                                    href: `/${orgSlug}/complaints/${c.id}/final-mir`,
+                                    title: "Final MIR",
+                                    badge: (
+                                      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                        {finalMIR.status}
+                                      </Badge>
+                                    ),
+                                    desc: `Final Manufacturer Incident Report • MIR #${finalMIR.id.slice(-6)}`,
+                                    icon: <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" />,
+                                  }
+                                : null,
                               ...tasks.map((task) => {
                                 const assigneeName = resolveUserDisplayName(task.assignedTo, task.assignedToId, "Unassigned");
                                 return {
@@ -1651,11 +1683,11 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             rawId: initialMIR.id,
                                             entityType: "InitialMIR",
                                             href: `/${orgSlug}/complaints/${c.id}/initial-mir`,
-                                            icon: <ShieldAlert className="h-3.5 w-3.5" />,
-                                            iconColor: "bg-red-500/10 text-red-600 dark:text-red-400",
+                                            icon: <FileSpreadsheet className="h-3.5 w-3.5" />,
+                                            iconColor: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
                                             title: "Initial MIR",
                                             badge: (
-                                              <Badge variant="outline" className="text-[9px] bg-red-500/10 text-red-600 border-red-500/20 py-0">
+                                              <Badge variant="outline" className="text-[9px] bg-sky-500/10 text-sky-600 border-sky-500/20 py-0">
                                                 {initialMIR.status}
                                               </Badge>
                                             ),
@@ -1673,11 +1705,11 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             rawId: finalMIR.id,
                                             entityType: "FinalMIR",
                                             href: `/${orgSlug}/complaints/${c.id}/final-mir`,
-                                            icon: <ShieldAlert className="h-3.5 w-3.5" />,
-                                            iconColor: "bg-red-500/10 text-red-600 dark:text-red-400",
+                                            icon: <FileSpreadsheet className="h-3.5 w-3.5" />,
+                                            iconColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                                             title: "Final MIR",
                                             badge: (
-                                              <Badge variant="outline" className="text-[9px] bg-red-500/10 text-red-600 border-red-500/20 py-0">
+                                              <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 py-0">
                                                 {finalMIR.status}
                                               </Badge>
                                             ),
