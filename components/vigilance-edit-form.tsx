@@ -572,14 +572,6 @@ export function VigilanceEditForm({
               >
                 {humanize(currentStatus)}
               </Badge>
-              {watchReportable && (
-                <Badge
-                  variant="outline"
-                  className="border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400"
-                >
-                  Reportable event
-                </Badge>
-              )}
             </div>
 
             <div className="flex items-center gap-2 lg:mt-2">

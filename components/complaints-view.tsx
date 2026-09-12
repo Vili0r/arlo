@@ -240,6 +240,8 @@ export interface ComplaintRecord {
   } | null;
   investigation?: RelatedInvestigation | null;
   vigilanceDecisionTrees?: RelatedVigilance[] | null;
+  initialMIR?: any;
+  finalMIR?: any;
   productInformation?: RelatedProduct[];
   patientInformation?: RelatedPatient[];
   customerCommunications?: RelatedCommunication[];
@@ -1015,11 +1017,15 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                 activeVigilanceList.length > 0
                   ? activeVigilanceList[activeVigilanceList.length - 1]
                   : null;
-              const totalRelations =
-                (investigation ? 1 : 0) +
-                (vigilance ? 1 : 0) +
-                communications.length +
-                tasks.length;
+              const initialMIR = c.initialMIR && c.initialMIR.status !== "CANCELLED" ? c.initialMIR : null;
+                    const finalMIR = c.finalMIR && c.finalMIR.status !== "CANCELLED" ? c.finalMIR : null;
+                    const totalRelations =
+                      (investigation ? 1 : 0) +
+                      (vigilance ? 1 : 0) +
+                      (initialMIR ? 1 : 0) +
+                      (finalMIR ? 1 : 0) +
+                      communications.length +
+                      tasks.length;
 
               return (
                 <div
@@ -1435,9 +1441,13 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                       activeVigilanceList.length > 0
                         ? activeVigilanceList[activeVigilanceList.length - 1]
                         : null;
+                    const initialMIR = c.initialMIR && c.initialMIR.status !== "CANCELLED" ? c.initialMIR : null;
+                    const finalMIR = c.finalMIR && c.finalMIR.status !== "CANCELLED" ? c.finalMIR : null;
                     const totalRelations =
                       (investigation ? 1 : 0) +
                       (vigilance ? 1 : 0) +
+                      (initialMIR ? 1 : 0) +
+                      (finalMIR ? 1 : 0) +
                       communications.length +
                       tasks.length;
 
@@ -1631,6 +1641,50 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             rightMeta: (
                                               <span className="font-mono text-[10px]">
                                                 Decision Tree #{vigilance.id.slice(-6)}
+                                              </span>
+                                            ),
+                                          }
+                                        : null,
+                                      initialMIR
+                                        ? {
+                                            id: `table-imir-${initialMIR.id}`,
+                                            rawId: initialMIR.id,
+                                            entityType: "InitialMIR",
+                                            href: `/${orgSlug}/complaints/${c.id}/initial-mir`,
+                                            icon: <ShieldAlert className="h-3.5 w-3.5" />,
+                                            iconColor: "bg-red-500/10 text-red-600 dark:text-red-400",
+                                            title: "Initial MIR",
+                                            badge: (
+                                              <Badge variant="outline" className="text-[9px] bg-red-500/10 text-red-600 border-red-500/20 py-0">
+                                                {initialMIR.status}
+                                              </Badge>
+                                            ),
+                                            desc: `Initial Manufacturer Incident Report`,
+                                            rightMeta: (
+                                              <span className="font-mono text-[10px]">
+                                                MIR #{initialMIR.id.slice(-6)}
+                                              </span>
+                                            ),
+                                          }
+                                        : null,
+                                      finalMIR
+                                        ? {
+                                            id: `table-fmir-${finalMIR.id}`,
+                                            rawId: finalMIR.id,
+                                            entityType: "FinalMIR",
+                                            href: `/${orgSlug}/complaints/${c.id}/final-mir`,
+                                            icon: <ShieldAlert className="h-3.5 w-3.5" />,
+                                            iconColor: "bg-red-500/10 text-red-600 dark:text-red-400",
+                                            title: "Final MIR",
+                                            badge: (
+                                              <Badge variant="outline" className="text-[9px] bg-red-500/10 text-red-600 border-red-500/20 py-0">
+                                                {finalMIR.status}
+                                              </Badge>
+                                            ),
+                                            desc: `Final Manufacturer Incident Report`,
+                                            rightMeta: (
+                                              <span className="font-mono text-[10px]">
+                                                MIR #{finalMIR.id.slice(-6)}
                                               </span>
                                             ),
                                           }

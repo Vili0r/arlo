@@ -44,6 +44,8 @@ export default async function ComplaintsPage({
       },
       productInformation: true,
       vigilanceDecisionTrees: true,
+      initialMIR: true,
+      finalMIR: true,
       customerCommunications: {
         where: { status: { not: "CANCELLED" } },
         orderBy: { communicationDate: "desc" },

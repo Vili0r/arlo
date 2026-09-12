@@ -15,7 +15,7 @@ export async function updateVigilance(data: any) {
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const existing = await tx.vigilanceDecisionTree.findUnique({
+        const existing = await tx.vigilanceDecisionTree.findUnique({
       where: { id: data.id, orgId },
       include: { attachments: true },
     });
@@ -86,7 +86,7 @@ export async function updateVigilance(data: any) {
     });
 
     return updated;
-  });
+  }, { maxWait: 5000, timeout: 20000 });
 
   revalidatePath(`/${data.orgSlug}/complaints/${result.complaintId}/vigilance`);
   return result;

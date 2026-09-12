@@ -93,6 +93,8 @@ model Organization {
   auditLogs                     AuditLog[]
   investigationSummaries        InvestigationSummary[]
   recordLocks                   RecordLock[]
+  initialMIRs                   InitialMIR[]
+  finalMIRs                     FinalMIR[]
 
   @@index([slug])
 }
@@ -137,6 +139,13 @@ model FormTemplate {
 // -------------------------------------------------------------
 // Core Quality Records (PMS / ISO 13485 / 21 CFR Part 11)
 // -------------------------------------------------------------
+
+enum MIRStatus {
+  DRAFT
+  IN_REVIEW
+  SUBMITTED
+  CANCELLED
+}
 
 enum ComplaintStatus {
   OPEN
@@ -279,6 +288,8 @@ model Complaint {
   sampleManagement       SampleManagement?
   investigation          Investigation?
   vigilanceDecisionTrees VigilanceDecisionTree[]
+  initialMIR             InitialMIR?
+  finalMIR               FinalMIR?
   attachments            Attachment[]
   tasks                  ComplaintTask[]
   auditLogs              AuditLog[]
@@ -993,4 +1004,93 @@ model RecordLock {
   @@index([orgId, entityType, recordId])
   @@index([expiresAt])
   @@index([lockedById])
+}
+
+// -------------------------------------------------------------
+// Manufacturer Incident Report (MIR) Sub-Models
+// -------------------------------------------------------------
+
+model InitialMIR {
+  id             String    @id @default(cuid())
+  orgId          String
+  complaintId    String    @unique
+  mirNumber      String?
+  reportType     String?   @default("INITIAL")
+  status         MIRStatus @default(DRAFT)
+  submissionDate DateTime?
+  dueDate        DateTime?
+
+  // Manufacturer & Submission Details
+  manufacturerReference       String?
+  previousMirReference        String?
+  competentAuthority          String?
+  competentAuthorityReference String?
+  submissionCountry           String?
+  submissionMethod            String?
+  submittedBy                 String?
+
+  // Initial Assessment
+  initialDeviceRelatedness     String?
+  initialCausalityAssessment   String?
+  initialSeriousnessAssessment String?
+  initialRiskAssessment        String?
+  preliminaryConclusion        String?   @db.Text
+  investigationStarted         Boolean   @default(false)
+  investigationStartDate       DateTime?
+
+  // Approval
+  preparedById String?
+  reviewedById String?
+  approvedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+model FinalMIR {
+  id             String    @id @default(cuid())
+  orgId          String
+  complaintId    String    @unique
+  mirNumber      String?
+  reportType     String?   @default("FINAL")
+  status         MIRStatus @default(DRAFT)
+  submissionDate DateTime?
+
+  manufacturerReference       String?
+  previousMirReference        String?
+  competentAuthority          String?
+  competentAuthorityReference String?
+  submissionCountry           String?
+  submissionMethod            String?
+  submittedBy                 String?
+
+  finalDeviceRelatedness   String?
+  finalCausalityAssessment String?
+  finalCausalityRationale  String? @db.Text
+  manufacturerConclusion   String? @db.Text
+
+  incidentConfirmed           Boolean @default(false)
+  deviceContributionConfirmed Boolean @default(false)
+  rootCauseConfirmed          Boolean @default(false)
+  recurrencePotential         String?
+  finalRiskAssessmentSummary  String? @db.Text
+  manufacturerFinalStatement  String? @db.Text
+
+  // Approval
+  preparedById String?
+  reviewedById String?
+  approvedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }

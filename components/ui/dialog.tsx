@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -64,10 +65,15 @@ export function DialogContent({
   className?: string;
 }) {
   const { open, onOpenChange } = React.useContext(DialogContext);
+  const [mounted, setMounted] = React.useState(false);
 
-  if (!open) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  return (
+  if (!open || !mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center print:static print:block">
       <div 
         className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity print:hidden" 
@@ -88,7 +94,8 @@ export function DialogContent({
         </button>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
