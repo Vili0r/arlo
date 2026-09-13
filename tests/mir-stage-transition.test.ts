@@ -74,7 +74,14 @@ vi.mock("@/lib/prisma", () => ({
 
 import { executeStatusTransition } from "@/lib/actions/esignature";
 
-describe("MIR Stage Transitions & E-Signature Verification", () => {
+/**
+ * @traceability
+ * URS: URS-004 (Vigilance Decision Tree & Regulatory Incident Reporting)
+ * SRS: SRS-009 (Vigilance Decision Tree & Reportability Transitions)
+ * Design: DESIGN-009 (Vigilance Decision Service)
+ * Test ID: TEST-008
+ */
+describe("[TEST-008] MIR Stage Transitions & E-Signature Verification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

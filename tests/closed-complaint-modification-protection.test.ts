@@ -121,7 +121,14 @@ import { updateComplaintWithRelations } from "@/lib/actions/complaints";
 import { updateComplaint } from "@/actions/complaint/updateComplaint";
 import { executeStatusTransition } from "@/lib/actions/esignature";
 
-describe("The system shall prevent unauthorized users from modifying closed complaints", () => {
+/**
+ * @traceability
+ * URS: URS-008 (Closed Record Immutability & Modification Protection)
+ * SRS: SRS-005 (Closed Complaint Immutability Guard)
+ * Design: DESIGN-005 (Immutability Guard)
+ * Test ID: TEST-004
+ */
+describe("[TEST-004] The system shall prevent unauthorized users from modifying closed complaints", () => {
   const closedComplaint = {
     id: "cmp_closed_001",
     orgId: "org_medical_devices_01",

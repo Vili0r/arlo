@@ -67,7 +67,14 @@ vi.mock("@/lib/prisma", () => ({
 
 import { executeStatusTransition } from "@/lib/actions/esignature";
 
-describe("Customer Communication - Stage Transitions & E-Signature Verification", () => {
+/**
+ * @traceability
+ * URS: URS-005 (Customer Communication & Follow-up)
+ * SRS: SRS-011 (Customer Communication Stage Progression)
+ * Design: DESIGN-011 (Communication Manager)
+ * Test ID: TEST-010
+ */
+describe("[TEST-010] Customer Communication - Stage Transitions & E-Signature Verification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

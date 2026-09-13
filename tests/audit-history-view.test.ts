@@ -180,7 +180,14 @@ import { updateComplaintTask } from "@/lib/actions/task";
 import { updateCapa } from "@/lib/actions/capa";
 import { executeStatusTransition } from "@/lib/actions/esignature";
 
-describe("View History & Audit Trail Logging - Complaint Sub-Folders & CAPA", () => {
+/**
+ * @traceability
+ * URS: URS-010 (21 CFR Part 11 Electronic Audit Trail)
+ * SRS: SRS-015 (Chronological Audit History Retrieval & Rendering)
+ * Design: DESIGN-015 (Audit Trail Viewer)
+ * Test ID: TEST-014
+ */
+describe("[TEST-014] View History & Audit Trail Logging - Complaint Sub-Folders & CAPA", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuthCtx.userId = "user_qa_lead_1";

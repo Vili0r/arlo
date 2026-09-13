@@ -91,7 +91,14 @@ vi.mock("@/lib/prisma", () => ({
 
 import { executeStatusTransition } from "@/lib/actions/esignature";
 
-describe("21 CFR Part 11 Electronic Signature Recording Specification", () => {
+/**
+ * @traceability
+ * URS: URS-011 (21 CFR Part 11 Electronic Signatures)
+ * SRS: SRS-017 (Dual-Credential E-Signature Verification & Immutability)
+ * Design: DESIGN-017 (21 CFR Part 11 E-Signature)
+ * Test ID: TEST-016
+ */
+describe("[TEST-016] 21 CFR Part 11 Electronic Signature Recording Specification", () => {
   const ORG_ID = "org_medical_device_001";
   const SIGNER_USER_ID = "user_qa_lead_42";
 

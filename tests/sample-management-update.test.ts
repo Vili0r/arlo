@@ -42,7 +42,14 @@ vi.mock("@/lib/prisma", () => ({
 
 import { updateSampleManagement } from "@/lib/actions/complaints";
 
-describe("Sample Management - Save & Update Operations", () => {
+/**
+ * @traceability
+ * URS: URS-007 (Device Sample Management)
+ * SRS: SRS-013 (Device Sample Tracking & Condition Evaluation)
+ * Design: DESIGN-013 (Sample Management Service)
+ * Test ID: TEST-012
+ */
+describe("[TEST-012] Sample Management - Save & Update Operations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuthCtx.userId = "user_sample_manager";

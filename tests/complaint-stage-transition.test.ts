@@ -71,7 +71,14 @@ vi.mock("@/lib/prisma", () => ({
 
 import { executeStatusTransition } from "@/lib/actions/esignature";
 
-describe("Complaint Stage Transitions & Electronic Signature (Password Verification)", () => {
+/**
+ * @traceability
+ * URS: URS-002 (Complaint Lifecycle & Stage Progression)
+ * SRS: SRS-004 (Complaint Stage Lifecycle Gates)
+ * Design: DESIGN-004 (Complaint State Machine)
+ * Test ID: TEST-003
+ */
+describe("[TEST-003] Complaint Stage Transitions & Electronic Signature (Password Verification)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

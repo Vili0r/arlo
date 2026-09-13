@@ -134,7 +134,14 @@ import { updateComplaint } from "@/actions/complaint/updateComplaint";
 import { executeStatusTransition } from "@/lib/actions/esignature";
 import { getAuditHistory } from "@/lib/actions/audit";
 
-describe("Cross-Organization Multi-Tenant Security & Isolation", () => {
+/**
+ * @traceability
+ * URS: URS-012 (Multi-Tenant Isolation & Role-Based Access Control)
+ * SRS: SRS-006 (Multi-Tenant Data Isolation)
+ * Design: DESIGN-006 (Multi-Tenant Partitioning)
+ * Test ID: TEST-005
+ */
+describe("[TEST-005] Cross-Organization Multi-Tenant Security & Isolation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuthContext.userId = "user_org_b";

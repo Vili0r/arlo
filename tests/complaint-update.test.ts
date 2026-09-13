@@ -85,7 +85,14 @@ import { updateComplaintWithRelations } from "@/lib/actions/complaints";
 import { updateComplaint } from "@/actions/complaint/updateComplaint";
 import { getAuditHistory } from "@/lib/actions/audit";
 
-describe("Complaint Update & Audit Trail Logging", () => {
+/**
+ * @traceability
+ * URS: URS-002 (Complaint Lifecycle & Stage Progression)
+ * SRS: SRS-020 (Complaint Record Updating & Field Maintenance)
+ * Design: DESIGN-004 (Complaint State Machine)
+ * Test ID: TEST-019
+ */
+describe("[TEST-019] Complaint Update & Audit Trail Logging", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

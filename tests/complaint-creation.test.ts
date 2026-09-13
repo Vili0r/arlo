@@ -49,7 +49,14 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-describe("Complaint Creation Functionality", () => {
+/**
+ * @traceability
+ * URS: URS-001 (Complaint Intake & Unique Identification)
+ * SRS: SRS-001 (Complaint Creation & Atomic Subrecord Provisioning), SRS-002 (Complaint Input Validation)
+ * Design: DESIGN-001, DESIGN-002
+ * Test ID: TEST-001
+ */
+describe("[TEST-001] Complaint Creation Functionality", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

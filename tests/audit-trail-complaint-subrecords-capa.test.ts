@@ -196,7 +196,14 @@ import { executeStatusTransition } from "@/lib/actions/esignature";
 import { getAuditHistory } from "@/lib/actions/audit";
 import { createAuditLog } from "@/lib/audit";
 
-describe("Requirement: The system shall maintain an audit trail for changes to complaint records, all related sub-records and CAPA records", () => {
+/**
+ * @traceability
+ * URS: URS-006 (CAPA Linking & Escalation), URS-010 (21 CFR Part 11 Electronic Audit Trail)
+ * SRS: SRS-016 (Complaint-to-CAPA Traceability & Subrecord Audit)
+ * Design: DESIGN-016 (Nested Audit Tracker)
+ * Test ID: TEST-015
+ */
+describe("[TEST-015] Requirement: The system shall maintain an audit trail for changes to complaint records, all related sub-records and CAPA records", () => {
   const COMPLAINT_ID = "cmp_audit_req_001";
   const CAPA_ID = "capa_audit_req_001";
   const ORG_ID = "org_medical_pms_01";

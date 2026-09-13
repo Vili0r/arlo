@@ -89,7 +89,14 @@ import {
   signAndCompleteInvestigationSummary,
 } from "@/lib/actions/investigation-summary";
 
-describe("Investigation Stage Transitions & E-Signature Verification", () => {
+/**
+ * @traceability
+ * URS: URS-003 (Investigation Lifecycle & Template Support)
+ * SRS: SRS-007 (Investigation Stage Progression & Task Tracking)
+ * Design: DESIGN-007 (Investigation Service)
+ * Test ID: TEST-006
+ */
+describe("[TEST-006] Investigation Stage Transitions & E-Signature Verification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

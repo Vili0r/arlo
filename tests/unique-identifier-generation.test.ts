@@ -94,7 +94,14 @@ import {
 import { createCapa } from "@/lib/actions/capa";
 import { CreateCapaFormValues } from "@/lib/validations/capa";
 
-describe("Requirement Verification: Unique Complaint Identification Number and Unique CAPA Number", () => {
+/**
+ * @traceability
+ * URS: URS-001 (Complaint Intake & Unique Identification)
+ * SRS: SRS-003 (Deterministic Unique Identifier Generation)
+ * Design: DESIGN-003 (Numbering Service)
+ * Test ID: TEST-002
+ */
+describe("[TEST-002] Requirement Verification: Unique Complaint Identification Number and Unique CAPA Number", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuthCtx.userId = "user_test_qa";

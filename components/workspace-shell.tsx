@@ -108,6 +108,9 @@ export function WorkspaceShell({
     if (cleanPath.includes("/settings/investigation-templates")) {
       return "Investigation Templates";
     }
+    if (cleanPath.includes("/settings/exports")) {
+      return "Exports";
+    }
     if (cleanPath.endsWith("/capa/new") || cleanPath === "/capa/new") {
       return "CAPA Initiation";
     }
@@ -173,6 +176,10 @@ export function WorkspaceShell({
         {
           title: "Customize Insights",
           href: "/settings/customize-insights",
+        },
+        {
+          title: "Exports",
+          href: "/settings/exports",
         },
       ],
     },

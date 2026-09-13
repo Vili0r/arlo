@@ -26,7 +26,14 @@ vi.mock("@/lib/prisma", () => ({
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
-describe("New Roles & Expanded Permissions (RBAC)", () => {
+/**
+ * @traceability
+ * URS: URS-012 (Multi-Tenant Isolation & Role-Based Access Control)
+ * SRS: SRS-018 (Role-Based Access Control Enforcement)
+ * Design: DESIGN-018 (RBAC Authorization Guard)
+ * Test ID: TEST-017
+ */
+describe("[TEST-017] New Roles & Expanded Permissions (RBAC)", () => {
   const mockAuth = auth as unknown as ReturnType<typeof vi.fn>;
 
   beforeEach(() => {

@@ -4,7 +4,14 @@ import {
   type CustomerReportComplaintData,
 } from "@/components/customer-report-modal";
 
-describe("Customer Report Generation", () => {
+/**
+ * @traceability
+ * URS: URS-005 (Customer Communication & Follow-up)
+ * SRS: SRS-012 (Customer Summary Report Generation)
+ * Design: DESIGN-012 (Customer Report Generator)
+ * Test ID: TEST-011
+ */
+describe("[TEST-011] Customer Report Generation", () => {
   it("generates a complete customer report with all required information", () => {
     const complaintData: CustomerReportComplaintData = {
       complaintNumber: "CMP-2026-0001",

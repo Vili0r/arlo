@@ -126,7 +126,14 @@ import { updateCapa } from "@/lib/actions/capa";
 import { updateInitialMIR, updateFinalMIR } from "@/lib/actions/mir";
 import { MIRStatus } from "@prisma/client";
 
-describe("Entity Concurrency Control & Record Locking", () => {
+/**
+ * @traceability
+ * URS: URS-009 (Record Concurrency Control & Active Locking)
+ * SRS: SRS-014 (Generic Entity Concurrency Locking Engine)
+ * Design: DESIGN-014 (Entity Lock Registry)
+ * Test ID: TEST-013
+ */
+describe("[TEST-013] Entity Concurrency Control & Record Locking", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuthCtx.userId = "user_primary";

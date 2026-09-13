@@ -105,7 +105,14 @@ vi.mock("@/lib/prisma", () => ({
 
 import { executeStatusTransition } from "@/lib/actions/esignature";
 
-describe("MIR Sub-Folder Lifecycle & Complaint Closure Integration", () => {
+/**
+ * @traceability
+ * URS: URS-004 (Vigilance Decision Tree & Regulatory Incident Reporting)
+ * SRS: SRS-010 (MIR Subfolder Lifecycle & Closure Validation)
+ * Design: DESIGN-010 (MIR Lifecycle Controller)
+ * Test ID: TEST-009
+ */
+describe("[TEST-009] MIR Sub-Folder Lifecycle & Complaint Closure Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
