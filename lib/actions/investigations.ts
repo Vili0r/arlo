@@ -68,6 +68,7 @@ export interface UpdateInvestigationInput {
     exemptRationale?: string | null;
     results?: string | null;
   }>;
+  reason?: string;
 }
 
 export async function updateInvestigation(data: UpdateInvestigationInput) {
@@ -238,7 +239,7 @@ export async function updateInvestigation(data: UpdateInvestigationInput) {
         changedById: userId,
         previousData: existing as unknown as Prisma.InputJsonValue,
         newData: fullyUpdated as unknown as Prisma.InputJsonValue,
-        reason: `Updated investigation details`,
+        reason: data.reason || `Updated investigation details`,
         fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
         complaintId: data.complaintId,
       },

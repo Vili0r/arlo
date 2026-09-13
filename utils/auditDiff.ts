@@ -8,12 +8,31 @@ export const DEFAULT_IGNORED_METADATA_KEYS = [
   'id',
   'createdAt',
   'updatedAt',
+  'deletedAt',
   'orgId',
   'complaintId',
+  'capaId',
   'investigationId',
   'vigilanceId',
+  'vigilanceDecisionTreeId',
   'communicationId',
+  'customerCommunicationId',
+  'sampleManagementId',
   'taskId',
+  'complaintTaskId',
+  'initialMIRId',
+  'finalMIRId',
+  'capaInitiationId',
+  'capaInvestigationId',
+  'capaImplementationId',
+  'capaEffectivenessId',
+  'extensionRequestId',
+  'templateId',
+  'formTemplateId',
+  'productInformationId',
+  'patientInformationId',
+  'productsCount',
+  'patientsCount',
 ];
 
 /**
@@ -50,10 +69,24 @@ export function stripMetadata(
 }
 
 /**
- * Deep equality helper that handles Dates, Arrays, and Objects.
+ * Helper to check if a value is effectively empty (null, undefined, empty array, or blank string).
+ */
+function isEffectivelyEmpty(v: any): boolean {
+  return (
+    v === null ||
+    v === undefined ||
+    (Array.isArray(v) && v.length === 0) ||
+    (typeof v === 'string' && v.trim() === '') ||
+    (typeof v === 'object' && v !== null && !(v instanceof Date) && Object.keys(v).length === 0)
+  );
+}
+
+/**
+ * Deep equality helper that handles Dates, Arrays, Objects, and empty values.
  */
 function isDeepEqual(a: any, b: any): boolean {
   if (a === b) return true;
+  if (isEffectivelyEmpty(a) && isEffectivelyEmpty(b)) return true;
   if (a === null || a === undefined) return b === null || b === undefined;
   if (b === null || b === undefined) return false;
 

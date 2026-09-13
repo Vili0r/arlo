@@ -9,7 +9,8 @@ import { revalidatePath } from "next/cache";
 
 export async function updateInitialMIR(
   mirId: string,
-  newData: Partial<InitialMIR>
+  newData: Partial<InitialMIR>,
+  reason?: string
 ) {
   const { userId, orgId } = await requireOrgAuth();
 
@@ -50,7 +51,7 @@ export async function updateInitialMIR(
           changedById: userId,
           previousData: existing as unknown as Prisma.InputJsonValue,
           newData: updated as unknown as Prisma.InputJsonValue,
-          reason: "Updated Initial MIR report",
+          reason: reason || "Updated Initial MIR report",
           fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
           complaintId: existing.complaintId,
         },
@@ -66,7 +67,8 @@ export async function updateInitialMIR(
 
 export async function updateFinalMIR(
   mirId: string,
-  newData: Partial<FinalMIR>
+  newData: Partial<FinalMIR>,
+  reason?: string
 ) {
   const { userId, orgId } = await requireOrgAuth();
 
@@ -107,7 +109,7 @@ export async function updateFinalMIR(
           changedById: userId,
           previousData: existing as unknown as Prisma.InputJsonValue,
           newData: updated as unknown as Prisma.InputJsonValue,
-          reason: "Updated Final MIR report",
+          reason: reason || "Updated Final MIR report",
           fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
           complaintId: existing.complaintId,
         },

@@ -27,7 +27,13 @@ export const INSIGHT_CARD_CATALOG: Record<InsightCardId, InsightCardMeta> = {
       "Tracks impending regulatory reporting deadlines under FDA 21 CFR 803 and EU MDR Article 87 based on complaint awareness dates.",
     category: "Compliance & Vigilance",
     badge: "EU MDR / FDA",
-    recommendedRoles: ["org:admin", "org:qa_manager", "org:vigilance_lead"],
+    recommendedRoles: [
+      "org:admin",
+      "org:qa_manager",
+      "org:vigilance_lead",
+      "org:qa_approver",
+      "org:read_only",
+    ],
   },
   MY_APPROVALS: {
     id: "MY_APPROVALS",
@@ -37,7 +43,7 @@ export const INSIGHT_CARD_CATALOG: Record<InsightCardId, InsightCardMeta> = {
       "Records awaiting sign-off where you are designated as the approving authority, enforcing separation of duties from investigators.",
     category: "My Worklist",
     badge: "Part 11",
-    recommendedRoles: ["org:admin", "org:qa_manager"],
+    recommendedRoles: ["org:admin", "org:qa_manager", "org:qa_approver"],
   },
   MY_INVESTIGATIONS: {
     id: "MY_INVESTIGATIONS",
@@ -47,7 +53,12 @@ export const INSIGHT_CARD_CATALOG: Record<InsightCardId, InsightCardMeta> = {
       "Complaints where you are the assigned investigator with pending sample evaluations, risk reviews, or investigation summaries.",
     category: "My Worklist",
     badge: "ISO 13485",
-    recommendedRoles: ["org:complaint_investigator", "org:qa_manager"],
+    recommendedRoles: [
+      "org:complaint_investigator",
+      "org:qa_manager",
+      "org:quality_engineer",
+      "org:qa_reviewer",
+    ],
   },
   MY_TASKS: {
     id: "MY_TASKS",
@@ -61,6 +72,7 @@ export const INSIGHT_CARD_CATALOG: Record<InsightCardId, InsightCardMeta> = {
       "org:complaint_investigator",
       "org:capa_owner",
       "org:member",
+      "org:quality_engineer",
     ],
   },
   CAPA_PIPELINE: {
@@ -71,7 +83,13 @@ export const INSIGHT_CARD_CATALOG: Record<InsightCardId, InsightCardMeta> = {
       "Real-time pipeline breakdown across Action Planning, Implementation, Effectiveness Verification, and Final Review.",
     category: "Quality Operations",
     badge: "CAPA",
-    recommendedRoles: ["org:capa_owner", "org:qa_manager", "org:admin"],
+    recommendedRoles: [
+      "org:capa_owner",
+      "org:qa_manager",
+      "org:admin",
+      "org:quality_engineer",
+      "org:qa_approver",
+    ],
   },
   SAMPLE_STATUS: {
     id: "SAMPLE_STATUS",
@@ -81,7 +99,11 @@ export const INSIGHT_CARD_CATALOG: Record<InsightCardId, InsightCardMeta> = {
       "Live status of physical complaint samples: in transit, received, decontamination, and lab evaluation progress.",
     category: "Quality Operations",
     badge: "Lab",
-    recommendedRoles: ["org:complaint_investigator", "org:qa_manager"],
+    recommendedRoles: [
+      "org:complaint_investigator",
+      "org:qa_manager",
+      "org:quality_engineer",
+    ],
   },
   CUSTOMER_COMMUNICATION: {
     id: "CUSTOMER_COMMUNICATION",
@@ -91,7 +113,12 @@ export const INSIGHT_CARD_CATALOG: Record<InsightCardId, InsightCardMeta> = {
       "Customer communication threads awaiting manufacturer replies or customer response to clarification inquiries.",
     category: "Quality Operations",
     badge: "PMS",
-    recommendedRoles: ["org:complaint_investigator", "org:member"],
+    recommendedRoles: [
+      "org:complaint_investigator",
+      "org:member",
+      "org:qa_reviewer",
+      "org:read_only",
+    ],
   },
   AUDIT_ACTIVITY: {
     id: "AUDIT_ACTIVITY",
@@ -101,7 +128,14 @@ export const INSIGHT_CARD_CATALOG: Record<InsightCardId, InsightCardMeta> = {
       "Recent system modifications, status transitions, and electronic signatures across all team members.",
     category: "Compliance & Vigilance",
     badge: "Audit",
-    recommendedRoles: ["org:admin", "org:qa_manager", "org:member"],
+    recommendedRoles: [
+      "org:admin",
+      "org:qa_manager",
+      "org:member",
+      "org:qa_reviewer",
+      "org:qa_approver",
+      "org:read_only",
+    ],
   },
 };
 
@@ -120,6 +154,24 @@ export const ROLE_PRESETS: Record<
     description:
       "Focus on 21 CFR Part 11 sign-offs, regulatory reporting clocks, and open investigation progress.",
     defaultCards: ["MY_APPROVALS", "VIGILANCE_SLA", "MY_INVESTIGATIONS"],
+  },
+  "org:qa_approver": {
+    label: "QA Approver",
+    description:
+      "Focus on 21 CFR Part 11 sign-offs, closure approvals, vigilance reporting oversight, and CAPA sign-offs.",
+    defaultCards: ["MY_APPROVALS", "VIGILANCE_SLA", "CAPA_PIPELINE"],
+  },
+  "org:qa_reviewer": {
+    label: "QA Reviewer",
+    description:
+      "Focus on peer review of investigations, CAPA verification, customer communications, and compliance audit trail.",
+    defaultCards: ["MY_INVESTIGATIONS", "CUSTOMER_COMMUNICATION", "AUDIT_ACTIVITY"],
+  },
+  "org:quality_engineer": {
+    label: "Quality Engineer",
+    description:
+      "Focus on root cause analysis, technical investigations, CAPA actions, and sample testing status.",
+    defaultCards: ["MY_INVESTIGATIONS", "CAPA_PIPELINE", "SAMPLE_STATUS"],
   },
   "org:complaint_investigator": {
     label: "Complaint Investigator",
@@ -144,6 +196,12 @@ export const ROLE_PRESETS: Record<
     description:
       "Focus on assigned follow-up tasks, customer inquiries, and recent activity.",
     defaultCards: ["MY_TASKS", "CUSTOMER_COMMUNICATION", "AUDIT_ACTIVITY"],
+  },
+  "org:read_only": {
+    label: "Read Only / Auditor",
+    description:
+      "Read-only access for internal/external regulatory auditors and observers to monitor records and audit history.",
+    defaultCards: ["AUDIT_ACTIVITY", "CUSTOMER_COMMUNICATION", "VIGILANCE_SLA"],
   },
 };
 

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AuditAction } from "@prisma/client";
-import { cn, formatUserName } from "@/lib/utils";
+import { cn, formatUserName, formatRoleName } from "@/lib/utils";
 import { useOrganization } from "@clerk/nextjs";
 import { generateAuditDiff } from "@/utils/auditDiff";
 import {
@@ -122,9 +122,11 @@ export function AuditHistoryDrawer({
       setLoading(true);
       setError(null);
       setHistoryPage(1);
-      setExpandedLogIds(new Set());
       getAuditHistory(entityType, entityId)
-        .then((data) => setLogs(data))
+        .then((data) => {
+          setLogs(data);
+          setExpandedLogIds(new Set((data || []).map((l: any) => l.id)));
+        })
         .catch((err) => setError(err.message))
         .finally(() => setLoading(false));
     }
@@ -141,7 +143,62 @@ export function AuditHistoryDrawer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Diffing helpers
+  // Diffing helpers and ignored metadata keys
+  const IGNORED_AUDIT_KEYS = new Set([
+    "id",
+    "orgId",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "complaintId",
+    "capaId",
+    "investigationId",
+    "vigilanceId",
+    "vigilanceDecisionTreeId",
+    "communicationId",
+    "customerCommunicationId",
+    "sampleManagementId",
+    "taskId",
+    "complaintTaskId",
+    "initialMIRId",
+    "finalMIRId",
+    "capaInitiationId",
+    "capaInvestigationId",
+    "capaImplementationId",
+    "capaEffectivenessId",
+    "extensionRequestId",
+    "templateId",
+    "formTemplateId",
+    "productInformationId",
+    "patientInformationId",
+    "productsCount",
+    "patientsCount",
+  ]);
+
+  const isIgnoredKey = (k: string): boolean => {
+    if (!k) return false;
+    return (
+      IGNORED_AUDIT_KEYS.has(k) ||
+      /^(complaint|capa|investigation|vigilance|communication|sample|task|mir|template)Id$/i.test(k)
+    );
+  };
+
+  const isEffectivelyEmpty = (v: unknown): boolean => {
+    return (
+      v === null ||
+      v === undefined ||
+      (Array.isArray(v) && v.length === 0) ||
+      (typeof v === "string" && v.trim() === "") ||
+      (typeof v === "object" && v !== null && Object.keys(v).length === 0)
+    );
+  };
+
+  const areAuditValuesEqual = (a: unknown, b: unknown): boolean => {
+    if (a === b) return true;
+    if (isEffectivelyEmpty(a) && isEffectivelyEmpty(b)) return true;
+    return JSON.stringify(cleanNoise(a)) === JSON.stringify(cleanNoise(b));
+  };
+
   const cleanNoise = (val: unknown): unknown => {
     if (val === null || val === undefined) return val;
     if (Array.isArray(val)) {
@@ -150,10 +207,7 @@ export function AuditHistoryDrawer({
     if (typeof val === "object") {
       const cleaned: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-        if (
-          ["orgId", "createdAt", "updatedAt", "deletedAt", "complaintId"].includes(k)
-        )
-          continue;
+        if (isIgnoredKey(k)) continue;
         cleaned[k] = cleanNoise(v);
       }
       return cleaned;
@@ -161,8 +215,84 @@ export function AuditHistoryDrawer({
     return val;
   };
 
+  const formatRecordName = (log: any, fallbackIdentifier?: string): string => {
+    const num =
+      log.complaint?.complaintNumber ||
+      log.capa?.capaNumber ||
+      log.newData?.complaintNumber ||
+      log.newData?.complaint?.complaintNumber ||
+      log.previousData?.complaintNumber ||
+      log.previousData?.complaint?.complaintNumber ||
+      log.newData?.capaNumber ||
+      log.previousData?.capaNumber ||
+      fallbackIdentifier;
+
+    const numSuffix = num ? ` ${num}` : "";
+
+    switch (log.entityType) {
+      case "Complaint":
+        return `Complaint${numSuffix}`;
+      case "Capa":
+        return `CAPA${numSuffix}`;
+      case "Investigation":
+        return num ? `Investigation (${num})` : "Investigation";
+      case "InvestigationSummary":
+        return num ? `Investigation Summary (${num})` : "Investigation Summary";
+      case "VigilanceDecisionTree":
+      case "Vigilance":
+        return num ? `Vigilance (${num})` : "Vigilance";
+      case "CustomerCommunication":
+        return num ? `Customer Communication (${num})` : "Customer Communication";
+      case "InitialMIR":
+        return num ? `Initial MIR (${num})` : "Initial MIR";
+      case "FinalMIR":
+        return num ? `Final MIR (${num})` : "Final MIR";
+      case "ComplaintTask":
+        return num ? `Complaint Task (${num})` : "Complaint Task";
+      case "SampleManagement":
+        return num ? `Sample Management (${num})` : "Sample Management";
+      case "CapaInitiation":
+        return num ? `CAPA Initiation (${num})` : "CAPA Initiation";
+      case "CapaInvestigation":
+        return num ? `CAPA Investigation (${num})` : "CAPA Investigation";
+      case "CapaImplementation":
+        return num ? `CAPA Implementation (${num})` : "CAPA Implementation";
+      case "CapaEffectiveness":
+        return num ? `CAPA Effectiveness (${num})` : "CAPA Effectiveness";
+      case "ExtensionRequest":
+        return num ? `CAPA Extension Request (${num})` : "CAPA Extension Request";
+      default:
+        return num ? `${log.entityType} (${num})` : log.entityType;
+    }
+  };
+
+  const formatAuditDateTime = (dateStr: Date | string): string => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const year = d.getUTCFullYear();
+    const month = pad(d.getUTCMonth() + 1);
+    const day = pad(d.getUTCDate());
+    const hours = pad(d.getUTCHours());
+    const minutes = pad(d.getUTCMinutes());
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+  };
+
   const formatFieldTitle = (name: string): string => {
     if (!name) return "Field";
+    const lower = name.toLowerCase();
+    if (lower === "priority" || lower === "severity") return "Severity";
+    if (lower === "shortdescription") return "Short Description";
+    if (lower === "awarenessdate") return "Awareness Date";
+    if (lower === "datereceived") return "Date Received";
+    if (lower === "customername") return "Customer Name";
+    if (lower === "customertype") return "Customer Type";
+    if (lower === "telnumber") return "Telephone Number";
+    if (lower === "countryeventoccurred") return "Country Event Occurred";
+    if (lower === "currentphase") return "Phase";
+    if (lower === "status") return "Status";
+    if (lower === "sampleavailable") return "Sample Available";
+    if (lower === "trackingdetails") return "Tracking Details";
     return name
       .replace(/([A-Z])/g, " $1")
       .replace(/_/g, " ")
@@ -171,10 +301,16 @@ export function AuditHistoryDrawer({
   };
 
   const formatScalarValue = (val: unknown): string => {
-    if (val === null || val === undefined) return "null";
-    if (typeof val === "boolean") return val ? "true" : "false";
+    if (val === null || val === undefined) return "(none)";
+    if (typeof val === "boolean") return val ? "Yes" : "No";
     if (typeof val === "string") {
       if (val === "") return '"" (empty)';
+      if (/^[A-Z0-9_]+$/.test(val)) {
+        return val
+          .split("_")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(" ");
+      }
       return val;
     }
     if (typeof val === "number") return String(val);
@@ -182,16 +318,7 @@ export function AuditHistoryDrawer({
   };
 
   const formatDateTime = (dateStr: Date | string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: "UTC",
-    });
+    return formatAuditDateTime(dateStr);
   };
 
   const extractDetailedDiffs = (
@@ -249,9 +376,10 @@ export function AuditHistoryDrawer({
 
           let subDiffFound = false;
           for (const k of allKeys) {
+            if (isIgnoredKey(k)) continue;
             const oSub = cOld[k];
             const nSub = cNew[k];
-            if (JSON.stringify(oSub) !== JSON.stringify(nSub)) {
+            if (!areAuditValuesEqual(oSub, nSub)) {
               subDiffFound = true;
               diffs.push({
                 label: `${prefix}${k}`,
@@ -296,9 +424,10 @@ export function AuditHistoryDrawer({
         [];
 
       for (const k of allKeys) {
+        if (isIgnoredKey(k)) continue;
         const oSub = cOld[k];
         const nSub = cNew[k];
-        if (JSON.stringify(oSub) !== JSON.stringify(nSub)) {
+        if (!areAuditValuesEqual(oSub, nSub)) {
           diffs.push({
             label: k,
             oldDisplay: formatScalarValue(oSub),
@@ -493,28 +622,88 @@ export function AuditHistoryDrawer({
                         {/* Bullet point on timeline */}
                         <div className="absolute -left-[27px] top-1.5 h-3.5 w-3.5 rounded-full bg-card border-2 border-amber-500 ring-4 ring-background" />
 
-                        <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 shadow-xs hover:border-amber-500/30 transition-colors">
-                          <div className="flex items-center justify-between">
+                        <div className="rounded-xl border border-border bg-card p-3.5 space-y-3 shadow-xs hover:border-amber-500/30 transition-colors">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2">
                             <div className="flex items-center gap-2">
                               {getAuditActionBadge(log.action)}
-                              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                <History className="h-3 w-3 text-amber-500" />
-                                {log.reason || "Record Action"}
-                              </span>
+                              <div className="flex items-center gap-1.5 text-xs font-semibold">
+                                <span className="text-muted-foreground font-normal">Record:</span>
+                                <span className="font-mono text-primary font-bold">
+                                  {formatRecordName(log, identifier)}
+                                </span>
+                              </div>
                             </div>
                             <span className="text-[10px] font-mono text-muted-foreground">
                               #{logIndex}
                             </span>
                           </div>
 
-                          <div className="text-[11px] text-muted-foreground flex items-center justify-between font-mono">
-                            <span>
-                              By:{" "}
-                              <strong className="text-foreground font-sans font-medium">
-                                {resolveUserDisplayName(log.changedBy, log.changedById, log.changedById)}
-                              </strong>
-                            </span>
-                            <span suppressHydrationWarning>{formatDateTime(log.timestamp)}</span>
+                          {/* Changed By, Date, Reason metadata */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                            <div className="space-y-0.5">
+                              <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-semibold block">
+                                Changed By:
+                              </span>
+                              <span className="text-foreground font-medium font-sans block">
+                                {log.signerName || resolveUserDisplayName(log.changedBy, log.changedById, log.changedById)}
+                              </span>
+                              {log.signerRole && (
+                                <span className="text-[10px] text-muted-foreground block">
+                                  Role at signing:{" "}
+                                  <span className="font-semibold text-foreground font-sans">
+                                    {formatRoleName(log.signerRole)}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="space-y-0.5">
+                              <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-semibold block">
+                                Date:
+                              </span>
+                              <span className="font-mono text-foreground font-medium block" suppressHydrationWarning>
+                                {formatAuditDateTime(log.timestamp)}
+                              </span>
+                              {log.organizationName && (
+                                <span className="text-[10px] text-muted-foreground block">
+                                  Organization:{" "}
+                                  <span className="font-medium text-foreground">
+                                    {log.organizationName}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+
+                            {log.signatureMeaning && (
+                              <div className="sm:col-span-2 pt-1 border-t border-border/40 space-y-0.5">
+                                <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-semibold block">
+                                  Signature Meaning:
+                                </span>
+                                <span className="text-foreground font-semibold text-xs block">
+                                  {log.signatureMeaning}
+                                </span>
+                              </div>
+                            )}
+
+                            {log.recordVersion && (
+                              <div className="sm:col-span-2 pt-0.5 space-y-0.5">
+                                <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-semibold block">
+                                  Record Version:
+                                </span>
+                                <span className="font-mono text-foreground font-medium text-[11px] block">
+                                  {log.recordVersion}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="sm:col-span-2 pt-1 border-t border-border/40 space-y-0.5">
+                              <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-semibold block">
+                                Reason:
+                              </span>
+                              <span className="text-foreground italic font-sans break-words block">
+                                {log.reason || "Change recorded in system audit trail"}
+                              </span>
+                            </div>
                           </div>
 
                           {/* Technical details / Diff preview with accordion */}
@@ -532,8 +721,46 @@ export function AuditHistoryDrawer({
                                     log.newData as Record<string, any>
                                   ) as unknown as Record<string, unknown>[])
                                 : [];
+                            const createFieldChanges =
+                              log.action === "CREATE" && log.newData && typeof log.newData === "object"
+                                ? Object.entries(
+                                    (log.newData.complaint && typeof log.newData.complaint === "object"
+                                      ? log.newData.complaint
+                                      : log.newData) as Record<string, unknown>
+                                  )
+                                    .filter(
+                                      ([k]) =>
+                                        ![
+                                          "id",
+                                          "orgId",
+                                          "createdAt",
+                                          "updatedAt",
+                                          "deletedAt",
+                                          "complaintId",
+                                          "capaId",
+                                          "productsCount",
+                                          "patientsCount",
+                                          "vigilanceDecisionTreeId",
+                                          "investigationId",
+                                          "customerCommunicationId",
+                                        ].includes(k)
+                                    )
+                                    .map(([k, v]) => ({
+                                      field: k,
+                                      oldValue: null,
+                                      newValue: v,
+                                    }))
+                                : [];
 
-                            const fieldChangesList = rawChanges;
+                            const fieldChangesList = (
+                              rawChanges.length > 0 ? rawChanges : createFieldChanges
+                            ).filter(
+                              (c: any) =>
+                                c &&
+                                c.field &&
+                                !isIgnoredKey(c.field) &&
+                                !areAuditValuesEqual(c.oldValue, c.newValue)
+                            );
                             const isExpanded = expandedLogIds.has(log.id);
 
                             if (fieldChangesList.length === 0) return null;
@@ -591,10 +818,11 @@ export function AuditHistoryDrawer({
                                             <div className="flex items-center justify-between gap-2">
                                               <div className="flex items-center gap-1.5">
                                                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                                <span className="font-semibold text-foreground text-[11px] font-sans">
+                                                <span className="text-muted-foreground font-medium text-[11px]">Field:</span>
+                                                <span className="font-semibold text-foreground text-xs font-sans">
                                                   {fieldLabel}
                                                 </span>
-                                                {rawKey && rawKey !== fieldLabel && (
+                                                {rawKey && rawKey.toLowerCase() !== fieldLabel.toLowerCase() && (
                                                   <span className="text-[10px] font-mono text-muted-foreground">
                                                     ({rawKey})
                                                   </span>
@@ -607,26 +835,32 @@ export function AuditHistoryDrawer({
                                               )}
                                             </div>
 
-                                            {/* Visual Diff Badges */}
-                                            <div className="space-y-1.5">
+                                            {/* Visual Diff with Explicit Old Value and New Value */}
+                                            <div className="space-y-1.5 pt-0.5">
                                               {diffs.map((diff, dIdx) => (
-                                                <div
-                                                  key={dIdx}
-                                                  className="flex flex-col sm:flex-row sm:items-center gap-1.5 bg-background/80 p-1.5 rounded border border-border/50 text-[11px] font-mono"
-                                                >
+                                                <div key={dIdx} className="space-y-1">
                                                   {diff.label && (
-                                                    <span className="text-muted-foreground font-medium text-[10px] sm:min-w-[110px] shrink-0">
-                                                      {diff.label}:
-                                                    </span>
+                                                    <div className="text-[10px] font-mono text-muted-foreground">
+                                                      {diff.label}
+                                                    </div>
                                                   )}
-                                                  <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-                                                    <span className="line-through text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
-                                                      {diff.oldDisplay}
-                                                    </span>
-                                                    <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[11px] break-all">
-                                                      {diff.newDisplay}
-                                                    </span>
+                                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                                    <div className="p-2 rounded bg-rose-500/5 border border-rose-500/20 space-y-0.5">
+                                                      <span className="text-[10px] uppercase font-semibold text-rose-600 dark:text-rose-400 block">
+                                                        Old Value:
+                                                      </span>
+                                                      <span className="font-mono text-rose-700 dark:text-rose-300 font-medium break-all block">
+                                                        {diff.oldDisplay}
+                                                      </span>
+                                                    </div>
+                                                    <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/20 space-y-0.5">
+                                                      <span className="text-[10px] uppercase font-semibold text-emerald-600 dark:text-emerald-400 block">
+                                                        New Value:
+                                                      </span>
+                                                      <span className="font-mono text-emerald-700 dark:text-emerald-300 font-semibold break-all block">
+                                                        {diff.newDisplay}
+                                                      </span>
+                                                    </div>
                                                   </div>
                                                 </div>
                                               ))}

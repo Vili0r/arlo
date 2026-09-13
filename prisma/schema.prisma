@@ -889,6 +889,14 @@ model AuditLog {
   changedBy    User         @relation(fields: [changedById], references: [id])
   organization Organization @relation(fields: [orgId], references: [id])
 
+  // Historical Authorization & Signature Snapshot (21 CFR Part 11 § 11.50)
+  signerName       String? // Snapshot of printed name at signature time
+  signerEmail      String? // Snapshot of email at signature time
+  signerRole       String? // Snapshot of role/title at signature time (e.g., "org:qa_manager")
+  organizationName String? // Snapshot of organization name at signature time
+  signatureMeaning String? // Explicit regulatory meaning at signature time
+  recordVersion    String? // Snapshot of record version at signature time
+
   complaintId String?
   complaint   Complaint? @relation(fields: [complaintId], references: [id])
   capaId      String?

@@ -25,6 +25,12 @@ export interface CreateAuditLogParams {
   fieldChanges?: Record<string, unknown>[] | null;
   complaintId?: string;
   capaId?: string;
+  signerName?: string | null;
+  signerEmail?: string | null;
+  signerRole?: string | null;
+  organizationName?: string | null;
+  signatureMeaning?: string | null;
+  recordVersion?: string | null;
 }
 
 /**
@@ -43,6 +49,12 @@ export async function createAuditLog({
   fieldChanges,
   complaintId,
   capaId,
+  signerName,
+  signerEmail,
+  signerRole,
+  organizationName,
+  signatureMeaning,
+  recordVersion,
 }: CreateAuditLogParams) {
   try {
     const log = await prisma.auditLog.create({
@@ -64,6 +76,12 @@ export async function createAuditLog({
           : Prisma.JsonNull,
         complaintId: complaintId ?? null,
         capaId: capaId ?? null,
+        signerName: signerName ?? null,
+        signerEmail: signerEmail ?? null,
+        signerRole: signerRole ?? null,
+        organizationName: organizationName ?? null,
+        signatureMeaning: signatureMeaning ?? null,
+        recordVersion: recordVersion ?? null,
       },
     });
 

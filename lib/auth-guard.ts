@@ -7,9 +7,14 @@ import { prisma } from "@/lib/prisma";
 export const ROLES = {
   ADMIN: "org:admin",
   QA_MANAGER: "org:qa_manager",
+  QA_APPROVER: "org:qa_approver",
+  QA_REVIEWER: "org:qa_reviewer",
+  QUALITY_ENGINEER: "org:quality_engineer",
   COMPLAINT_INVESTIGATOR: "org:complaint_investigator",
   CAPA_OWNER: "org:capa_owner",
   VIGILANCE_LEAD: "org:vigilance_lead",
+  MEMBER: "org:member",
+  READ_ONLY: "org:read_only",
 } as const;
 
 export type RoleSlug = (typeof ROLES)[keyof typeof ROLES];
@@ -18,18 +23,127 @@ export type RoleSlug = (typeof ROLES)[keyof typeof ROLES];
 // Granular Clerk Permissions for Action & Route Protection
 // ----------------------------------------------------------------------
 export const PERMISSIONS = {
+  // Complaint Permissions
+  COMPLAINT_CREATE: "org:complaint:create",
+  COMPLAINT_EDIT: "org:complaint:edit",
+  COMPLAINT_CLOSE: "org:complaint:close",
+  COMPLAINT_ASSIGN: "org:complaint:assign",
+  COMPLAINT_INVESTIGATE: "org:complaint:investigate",
+
+  // CAPA Permissions
+  CAPA_CREATE: "org:capa:create",
+  CAPA_EDIT: "org:capa:edit",
+  CAPA_APPROVE: "org:capa:approve",
+  CAPA_CLOSE: "org:capa:close",
+
+  // Vigilance Permissions
+  VIGILANCE_MANAGE: "org:vigilance:manage",
+  VIGILANCE_VIEW: "org:vigilance:view",
+
+  // Audit & Signatures
+  AUDIT_VIEW: "org:audit:view",
+  ESIGNATURE_SIGN: "org:esignature:sign",
+
+  // Reports & Exports
+  REPORT_EXPORT: "org:report:export",
+
+  // Administration
+  USER_MANAGE: "org:user:manage",
+  SETTINGS_MANAGE: "org:settings:manage",
+
+  // Backward-compatibility Aliases with Existing Codebase
   COMPLAINTS_CREATE: "org:complaints:create",
   COMPLAINTS_INVESTIGATE: "org:complaints:investigate",
   COMPLAINTS_APPROVE_CLOSE: "org:complaints:approve_close",
-  CAPA_CREATE: "org:capa:create",
-  CAPA_EDIT: "org:capa:edit",
   CAPA_APPROVE_CLOSE: "org:capa:approve_close",
-  VIGILANCE_MANAGE: "org:vigilance:manage",
   SYSTEM_AUDIT_READ: "org:system:audit_read",
 } as const;
 
 export type PermissionSlug =
-  (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+  | (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
+  | "complaint.create"
+  | "complaint.edit"
+  | "complaint.close"
+  | "complaint.assign"
+  | "complaint.investigate"
+  | "capa.create"
+  | "capa.edit"
+  | "capa.approve"
+  | "capa.close"
+  | "vigilance.manage"
+  | "vigilance.view"
+  | "audit.view"
+  | "esignature.sign"
+  | "report.export"
+  | "user.manage"
+  | "settings.manage";
+
+export const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
+  // Complaint create
+  "org:complaint:create": ["org:complaint:create", "org:complaints:create", "complaint.create"],
+  "org:complaints:create": ["org:complaint:create", "org:complaints:create", "complaint.create"],
+  "complaint.create": ["org:complaint:create", "org:complaints:create", "complaint.create"],
+
+  // Complaint edit
+  "org:complaint:edit": ["org:complaint:edit", "complaint.edit"],
+  "complaint.edit": ["org:complaint:edit", "complaint.edit"],
+
+  // Complaint assign
+  "org:complaint:assign": ["org:complaint:assign", "complaint.assign"],
+  "complaint.assign": ["org:complaint:assign", "complaint.assign"],
+
+  // Complaint investigate
+  "org:complaint:investigate": ["org:complaint:investigate", "org:complaints:investigate", "complaint.investigate"],
+  "org:complaints:investigate": ["org:complaint:investigate", "org:complaints:investigate", "complaint.investigate"],
+  "complaint.investigate": ["org:complaint:investigate", "org:complaints:investigate", "complaint.investigate"],
+
+  // Complaint close
+  "org:complaint:close": ["org:complaint:close", "org:complaints:approve_close", "complaint.close"],
+  "org:complaints:approve_close": ["org:complaint:close", "org:complaints:approve_close", "complaint.close"],
+  "complaint.close": ["org:complaint:close", "org:complaints:approve_close", "complaint.close"],
+
+  // CAPA create
+  "org:capa:create": ["org:capa:create", "capa.create"],
+  "capa.create": ["org:capa:create", "capa.create"],
+
+  // CAPA edit
+  "org:capa:edit": ["org:capa:edit", "capa.edit"],
+  "capa.edit": ["org:capa:edit", "capa.edit"],
+
+  // CAPA approve
+  "org:capa:approve": ["org:capa:approve", "org:capa:approve_close", "capa.approve"],
+  "capa.approve": ["org:capa:approve", "org:capa:approve_close", "capa.approve"],
+
+  // CAPA close
+  "org:capa:close": ["org:capa:close", "org:capa:approve_close", "capa.close"],
+  "capa.close": ["org:capa:close", "org:capa:approve_close", "capa.close"],
+  "org:capa:approve_close": ["org:capa:close", "org:capa:approve", "org:capa:approve_close", "capa.approve", "capa.close"],
+
+  // Vigilance
+  "org:vigilance:manage": ["org:vigilance:manage", "vigilance.manage"],
+  "vigilance.manage": ["org:vigilance:manage", "vigilance.manage"],
+  "org:vigilance:view": ["org:vigilance:view", "vigilance.view"],
+  "vigilance.view": ["org:vigilance:view", "vigilance.view"],
+
+  // Audit
+  "org:audit:view": ["org:audit:view", "org:system:audit_read", "audit.view"],
+  "org:system:audit_read": ["org:audit:view", "org:system:audit_read", "audit.view"],
+  "audit.view": ["org:audit:view", "org:system:audit_read", "audit.view"],
+
+  // E-signature
+  "org:esignature:sign": ["org:esignature:sign", "esignature.sign"],
+  "esignature.sign": ["org:esignature:sign", "esignature.sign"],
+
+  // Report
+  "org:report:export": ["org:report:export", "report.export"],
+  "report.export": ["org:report:export", "report.export"],
+
+  // Admin
+  "org:user:manage": ["org:user:manage", "user.manage"],
+  "user.manage": ["org:user:manage", "user.manage"],
+  "org:settings:manage": ["org:settings:manage", "settings.manage"],
+  "settings.manage": ["org:settings:manage", "settings.manage"],
+};
 
 export interface AuthenticatedOrgContext {
   userId: string;
@@ -126,42 +240,123 @@ export async function requireOrgAuth(
       authContext.orgRole === ROLES.ADMIN ||
       authContext.has({ role: ROLES.ADMIN });
 
-    const hasClerkPermission = authContext.has({
-      permission: requiredPermission,
-    });
+    const equivalentPerms =
+      PERMISSION_EQUIVALENTS[requiredPermission] || [requiredPermission];
+
+    const hasClerkPermission = equivalentPerms.some((perm) =>
+      authContext.has({ permission: perm })
+    );
 
     // Role-based permission mapping for default Clerk roles & custom roles
     const rolePermissions: Record<string, PermissionSlug[]> = {
       [ROLES.ADMIN]: Object.values(PERMISSIONS),
       [ROLES.QA_MANAGER]: Object.values(PERMISSIONS),
-      [ROLES.COMPLAINT_INVESTIGATOR]: [
+      [ROLES.QA_APPROVER]: [
+        PERMISSIONS.COMPLAINT_CREATE,
         PERMISSIONS.COMPLAINTS_CREATE,
+        PERMISSIONS.COMPLAINT_EDIT,
+        PERMISSIONS.COMPLAINT_ASSIGN,
+        PERMISSIONS.COMPLAINT_INVESTIGATE,
+        PERMISSIONS.COMPLAINTS_INVESTIGATE,
+        PERMISSIONS.COMPLAINT_CLOSE,
+        PERMISSIONS.COMPLAINTS_APPROVE_CLOSE,
+        PERMISSIONS.CAPA_CREATE,
+        PERMISSIONS.CAPA_EDIT,
+        PERMISSIONS.CAPA_APPROVE,
+        PERMISSIONS.CAPA_CLOSE,
+        PERMISSIONS.CAPA_APPROVE_CLOSE,
+        PERMISSIONS.VIGILANCE_MANAGE,
+        PERMISSIONS.VIGILANCE_VIEW,
+        PERMISSIONS.AUDIT_VIEW,
+        PERMISSIONS.SYSTEM_AUDIT_READ,
+        PERMISSIONS.ESIGNATURE_SIGN,
+        PERMISSIONS.REPORT_EXPORT,
+      ],
+      [ROLES.QA_REVIEWER]: [
+        PERMISSIONS.COMPLAINT_CREATE,
+        PERMISSIONS.COMPLAINTS_CREATE,
+        PERMISSIONS.COMPLAINT_EDIT,
+        PERMISSIONS.COMPLAINT_INVESTIGATE,
         PERMISSIONS.COMPLAINTS_INVESTIGATE,
         PERMISSIONS.CAPA_CREATE,
         PERMISSIONS.CAPA_EDIT,
+        PERMISSIONS.VIGILANCE_VIEW,
+        PERMISSIONS.AUDIT_VIEW,
         PERMISSIONS.SYSTEM_AUDIT_READ,
+        PERMISSIONS.ESIGNATURE_SIGN,
+        PERMISSIONS.REPORT_EXPORT,
+      ],
+      [ROLES.QUALITY_ENGINEER]: [
+        PERMISSIONS.COMPLAINT_CREATE,
+        PERMISSIONS.COMPLAINTS_CREATE,
+        PERMISSIONS.COMPLAINT_EDIT,
+        PERMISSIONS.COMPLAINT_INVESTIGATE,
+        PERMISSIONS.COMPLAINTS_INVESTIGATE,
+        PERMISSIONS.CAPA_CREATE,
+        PERMISSIONS.CAPA_EDIT,
+        PERMISSIONS.VIGILANCE_VIEW,
+        PERMISSIONS.AUDIT_VIEW,
+        PERMISSIONS.SYSTEM_AUDIT_READ,
+        PERMISSIONS.ESIGNATURE_SIGN,
+        PERMISSIONS.REPORT_EXPORT,
+      ],
+      [ROLES.COMPLAINT_INVESTIGATOR]: [
+        PERMISSIONS.COMPLAINT_CREATE,
+        PERMISSIONS.COMPLAINTS_CREATE,
+        PERMISSIONS.COMPLAINT_EDIT,
+        PERMISSIONS.COMPLAINT_INVESTIGATE,
+        PERMISSIONS.COMPLAINTS_INVESTIGATE,
+        PERMISSIONS.CAPA_CREATE,
+        PERMISSIONS.CAPA_EDIT,
+        PERMISSIONS.AUDIT_VIEW,
+        PERMISSIONS.SYSTEM_AUDIT_READ,
+        PERMISSIONS.ESIGNATURE_SIGN,
+        PERMISSIONS.REPORT_EXPORT,
       ],
       [ROLES.CAPA_OWNER]: [
+        PERMISSIONS.COMPLAINT_CREATE,
         PERMISSIONS.COMPLAINTS_CREATE,
         PERMISSIONS.CAPA_CREATE,
         PERMISSIONS.CAPA_EDIT,
+        PERMISSIONS.AUDIT_VIEW,
         PERMISSIONS.SYSTEM_AUDIT_READ,
+        PERMISSIONS.ESIGNATURE_SIGN,
+        PERMISSIONS.REPORT_EXPORT,
       ],
       [ROLES.VIGILANCE_LEAD]: [
+        PERMISSIONS.COMPLAINT_CREATE,
         PERMISSIONS.COMPLAINTS_CREATE,
+        PERMISSIONS.COMPLAINT_EDIT,
+        PERMISSIONS.COMPLAINT_INVESTIGATE,
         PERMISSIONS.COMPLAINTS_INVESTIGATE,
         PERMISSIONS.VIGILANCE_MANAGE,
+        PERMISSIONS.VIGILANCE_VIEW,
+        PERMISSIONS.AUDIT_VIEW,
         PERMISSIONS.SYSTEM_AUDIT_READ,
+        PERMISSIONS.ESIGNATURE_SIGN,
+        PERMISSIONS.REPORT_EXPORT,
       ],
-      "org:member": [
+      [ROLES.MEMBER]: [
+        PERMISSIONS.COMPLAINT_CREATE,
         PERMISSIONS.COMPLAINTS_CREATE,
+        PERMISSIONS.AUDIT_VIEW,
         PERMISSIONS.SYSTEM_AUDIT_READ,
+        PERMISSIONS.REPORT_EXPORT,
+      ],
+      [ROLES.READ_ONLY]: [
+        PERMISSIONS.AUDIT_VIEW,
+        PERMISSIONS.SYSTEM_AUDIT_READ,
+        PERMISSIONS.VIGILANCE_VIEW,
       ],
     };
 
-    const hasRolePermission =
-      authContext.orgRole &&
-      rolePermissions[authContext.orgRole]?.includes(requiredPermission);
+    const userRolePerms = authContext.orgRole
+      ? rolePermissions[authContext.orgRole] ?? []
+      : [];
+
+    const hasRolePermission = equivalentPerms.some((perm) =>
+      userRolePerms.includes(perm as PermissionSlug)
+    );
 
     if (!isAdmin && !hasClerkPermission && !hasRolePermission) {
       throw new Error(

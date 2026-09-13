@@ -79,7 +79,7 @@ export async function updateVigilance(data: any) {
         changedById: userId,
         previousData: existing as unknown as Prisma.InputJsonValue,
         newData: updated as unknown as Prisma.InputJsonValue,
-        reason: `Updated vigilance decision tree assessment`,
+        reason: data.reason || `Updated vigilance decision tree assessment`,
         fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
         complaintId: existing.complaintId,
       },

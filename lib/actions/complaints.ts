@@ -1,7 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireOrgAuth, PERMISSIONS } from "@/lib/auth-guard";
+import { auth } from "@clerk/nextjs/server";
+import { requireOrgAuth, PERMISSIONS, ROLES } from "@/lib/auth-guard";
 import { generateJsonDiff } from "@/lib/json-diff";
 import { generateAuditDiff } from "@/utils/auditDiff";
 import { revalidatePath } from "next/cache";
@@ -409,6 +410,7 @@ export interface UpdateComplaintWithRelationsInput {
   products?: ProductInformationInput[];
   patients?: PatientInformationInput[];
   newAttachments?: AttachmentInput[];
+  reason?: string;
 }
 
 /**
@@ -439,6 +441,37 @@ export async function updateComplaintWithRelations(
 
     if (!existing) {
       throw new Error("Complaint not found or insufficient permissions.");
+    }
+
+    // Protection for Closed Complaints: Unauthorized users cannot modify closed complaints
+    if (existing.status === ComplaintStatus.CLOSED || (existing.status as string) === "CLOSED") {
+      const authContext = await auth();
+      const isAdmin =
+        authContext.orgRole === ROLES.ADMIN ||
+        Boolean(authContext.has?.({ role: ROLES.ADMIN }));
+      const isQAApprover =
+        authContext.orgRole === ROLES.QA_MANAGER ||
+        authContext.orgRole === ROLES.QA_APPROVER ||
+        Boolean(authContext.has?.({ role: ROLES.QA_MANAGER })) ||
+        Boolean(authContext.has?.({ role: ROLES.QA_APPROVER }));
+      const hasApprovalPermission =
+        authContext.orgRole === ROLES.QA_APPROVER ||
+        Boolean(
+          authContext.has?.({
+            permission: PERMISSIONS.COMPLAINTS_APPROVE_CLOSE,
+          })
+        ) ||
+        Boolean(
+          authContext.has?.({
+            permission: PERMISSIONS.COMPLAINT_CLOSE,
+          })
+        );
+
+      if (!isAdmin && !isQAApprover && !hasApprovalPermission) {
+        throw new Error(
+          "403 Forbidden: Cannot modify a closed complaint. Only QA Managers and Administrators have permission to modify closed complaints."
+        );
+      }
     }
 
     // Concurrency Lock Check: Ensure record is not actively locked by another user
@@ -658,7 +691,7 @@ export async function updateComplaintWithRelations(
         changedById: userId,
         previousData: existing as unknown as Prisma.InputJsonValue,
         newData: fullyUpdated as unknown as Prisma.InputJsonValue,
-        reason: `Updated complaint details (${updated.complaintNumber})`,
+        reason: data.reason || `Updated complaint details (${updated.complaintNumber})`,
         fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
         complaintId: data.complaintId,
       },
@@ -747,6 +780,7 @@ export interface UpdateSampleManagementInput {
   trackingDetails?: string | null;
   status: SampleStatus;
   receivedDate?: Date | string | null;
+  reason?: string;
 }
 
 export async function updateSampleManagement(
@@ -800,7 +834,7 @@ export async function updateSampleManagement(
           fieldChanges.length > 0
             ? (fieldChanges as unknown as Prisma.InputJsonValue)
             : Prisma.JsonNull,
-        reason: `Updated sample management status to ${data.status}`,
+        reason: data.reason || `Updated sample management status to ${data.status}`,
         complaintId: data.complaintId,
       },
     });

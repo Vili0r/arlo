@@ -3,9 +3,10 @@
 import { prisma } from "@/lib/prisma";
 import { requireOrgAuth } from "@/lib/auth-guard";
 import { revalidatePath } from "next/cache";
-import { CapaType, CapaPhase, ExtensionRequestStatus, AuditAction, LockEntityType } from "@prisma/client";
+import { CapaType, CapaPhase, ExtensionRequestStatus, AuditAction, LockEntityType, Prisma } from "@prisma/client";
 import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import { CreateCapaSchema, type CreateCapaFormValues } from "@/lib/validations/capa";
+import { generateAuditDiff, stripMetadata } from "@/utils/auditDiff";
 
 export interface AttachmentInput {
   fileUrl: string;
@@ -440,6 +441,37 @@ export async function updateCapa(capaId: string, data: CreateCapaFormValues) {
       });
     }
 
+    const previousData = {
+      shortDescription: existing.shortDescription,
+      type: existing.type,
+      currentPhase: existing.currentPhase,
+      ownerId: existing.ownerId,
+      cancellationRequested: existing.cancellationRequested,
+      cancellationJustification: existing.cancellationJustification,
+      initiation: existing.initiation ? stripMetadata(existing.initiation) : null,
+      investigation: existing.investigation ? stripMetadata(existing.investigation) : null,
+      implementation: existing.implementation ? stripMetadata(existing.implementation) : null,
+      effectiveness: existing.effectiveness ? stripMetadata(existing.effectiveness) : null,
+    };
+
+    const newData = {
+      shortDescription: updatedCapa.shortDescription,
+      type: updatedCapa.type,
+      currentPhase: updatedCapa.currentPhase,
+      ownerId: updatedCapa.ownerId,
+      cancellationRequested: updatedCapa.cancellationRequested,
+      cancellationJustification: updatedCapa.cancellationJustification,
+      initiation: validated.initiation ? stripMetadata(validated.initiation) : null,
+      investigation: validated.investigation ? stripMetadata(validated.investigation) : null,
+      implementation: validated.implementation ? stripMetadata(validated.implementation) : null,
+      effectiveness: validated.effectiveness ? stripMetadata(validated.effectiveness) : null,
+    };
+
+    const fieldChanges = generateAuditDiff(
+      previousData as Record<string, any>,
+      newData as Record<string, any>
+    );
+
     // 6. Audit Trail
     await tx.auditLog.create({
       data: {
@@ -449,31 +481,10 @@ export async function updateCapa(capaId: string, data: CreateCapaFormValues) {
         action: AuditAction.UPDATE,
         changedById: userId,
         capaId,
-        previousData: {
-          shortDescription: existing.shortDescription,
-          type: existing.type,
-          currentPhase: existing.currentPhase,
-          ownerId: existing.ownerId,
-          cancellationRequested: existing.cancellationRequested,
-          cancellationJustification: existing.cancellationJustification,
-          initiation: existing.initiation,
-          investigation: existing.investigation,
-          implementation: existing.implementation,
-          effectiveness: existing.effectiveness,
-        },
-        newData: {
-          shortDescription: updatedCapa.shortDescription,
-          type: updatedCapa.type,
-          currentPhase: updatedCapa.currentPhase,
-          ownerId: updatedCapa.ownerId,
-          cancellationRequested: updatedCapa.cancellationRequested,
-          cancellationJustification: updatedCapa.cancellationJustification,
-          initiation: validated.initiation,
-          investigation: validated.investigation,
-          implementation: validated.implementation,
-          effectiveness: validated.effectiveness,
-        },
-        reason: "CAPA record and phase details updated",
+        previousData,
+        newData,
+        fieldChanges: fieldChanges as unknown as Prisma.InputJsonValue,
+        reason: (data as any).reason || "CAPA record and phase details updated",
       },
     });
 

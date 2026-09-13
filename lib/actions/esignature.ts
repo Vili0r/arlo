@@ -50,6 +50,7 @@ export interface StatusTransitionResult {
   success: boolean;
   error?: string;
   updatedStatus?: string;
+  signatureId?: string;
 }
 
 export async function executeStatusTransition(
@@ -84,11 +85,13 @@ export async function executeStatusTransition(
   // -------------------------------------------------------------------------
   let userId: string;
   let orgId: string;
+  let userRole: string | undefined;
 
   try {
     const authCtx = await requireOrgAuth();
     userId = authCtx.userId;
     orgId = authCtx.orgId;
+    userRole = authCtx.orgRole;
   } catch {
     return {
       success: false,
@@ -202,16 +205,25 @@ export async function executeStatusTransition(
         const isAdmin =
           authContext.orgRole === ROLES.ADMIN ||
           Boolean(authContext.has?.({ role: ROLES.ADMIN }));
-        const isQAManager =
+        const isQAApprover =
           authContext.orgRole === ROLES.QA_MANAGER ||
-          Boolean(authContext.has?.({ role: ROLES.QA_MANAGER }));
-        const hasApprovalPermission = Boolean(
-          authContext.has?.({
-            permission: PERMISSIONS.COMPLAINTS_APPROVE_CLOSE,
-          })
-        );
+          authContext.orgRole === ROLES.QA_APPROVER ||
+          Boolean(authContext.has?.({ role: ROLES.QA_MANAGER })) ||
+          Boolean(authContext.has?.({ role: ROLES.QA_APPROVER }));
+        const hasApprovalPermission =
+          authContext.orgRole === ROLES.QA_APPROVER ||
+          Boolean(
+            authContext.has?.({
+              permission: PERMISSIONS.COMPLAINTS_APPROVE_CLOSE,
+            })
+          ) ||
+          Boolean(
+            authContext.has?.({
+              permission: PERMISSIONS.COMPLAINT_CLOSE,
+            })
+          );
 
-        if (!isAdmin && !isQAManager && !hasApprovalPermission) {
+        if (!isAdmin && !isQAApprover && !hasApprovalPermission) {
           const actionDesc =
             newStatus === "COMPLETED" || newStatus === "CLOSED"
               ? "approve and complete"
@@ -398,6 +410,70 @@ export async function executeStatusTransition(
       }
       // --- END AUTO-CREATE MIR LOGIC ---
 
+      // Generate unique Signature ID for 21 CFR Part 11 manifestation
+      const signatureId = `sig_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      // Determine record version or status state snapshot
+      const recordVersion =
+        (oldRecord as any)?.version !== undefined
+          ? String((oldRecord as any).version)
+          : (oldRecord as any)?.formTemplateVersion !== undefined
+          ? String((oldRecord as any).formTemplateVersion)
+          : `${currentStatus} → ${newStatus}`;
+
+      // Resolve historical signer details & organization snapshot
+      let signerName: string | null = null;
+      let signerEmail: string | null = null;
+      let signerRole: string | null = userRole || null;
+      let organizationName: string | null = null;
+
+      if (typeof (tx as any).user?.findUnique === "function") {
+        try {
+          const dbUser = await (tx as any).user.findUnique({
+            where: { id: userId },
+            select: { firstName: true, lastName: true, email: true },
+          });
+          if (dbUser) {
+            const fullName = [dbUser.firstName, dbUser.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+            signerName = fullName || dbUser.email || null;
+            signerEmail = dbUser.email || null;
+          }
+        } catch {
+          // ignore lookup error to avoid blocking transaction
+        }
+      }
+
+      if (!signerRole && typeof (tx as any).organizationMember?.findUnique === "function") {
+        try {
+          const member = await (tx as any).organizationMember.findUnique({
+            where: { orgId_userId: { orgId, userId } },
+            select: { role: true },
+          });
+          if (member?.role) {
+            signerRole = member.role;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (typeof (tx as any).organization?.findUnique === "function") {
+        try {
+          const dbOrg = await (tx as any).organization.findUnique({
+            where: { id: orgId },
+            select: { name: true },
+          });
+          if (dbOrg?.name) {
+            organizationName = dbOrg.name;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       // 5e. Write immutable audit log with e-signature details
       const signatureReason = [
         isCancel
@@ -405,14 +481,20 @@ export async function executeStatusTransition(
           : isRevert
           ? `E-SIGNATURE STAGE REVERSION: ${currentStatus} → ${newStatus}`
           : `E-SIGNATURE STATUS CHANGE: ${currentStatus} → ${newStatus}`,
+        `Signature ID: ${signatureId}`,
         `Meaning: ${meaningOfSignature}`,
+        `Record Version: ${recordVersion}`,
+        `Authentication Event: PASSWORD_VERIFICATION_SUCCESS`,
         ...(rationale?.trim() ? [`Rationale: ${rationale.trim()}`] : []),
         `Signed by: ${userId}`,
+        ...(signerRole ? [`Role at signing: ${signerRole}`] : []),
+        ...(organizationName ? [`Organization: ${organizationName}`] : []),
         `Timestamp: ${new Date().toISOString()}`,
       ].join(" | ");
 
-      await tx.auditLog.create({
+      const createdAuditLog = await tx.auditLog.create({
         data: {
+          id: signatureId,
           orgId,
           entityType,
           entityId,
@@ -428,6 +510,12 @@ export async function executeStatusTransition(
               ? (fieldChanges as unknown as Prisma.InputJsonValue)
               : Prisma.JsonNull,
           changedById: userId,
+          signerName,
+          signerEmail,
+          signerRole,
+          organizationName,
+          signatureMeaning: meaningOfSignature,
+          recordVersion,
           // Link to complaint or capa if applicable
           ...(entityType === "Complaint"
             ? { complaintId: entityId }
@@ -441,7 +529,10 @@ export async function executeStatusTransition(
         },
       });
 
-      return updatedRecord;
+      return {
+        updatedRecord,
+        signatureId: createdAuditLog?.id ?? signatureId,
+      };
     }, { maxWait: 5000, timeout: 20000 });
 
     // 5f. Revalidate the page to reflect the new status
@@ -450,6 +541,7 @@ export async function executeStatusTransition(
     return {
       success: true,
       updatedStatus: newStatus,
+      signatureId: result.signatureId,
     };
   } catch (err: unknown) {
     const message =

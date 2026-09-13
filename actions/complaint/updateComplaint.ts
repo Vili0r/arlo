@@ -26,6 +26,37 @@ export async function updateComplaint(
     throw new Error('Complaint not found');
   }
 
+  // Protection for Closed Complaints: Unauthorized users cannot modify closed complaints
+  if (oldRecord.status === 'CLOSED') {
+    const authContext = await auth();
+    const isAdmin =
+      (authContext as any).orgRole === 'org:admin' ||
+      Boolean((authContext as any).has?.({ role: 'org:admin' }));
+    const isQAApprover =
+      (authContext as any).orgRole === 'org:qa_manager' ||
+      (authContext as any).orgRole === 'org:qa_approver' ||
+      Boolean((authContext as any).has?.({ role: 'org:qa_manager' })) ||
+      Boolean((authContext as any).has?.({ role: 'org:qa_approver' }));
+    const hasApprovalPermission =
+      (authContext as any).orgRole === 'org:qa_approver' ||
+      Boolean(
+        (authContext as any).has?.({
+          permission: 'org:complaints:approve_close',
+        })
+      ) ||
+      Boolean(
+        (authContext as any).has?.({
+          permission: 'org:complaint:close',
+        })
+      );
+
+    if (!isAdmin && !isQAApprover && !hasApprovalPermission) {
+      throw new Error(
+        '403 Forbidden: Cannot modify a closed complaint. Only QA Managers and Administrators have permission to modify closed complaints.'
+      );
+    }
+  }
+
   // Generate a composite new record for the diffing engine
   const proposedRecord = { ...oldRecord, ...newData };
 
