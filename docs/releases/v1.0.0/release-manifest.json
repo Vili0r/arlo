@@ -1,0 +1,111 @@
+{
+  "product": "Arlo Quality Management Platform",
+  "releaseVersion": "1.0.0",
+  "releaseDate": "2026-09-14",
+  "commitSha": "be3aa1f",
+  "generatedAt": "2026-09-14T18:49:27.028Z",
+  "environment": "Production",
+  "releaseType": "Major Baseline",
+  "verificationGate": {
+    "status": "PASSED",
+    "totalTests": 287,
+    "passedTests": 287,
+    "failedTests": 0,
+    "coveragePercent": "100%"
+  },
+  "qualityRecordImpactAssessment": {
+    "complaints": true,
+    "capa": true,
+    "auditTrail": true,
+    "eSignatures": true,
+    "coreWorkflows": true,
+    "permissions": true,
+    "attachments": true,
+    "recordHistory": true,
+    "dataMigration": true,
+    "tenantIsolation": true,
+    "additionalRegressionTestingRequired": true,
+    "regressionTestingStatus": "VERIFIED_PASS"
+  },
+  "customerImpact": {
+    "customerAction": "REVIEW",
+    "customerRetestingRequired": false,
+    "sopReviewRecommended": true,
+    "configurationUpdateRequired": true,
+    "userTrainingRequired": true
+  },
+  "artifacts": [
+    {
+      "filename": "01-release-summary.md",
+      "title": "Release Summary",
+      "sha256": "a0bf367d68240c1211aac66a0363de03ef2f770f2743b250680afea213ea17a3",
+      "sizeBytes": 1484
+    },
+    {
+      "filename": "02-change-assessment.md",
+      "title": "Change Impact Assessment & Quality Record Impact",
+      "sha256": "2c765a4a0f5d3538a4167064490abe767eb7a640ac65731ac92558f44b4f50db",
+      "sizeBytes": 2362
+    },
+    {
+      "filename": "03-changed-requirements.md",
+      "title": "Changed Requirements Specification",
+      "sha256": "b97083abee2c2401403f6d3eeb3881962ccf015b6db45dacc37ccd4c7b601bd1",
+      "sizeBytes": 1174
+    },
+    {
+      "filename": "04-release-risk-assessment.md",
+      "title": "Release Risk Assessment",
+      "sha256": "e4d64eca6c4bed186ceba09a3a8607ad0cf8f0008b261639c4902291e793237b",
+      "sizeBytes": 1297
+    },
+    {
+      "filename": "05-test-summary.md",
+      "title": "Release Test Summary",
+      "sha256": "ca3142e0bfb4e940314512645ad360eaaec9b705060afb0db20c560f7594be0f",
+      "sizeBytes": 688
+    },
+    {
+      "filename": "06-test-evidence.md",
+      "title": "Objective Test Evidence Receipts",
+      "sha256": "03d66c42d67a6d8b8e0628473418fa26478b02559dc4e03867b4f7fb2de3b3ba",
+      "sizeBytes": 1260
+    },
+    {
+      "filename": "07-traceability-matrix.md",
+      "title": "Release Traceability Matrix",
+      "sha256": "4214241f2feb505c3178257dacc6f20cbafd93b919086043bb9f48d4d5d0360b",
+      "sizeBytes": 1813
+    },
+    {
+      "filename": "08-security-impact.md",
+      "title": "Security & Authentication Impact Assessment",
+      "sha256": "2c625869f718281e015d4b6b49e2ecd08a398ac590a593924d7d67af21919a38",
+      "sizeBytes": 915
+    },
+    {
+      "filename": "09-database-migration.md",
+      "title": "Database Migration & Data Integrity Report",
+      "sha256": "f721d3e1ce979baa4eff423a1b00f34c39c8aca7c98845b8d3f8efb7521a814e",
+      "sizeBytes": 645
+    },
+    {
+      "filename": "10-customer-impact.md",
+      "title": "Customer Release Impact Guide",
+      "sha256": "94c06cb932b61bc582c4dd4247c9c45d3adb35da2dcc5bd5eb5a87ecebf52a5b",
+      "sizeBytes": 1090
+    },
+    {
+      "filename": "11-known-issues.md",
+      "title": "Known Issues & Anomalies Log",
+      "sha256": "bab14c2f05c9acaad3040518967bb8e8ff816f8246ce379d210a0e15348a8dad",
+      "sizeBytes": 686
+    },
+    {
+      "filename": "12-release-decision.md",
+      "title": "Formal Release Decision & Sign-off",
+      "sha256": "073c14442b2f72a65ed90d4086fbd57be1210926eb978cc87bf3019c7a070603",
+      "sizeBytes": 1073
+    }
+  ]
+}

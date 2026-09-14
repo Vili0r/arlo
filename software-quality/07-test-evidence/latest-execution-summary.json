@@ -1,0 +1,179 @@
+{
+  "generatedAt": "2026-09-14T18:49:26.900Z",
+  "status": "PASSED",
+  "totalRequirements": 23,
+  "totalTestsExecuted": 287,
+  "totalTestsPassed": 287,
+  "totalTestsFailed": 0,
+  "coveragePercent": "100%",
+  "suitesRun": [
+    {
+      "requirement": "SRS-001",
+      "testId": "TEST-001",
+      "testFile": "tests/complaint-creation.test.ts",
+      "result": "PASS",
+      "testsRun": "3/3"
+    },
+    {
+      "requirement": "SRS-002",
+      "testId": "TEST-001",
+      "testFile": "tests/complaint-creation.test.ts",
+      "result": "PASS",
+      "testsRun": "3/3"
+    },
+    {
+      "requirement": "SRS-003",
+      "testId": "TEST-002",
+      "testFile": "tests/unique-identifier-generation.test.ts",
+      "result": "PASS",
+      "testsRun": "9/9"
+    },
+    {
+      "requirement": "SRS-004",
+      "testId": "TEST-003",
+      "testFile": "tests/complaint-stage-transition.test.ts",
+      "result": "PASS",
+      "testsRun": "12/12"
+    },
+    {
+      "requirement": "SRS-020",
+      "testId": "TEST-019",
+      "testFile": "tests/complaint-update.test.ts",
+      "result": "PASS",
+      "testsRun": "4/4"
+    },
+    {
+      "requirement": "SRS-007",
+      "testId": "TEST-006",
+      "testFile": "tests/investigation-stage-transition.test.ts",
+      "result": "PASS",
+      "testsRun": "29/29"
+    },
+    {
+      "requirement": "SRS-008",
+      "testId": "TEST-007",
+      "testFile": "tests/investigation-concurrency-lock.test.ts",
+      "result": "PASS",
+      "testsRun": "8/8"
+    },
+    {
+      "requirement": "SRS-009",
+      "testId": "TEST-008",
+      "testFile": "tests/mir-stage-transition.test.ts",
+      "result": "PASS",
+      "testsRun": "23/23"
+    },
+    {
+      "requirement": "SRS-010",
+      "testId": "TEST-009",
+      "testFile": "tests/mir-subfolder-lifecycle-and-closure.test.ts",
+      "result": "PASS",
+      "testsRun": "15/15"
+    },
+    {
+      "requirement": "SRS-023",
+      "testId": "TEST-022",
+      "testFile": "tests/mir-concurrency-lock.test.ts",
+      "result": "PASS",
+      "testsRun": "12/12"
+    },
+    {
+      "requirement": "SRS-011",
+      "testId": "TEST-010",
+      "testFile": "tests/communication-stage-transition.test.ts",
+      "result": "PASS",
+      "testsRun": "19/19"
+    },
+    {
+      "requirement": "SRS-012",
+      "testId": "TEST-011",
+      "testFile": "tests/customer-report-generation.test.ts",
+      "result": "PASS",
+      "testsRun": "3/3"
+    },
+    {
+      "requirement": "SRS-021",
+      "testId": "TEST-020",
+      "testFile": "tests/communication-update.test.ts",
+      "result": "PASS",
+      "testsRun": "8/8"
+    },
+    {
+      "requirement": "SRS-022",
+      "testId": "TEST-021",
+      "testFile": "tests/communication-concurrency-lock.test.ts",
+      "result": "PASS",
+      "testsRun": "13/13"
+    },
+    {
+      "requirement": "SRS-016",
+      "testId": "TEST-015",
+      "testFile": "tests/audit-trail-complaint-subrecords-capa.test.ts",
+      "result": "PASS",
+      "testsRun": "22/22"
+    },
+    {
+      "requirement": "SRS-013",
+      "testId": "TEST-012",
+      "testFile": "tests/sample-management-update.test.ts",
+      "result": "PASS",
+      "testsRun": "3/3"
+    },
+    {
+      "requirement": "SRS-005",
+      "testId": "TEST-004",
+      "testFile": "tests/closed-complaint-modification-protection.test.ts",
+      "result": "PASS",
+      "testsRun": "11/11"
+    },
+    {
+      "requirement": "SRS-014",
+      "testId": "TEST-013",
+      "testFile": "tests/entity-concurrency-lock.test.ts",
+      "result": "PASS",
+      "testsRun": "14/14"
+    },
+    {
+      "requirement": "SRS-014",
+      "testId": "TEST-023",
+      "testFile": "tests/complaint-concurrency-lock.test.ts",
+      "result": "PASS",
+      "testsRun": "12/12"
+    },
+    {
+      "requirement": "SRS-015",
+      "testId": "TEST-014",
+      "testFile": "tests/audit-history-view.test.ts",
+      "result": "PASS",
+      "testsRun": "14/14"
+    },
+    {
+      "requirement": "SRS-017",
+      "testId": "TEST-016",
+      "testFile": "tests/e-signature-recording.test.ts",
+      "result": "PASS",
+      "testsRun": "7/7"
+    },
+    {
+      "requirement": "SRS-006",
+      "testId": "TEST-005",
+      "testFile": "tests/complaint-multi-tenant-isolation.test.ts",
+      "result": "PASS",
+      "testsRun": "7/7"
+    },
+    {
+      "requirement": "SRS-018",
+      "testId": "TEST-017",
+      "testFile": "tests/new-roles-rbac.test.ts",
+      "result": "PASS",
+      "testsRun": "13/13"
+    },
+    {
+      "requirement": "SRS-019",
+      "testId": "TEST-018",
+      "testFile": "tests/exports-generation.test.ts",
+      "result": "PASS",
+      "testsRun": "10/10"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # User Requirements Specification (URS)
 
-**System Name:** Arlo Complaint Management & Vigilance SaaS  
+**System Name:** Arlo Complaint Management & Vigilance & CAPA Management SaaS  
 **Document ID:** URS-ARLO-001  
 **Version:** 1.0.0  
 **Regulatory Context:** FDA 21 CFR Part 820.198 (Complaint Files), 21 CFR Part 11 (Electronic Records & Signatures), ISO 13485:2016 (Clause 8.2.2 Complaint Handling, 8.5 Improvement), EU MDR 2017/745 (Vigilance & Incident Reporting).

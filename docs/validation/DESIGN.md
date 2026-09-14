@@ -1,6 +1,6 @@
 # Software Design Specification (SDS)
 
-**System Name:** Arlo Complaint Management & Vigilance SaaS  
+**System Name:** Arlo Complaint Management & Vigilance & CAPA Management SaaS  
 **Document ID:** SDS-ARLO-001  
 **Version:** 1.0.0  
 **Parent Document:** [SRS.md](file:///Users/viliorcuni/Desktop/arlo/docs/validation/SRS.md)

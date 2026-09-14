@@ -111,6 +111,9 @@ export function WorkspaceShell({
     if (cleanPath.includes("/settings/exports")) {
       return "Exports";
     }
+    if (cleanPath.includes("/settings/assurance")) {
+      return "Software Assurance Center";
+    }
     if (cleanPath.endsWith("/capa/new") || cleanPath === "/capa/new") {
       return "CAPA Initiation";
     }
@@ -180,6 +183,10 @@ export function WorkspaceShell({
         {
           title: "Exports",
           href: "/settings/exports",
+        },
+        {
+          title: "Software Assurance",
+          href: "/settings/assurance",
         },
       ],
     },

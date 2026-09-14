@@ -381,7 +381,7 @@ export async function runTraceability() {
   const generatedTimestamp = new Date().toISOString();
   let md = `# Requirements Traceability Matrix (RTM)
 
-**System Name:** Arlo Complaint Management & Vigilance SaaS  
+**System Name:** Arlo Complaint Management & Vigilance & CAPA Management SaaS  
 **Document ID:** RTM-ARLO-001  
 **Generated At:** \`${generatedTimestamp}\`  
 **Status:** ${allPassed ? "✅ VALIDATED (ALL TESTS PASS)" : "❌ VALIDATION FAILED"}  
@@ -436,6 +436,82 @@ export async function runTraceability() {
   const matrixPath = path.join(rootDir, "docs", "validation", "traceability-matrix.md");
   fs.writeFileSync(matrixPath, md, "utf-8");
   console.log(`Updated Traceability Matrix at: ${matrixPath}`);
+
+  // Write Traceability Matrix directly to /software-quality/05-traceability.md
+  const sqMatrixPath = path.join(rootDir, "software-quality", "05-traceability.md");
+  fs.writeFileSync(sqMatrixPath, md, "utf-8");
+  console.log(`Updated Traceability Matrix at: ${sqMatrixPath}`);
+
+  // Write Traceability Matrix to Customer Validation Support Pack: /docs/validation-support-pack/09_TRACEABILITY.md
+  const packMatrixPath = path.join(rootDir, "docs", "validation-support-pack", "09_TRACEABILITY.md");
+  if (fs.existsSync(path.dirname(packMatrixPath))) {
+    fs.writeFileSync(packMatrixPath, md, "utf-8");
+    console.log(`Updated Validation Support Pack RTM at: ${packMatrixPath}`);
+  }
+
+  // Write test evidence summary artifacts into /software-quality/07-test-evidence/
+  const evidenceDir = path.join(rootDir, "software-quality", "07-test-evidence");
+  if (!fs.existsSync(evidenceDir)) {
+    fs.mkdirSync(evidenceDir, { recursive: true });
+  }
+
+  const summaryEvidencePath = path.join(evidenceDir, "latest-execution-summary.json");
+  fs.writeFileSync(
+    summaryEvidencePath,
+    JSON.stringify(
+      {
+        generatedAt: generatedTimestamp,
+        status: allPassed ? "PASSED" : "FAILED",
+        totalRequirements: coveredSrs.size,
+        totalTestsExecuted: vitestData.numTotalTests || 0,
+        totalTestsPassed: vitestData.numPassedTests || 0,
+        totalTestsFailed: vitestData.numFailedTests || 0,
+        coveragePercent: `${coveragePercent}%`,
+        suitesRun: rows.map((r) => ({
+          requirement: r.srsId,
+          testId: r.testId,
+          testFile: r.testFile,
+          result: r.result,
+          testsRun: r.testCountStr,
+        })),
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+  console.log(`Saved Test Evidence Summary at: ${summaryEvidencePath}`);
+
+  const releaseEvidencePath = path.join(evidenceDir, "release-v1.0.0-evidence.md");
+  const releaseEvidenceMd = `# Automated Verification Evidence - Release v1.0.0
+
+**Execution Date:** \`${generatedTimestamp}\`  
+**Overall Status:** ${allPassed ? "✅ VERIFIED & VALIDATED" : "❌ FAILED"}  
+**Total Tests Executed:** ${vitestData.numTotalTests || 0}  
+**Total Tests Passing:** ${vitestData.numPassedTests || 0}  
+**Software Requirements Covered:** ${coveredSrs.size}  
+**Requirements Test Coverage:** ${coveragePercent}%  
+
+---
+
+## Executed Verification Suites
+
+| Requirement ID | Test Suite | Tests Run | Result |
+| :--- | :--- | :---: | :---: |
+${rows
+  .map(
+    (r) =>
+      `| **${r.srsId}** | \`${r.testFile}\` | ${r.testCountStr} | ${
+        r.result === "PASS" ? "✅ Pass" : "❌ Fail"
+      } |`
+  )
+  .join("\n")}
+
+---
+*Generated automatically by \`scripts/traceability.mjs\` during automated verification.*
+`;
+  fs.writeFileSync(releaseEvidencePath, releaseEvidenceMd, "utf-8");
+  console.log(`Saved Release v1.0.0 Evidence at: ${releaseEvidencePath}`);
 
   if (!allPassed) {
     console.error("❌ Traceability verification failed: Not all requirements have passing tests!");

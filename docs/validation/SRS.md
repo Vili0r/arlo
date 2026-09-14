@@ -1,6 +1,6 @@
 # Software Requirements Specification (SRS)
 
-**System Name:** Arlo Complaint Management & Vigilance SaaS  
+**System Name:** Arlo Complaint Management & Vigilance & CAPA Management SaaS  
 **Document ID:** SRS-ARLO-001  
 **Version:** 1.0.0  
 **Parent Document:** [URS.md](file:///Users/viliorcuni/Desktop/arlo/docs/validation/URS.md)
