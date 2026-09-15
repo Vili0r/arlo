@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -541,56 +542,7 @@ export function InvestigationEditForm({
     customSectionStates,
   ]);
 
-  /* ---------- scroll-spy ---------- */
 
-  const rootRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    let scroller: HTMLElement | null = root.parentElement;
-    while (scroller && scroller !== document.body) {
-      const { overflowY } = getComputedStyle(scroller);
-      if (overflowY === "auto" || overflowY === "scroll") break;
-      scroller = scroller.parentElement;
-    }
-    if (scroller === document.body) scroller = null;
-    const target: HTMLElement | Window = scroller ?? window;
-
-    const update = () => {
-      const els = sections.map((s) => document.getElementById(s.id)).filter(Boolean) as HTMLElement[];
-      if (els.length === 0) return;
-
-      const scrollTop = scroller ? scroller.scrollTop : window.scrollY;
-      const viewport = scroller ? scroller.clientHeight : window.innerHeight;
-      const scrollHeight = scroller ? scroller.scrollHeight : document.documentElement.scrollHeight;
-
-      if (scrollTop + viewport >= scrollHeight - 4) {
-        setActiveSection(els[els.length - 1].id);
-        return;
-      }
-
-      const line = 140;
-      const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
-      let current = els[0].id;
-      for (const el of els) {
-        if (el.getBoundingClientRect().top - containerTop <= line) current = el.id;
-      }
-      setActiveSection(current);
-    };
-
-    update();
-    target.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => {
-      target.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-  }, [sections]);
-
-  const scrollTo = (id: string) =>
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   React.useEffect(() => {
     const toastId = `investigation-completed-${investigation.id}`;
@@ -713,7 +665,11 @@ export function InvestigationEditForm({
   /* ------------------------------------------------------------------ */
 
   return (
-    <div ref={rootRef} className="-m-6 lg:-m-8">
+    <Tabs
+      value={activeSection}
+      onValueChange={(val) => setActiveSection(val)}
+      className="-m-6 lg:-m-8 gap-0"
+    >
       {/* ---------- Sticky record bar ---------- */}
       <div className="sticky -top-10 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="px-6 pt-3 lg:px-8">
@@ -776,16 +732,18 @@ export function InvestigationEditForm({
             </div>
           </div>
 
-          <nav className="-mb-px mt-2 flex gap-1 overflow-x-auto" aria-label="Sections">
+          <TabsList
+            className="-mb-px mt-2 flex h-auto w-full gap-1 overflow-x-auto bg-transparent p-0 justify-start"
+            aria-label="Sections"
+          >
             {sections.map((s) => {
               const active = activeSection === s.id;
               return (
-                <button
+                <TabsTrigger
                   key={s.id}
-                  type="button"
-                  onClick={() => scrollTo(s.id)}
+                  value={s.id}
                   className={cn(
-                    "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors",
+                    "flex items-center gap-2 whitespace-nowrap rounded-none border-b-2 px-3 py-2.5 text-xs transition-colors bg-transparent shadow-none hover:bg-transparent data-[active]:border-foreground data-[selected]:border-foreground",
                     active
                       ? "border-foreground font-medium text-foreground"
                       : "border-transparent text-muted-foreground hover:text-foreground"
@@ -793,10 +751,10 @@ export function InvestigationEditForm({
                 >
                   <CompletionDot state={completion[s.id] ?? "empty"} />
                   {s.label}
-                </button>
+                </TabsTrigger>
               );
             })}
-          </nav>
+          </TabsList>
         </div>
       </div>
 
@@ -813,135 +771,146 @@ export function InvestigationEditForm({
             </div>
           )}
 
-          <fieldset disabled={isFormDisabled} className="contents space-y-6">
             {/* ---------- Overview ---------- */}
-            <SectionCard
-              id="overview"
-              title="Overview"
-              description="Who is running the investigation and any general notes."
-            >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Investigator" htmlFor="investigatorId" required>
-                  <MemberSelect id="investigatorId" value={investigatorId} onChange={setInvestigatorId} />
-                </Field>
-                <Field label="Notes" htmlFor="notes" className="md:col-span-2">
-                  <Textarea
-                    id="notes"
-                    rows={3}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="General investigation notes."
-                  />
-                </Field>
-              </div>
-            </SectionCard>
+            <TabsContent value="overview">
+              <fieldset disabled={isFormDisabled} className="contents space-y-6">
+                <SectionCard
+                  id="overview"
+                  title="Overview"
+                  description="Who is running the investigation and any general notes."
+                >
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field label="Investigator" htmlFor="investigatorId" required>
+                      <MemberSelect id="investigatorId" value={investigatorId} onChange={setInvestigatorId} />
+                    </Field>
+                    <Field label="Notes" htmlFor="notes" className="md:col-span-2">
+                      <Textarea
+                        id="notes"
+                        rows={3}
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="General investigation notes."
+                      />
+                    </Field>
+                  </div>
+                </SectionCard>
+              </fieldset>
+            </TabsContent>
 
             {/* ---------- Sample analysis ---------- */}
-            <SectionCard id="sample" title="Sample analysis" description="Physical evaluation of the returned device.">
-              <div className="space-y-4">
-                <RequiredToggle
-                  value={sampleAnalysisRequired}
-                  onChange={setSampleAnalysisRequired}
-                  label="Sample analysis"
-                  hint={sampleAnalysisRequired ? "Record receipt, analysis dates, and findings." : "Give a rationale for skipping it."}
-                />
-
-                {!sampleAnalysisRequired && (
-                  <Field label="Exempt rationale" htmlFor="sampleAnalysisExemptRationale" required>
-                    <Textarea
-                      id="sampleAnalysisExemptRationale"
-                      rows={2}
-                      value={sampleAnalysisExemptRationale}
-                      onChange={(e) => setSampleAnalysisExemptRationale(e.target.value)}
+            <TabsContent value="sample">
+              <fieldset disabled={isFormDisabled} className="contents space-y-6">
+                <SectionCard id="sample" title="Sample analysis" description="Physical evaluation of the returned device.">
+                  <div className="space-y-4">
+                    <RequiredToggle
+                      value={sampleAnalysisRequired}
+                      onChange={setSampleAnalysisRequired}
+                      label="Sample analysis"
+                      hint={sampleAnalysisRequired ? "Record receipt, analysis dates, and findings." : "Give a rationale for skipping it."}
                     />
-                  </Field>
-                )}
 
-                {sampleAnalysisRequired && (
-                  <>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <Field label="Quantity" htmlFor="quantity">
-                        <Input id="quantity" type="number" className="font-mono" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                    {!sampleAnalysisRequired && (
+                      <Field label="Exempt rationale" htmlFor="sampleAnalysisExemptRationale" required>
+                        <Textarea
+                          id="sampleAnalysisExemptRationale"
+                          rows={2}
+                          value={sampleAnalysisExemptRationale}
+                          onChange={(e) => setSampleAnalysisExemptRationale(e.target.value)}
+                        />
                       </Field>
-                      <Field label="Sample received" htmlFor="sampleReceivedDate">
-                        <Input id="sampleReceivedDate" type="date" value={sampleReceivedDate} onChange={(e) => setSampleReceivedDate(e.target.value)} />
-                      </Field>
-                      <Field label="Decontaminated" htmlFor="decontaminatedAt">
-                        <Input id="decontaminatedAt" type="date" value={decontaminatedAt} onChange={(e) => setDecontaminatedAt(e.target.value)} />
-                      </Field>
-                      <Field label="Analysis assigned" htmlFor="sampleAnalysisAssignedDate" required>
-                        <Input id="sampleAnalysisAssignedDate" type="date" value={sampleAnalysisAssignedDate} onChange={(e) => setSampleAnalysisAssignedDate(e.target.value)} />
-                      </Field>
-                      <Field label="Analysis complete" htmlFor="sampleAnalysisCompleteDate" required>
-                        <Input id="sampleAnalysisCompleteDate" type="date" value={sampleAnalysisCompleteDate} onChange={(e) => setSampleAnalysisCompleteDate(e.target.value)} />
-                      </Field>
-                    </div>
-                    <Field label="Analysis results" htmlFor="sampleAnalysisResults">
-                      <Textarea
-                        id="sampleAnalysisResults"
-                        rows={4}
-                        value={sampleAnalysisResults}
-                        onChange={(e) => setSampleAnalysisResults(e.target.value)}
-                        placeholder="What was observed, tested, and concluded."
-                      />
-                    </Field>
-                  </>
-                )}
-              </div>
-            </SectionCard>
+                    )}
+
+                    {sampleAnalysisRequired && (
+                      <>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                          <Field label="Quantity" htmlFor="quantity">
+                            <Input id="quantity" type="number" className="font-mono" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                          </Field>
+                          <Field label="Sample received" htmlFor="sampleReceivedDate">
+                            <Input id="sampleReceivedDate" type="date" value={sampleReceivedDate} onChange={(e) => setSampleReceivedDate(e.target.value)} />
+                          </Field>
+                          <Field label="Decontaminated" htmlFor="decontaminatedAt">
+                            <Input id="decontaminatedAt" type="date" value={decontaminatedAt} onChange={(e) => setDecontaminatedAt(e.target.value)} />
+                          </Field>
+                          <Field label="Analysis assigned" htmlFor="sampleAnalysisAssignedDate" required>
+                            <Input id="sampleAnalysisAssignedDate" type="date" value={sampleAnalysisAssignedDate} onChange={(e) => setSampleAnalysisAssignedDate(e.target.value)} />
+                          </Field>
+                          <Field label="Analysis complete" htmlFor="sampleAnalysisCompleteDate" required>
+                            <Input id="sampleAnalysisCompleteDate" type="date" value={sampleAnalysisCompleteDate} onChange={(e) => setSampleAnalysisCompleteDate(e.target.value)} />
+                          </Field>
+                        </div>
+                        <Field label="Analysis results" htmlFor="sampleAnalysisResults">
+                          <Textarea
+                            id="sampleAnalysisResults"
+                            rows={4}
+                            value={sampleAnalysisResults}
+                            onChange={(e) => setSampleAnalysisResults(e.target.value)}
+                            placeholder="What was observed, tested, and concluded."
+                          />
+                        </Field>
+                      </>
+                    )}
+                  </div>
+                </SectionCard>
+              </fieldset>
+            </TabsContent>
 
             {/* ---------- Risk review ---------- */}
-            <SectionCard id="risk" title="Risk review" description="Assessment against the risk management file.">
-              <div className="space-y-4">
-                <RequiredToggle
-                  value={riskReviewRequired}
-                  onChange={setRiskReviewRequired}
-                  label="Risk review"
-                  hint={riskReviewRequired ? "Record who completed it, when, and the outcome." : "Give a rationale for skipping it."}
-                />
-
-                {!riskReviewRequired && (
-                  <Field label="Exempt rationale" htmlFor="riskReviewExemptRationale" required>
-                    <Textarea
-                      id="riskReviewExemptRationale"
-                      rows={2}
-                      value={riskReviewExemptRationale}
-                      onChange={(e) => setRiskReviewExemptRationale(e.target.value)}
+            <TabsContent value="risk">
+              <fieldset disabled={isFormDisabled} className="contents space-y-6">
+                <SectionCard id="risk" title="Risk review" description="Assessment against the risk management file.">
+                  <div className="space-y-4">
+                    <RequiredToggle
+                      value={riskReviewRequired}
+                      onChange={setRiskReviewRequired}
+                      label="Risk review"
+                      hint={riskReviewRequired ? "Record who completed it, when, and the outcome." : "Give a rationale for skipping it."}
                     />
-                  </Field>
-                )}
 
-                {riskReviewRequired && (
-                  <>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <Field label="Completed by" htmlFor="riskReviewCompletedById" required>
-                        <MemberSelect id="riskReviewCompletedById" value={riskReviewCompletedById} onChange={setRiskReviewCompletedById} />
+                    {!riskReviewRequired && (
+                      <Field label="Exempt rationale" htmlFor="riskReviewExemptRationale" required>
+                        <Textarea
+                          id="riskReviewExemptRationale"
+                          rows={2}
+                          value={riskReviewExemptRationale}
+                          onChange={(e) => setRiskReviewExemptRationale(e.target.value)}
+                        />
                       </Field>
-                      <Field label="Completed on" htmlFor="riskReviewCompletedAt" required>
-                        <Input id="riskReviewCompletedAt" type="date" value={riskReviewCompletedAt} onChange={(e) => setRiskReviewCompletedAt(e.target.value)} />
-                      </Field>
-                    </div>
-                    <Field label="Risk review results" htmlFor="riskReviewResults" required>
-                      <Textarea
-                        id="riskReviewResults"
-                        rows={4}
-                        value={riskReviewResults}
-                        onChange={(e) => setRiskReviewResults(e.target.value)}
-                        placeholder="Hazard, harm, current controls, and whether residual risk is acceptable."
-                      />
-                    </Field>
-                  </>
-                )}
-              </div>
-            </SectionCard>
-          </fieldset>
+                    )}
+
+                    {riskReviewRequired && (
+                      <>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          <Field label="Completed by" htmlFor="riskReviewCompletedById" required>
+                            <MemberSelect id="riskReviewCompletedById" value={riskReviewCompletedById} onChange={setRiskReviewCompletedById} />
+                          </Field>
+                          <Field label="Completed on" htmlFor="riskReviewCompletedAt" required>
+                            <Input id="riskReviewCompletedAt" type="date" value={riskReviewCompletedAt} onChange={(e) => setRiskReviewCompletedAt(e.target.value)} />
+                          </Field>
+                        </div>
+                        <Field label="Risk review results" htmlFor="riskReviewResults" required>
+                          <Textarea
+                            id="riskReviewResults"
+                            rows={4}
+                            value={riskReviewResults}
+                            onChange={(e) => setRiskReviewResults(e.target.value)}
+                            placeholder="Hazard, harm, current controls, and whether residual risk is acceptable."
+                          />
+                        </Field>
+                      </>
+                    )}
+                  </div>
+                </SectionCard>
+              </fieldset>
+            </TabsContent>
 
           {/* ---------- Summary and CAPA ---------- */}
-          <SectionCard
-            id="summary"
-            title="Summary and CAPA"
-            description="Conclusion, IMDRF coding, and whether corrective action or a field action is needed."
-          >
+          <TabsContent value="summary">
+            <SectionCard
+              id="summary"
+              title="Summary and CAPA"
+              description="Conclusion, IMDRF coding, and whether corrective action or a field action is needed."
+            >
             <div className="space-y-4">
               <fieldset disabled={isFormDisabled} className="space-y-4">
                 <Field label="Summary" htmlFor="summaryText" required>
@@ -1204,12 +1173,13 @@ export function InvestigationEditForm({
               </fieldset>
             </div>
           </SectionCard>
+        </TabsContent>
 
-          <fieldset disabled={isFormDisabled} className="contents space-y-6">
-            {/* ---------- Custom sections ---------- */}
-            {customSectionStates.map((section) => (
+        {/* ---------- Custom sections ---------- */}
+        {customSectionStates.map((section) => (
+          <TabsContent key={section.id} value={`custom-${section.id}`}>
+            <fieldset disabled={isFormDisabled} className="contents space-y-6">
               <SectionCard
-                key={section.id}
                 id={`custom-${section.id}`}
                 title={section.template?.sectionName || "Custom section"}
                 description={section.template?.description || undefined}
@@ -1220,17 +1190,18 @@ export function InvestigationEditForm({
                   onChange={(field, value) => handleCustomSectionChange(section.id, field, value)}
                 />
               </SectionCard>
-            ))}
+            </fieldset>
+          </TabsContent>
+        ))}
 
-            <div className="flex items-center justify-between pt-2">
-              <Link
-                href={`/complaints/${investigation.complaintId}`}
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Back to complaint
-              </Link>
-            </div>
-          </fieldset>
+        <div className="flex items-center justify-between pt-2">
+          <Link
+            href={`/complaints/${investigation.complaintId}`}
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Back to complaint
+          </Link>
+        </div>
         </form>
 
         {/* ---------- Right context panel ---------- */}
@@ -1298,6 +1269,6 @@ export function InvestigationEditForm({
           </PanelCard>
         </aside>
       </div>
-    </div>
+    </Tabs>
   );
 }

@@ -24,6 +24,7 @@ export const DEFAULT_IGNORED_METADATA_KEYS = [
   'finalMIRId',
   'capaInitiationId',
   'capaInvestigationId',
+  'capaPlanningId',
   'capaImplementationId',
   'capaEffectivenessId',
   'extensionRequestId',

@@ -128,3 +128,19 @@ Whenever an entity is modified:
 3. `generateAuditDiff(before, after)` calculates the exact field-level differences.
 4. An append-only `AuditLog` row is created storing the entity ID, entity type, action (`CREATE`, `UPDATE`, `STAGE_TRANSITION`, `STATUS_CHANGE`), old/new JSON payloads, user ID, user display name, and timestamp.
 5. The application code contains zero SQL delete statements or API endpoints for audit log records.
+
+---
+
+## 3. CAPA Lifecycle & Subrecord Architecture
+
+The Corrective and Preventive Action (CAPA) module follows a 6-phase gated lifecycle compliant with 21 CFR 820.100 and ISO 13485:2016 8.5.2/8.5.3:
+
+```
+[INITIATION] ──▶ [INVESTIGATION] ──▶ [PLANNING] ──▶ [IMPLEMENTATION] ──▶ [EFFECTIVENESS] ──▶ [CLOSED]
+```
+
+### 3.1 Subrecord Data Segregation
+To ensure strict separation between proposed plans and physical execution verification:
+- **`CapaPlanning`**: Holds the pre-implementation commitments, including CAPA plan due date, proposed action plan, proposed effectiveness check plan, dual approvers, and planning attachments.
+- **`CapaImplementation`**: Holds the execution records, including implementation date due, action plan execution details, effectiveness check criteria, effectiveness check due date, validation comments, action plan summary, dual approvers, and execution attachments.
+- All phase subrecords maintain a 1:1 relation to the parent `Capa` entity and inherit tenant isolation via `orgId`. Mutative actions emit deep audit trail diffs linking subrecord changes to the parent CAPA history.

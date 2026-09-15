@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FileUploader } from "@/components/file-uploader";
 import { updateCapa, type AttachmentInput } from "@/lib/actions/capa";
 import { formatUserName, cn } from "@/lib/utils";
@@ -75,6 +76,7 @@ const selectClass =
 const SECTIONS = [
   { id: "initiation", label: "Initiation" },
   { id: "investigation", label: "Investigation" },
+  { id: "planning", label: "Planning" },
   { id: "implementation", label: "Implementation" },
   { id: "effectiveness", label: "Effectiveness" },
   { id: "controls", label: "Controls" },
@@ -86,6 +88,7 @@ type Completion = "done" | "attention" | "empty";
 const PHASE_STEPS: Array<{ phase: string; label: string }> = [
   { phase: "INITIATION", label: "Initiation" },
   { phase: "INVESTIGATION", label: "Investigation" },
+  { phase: "PLANNING", label: "Planning" },
   { phase: "IMPLEMENTATION", label: "Implementation" },
   { phase: "EFFECTIVENESS", label: "Effectiveness" },
   { phase: "CLOSED", label: "Closed" },
@@ -296,13 +299,24 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
     inv.attachments?.map((a: any) => ({ fileUrl: a.fileUrl, fileName: a.fileName, fileSize: a.fileSize, mimeType: a.mimeType })) || []
   );
 
+  const plan = capa.planning || {};
+  const [capaPlanDueDate, setCapaPlanDueDate] = React.useState(toDateString(plan.capaPlanDueDate));
+  const [planningActionPlan, setPlanningActionPlan] = React.useState(plan.actionPlan || "");
+  const [planningEffectivenessCheckPlan, setPlanningEffectivenessCheckPlan] = React.useState(plan.effectivenessCheckPlan || "");
+  const [planningPrimaryApproverId, setPlanningPrimaryApproverId] = React.useState(plan.primaryApproverId || "");
+  const [planningSecondaryApproverId, setPlanningSecondaryApproverId] = React.useState(plan.secondaryApproverId || "");
+  const [planningAttachments, setPlanningAttachments] = React.useState<AttachmentInput[]>(
+    plan.attachments?.map((a: any) => ({ fileUrl: a.fileUrl, fileName: a.fileName, fileSize: a.fileSize, mimeType: a.mimeType })) || []
+  );
+
   const impl = capa.implementation || {};
-  const [actionPlan, setActionPlan] = React.useState(impl.actionPlan || "");
-  const [actionPlanSummary, setActionPlanSummary] = React.useState(impl.actionPlanSummary || "");
-  const [riskEvaluation, setRiskEvaluation] = React.useState(impl.riskEvaluation || "");
-  const [implementationDueDate, setImplementationDueDate] = React.useState(toDateString(impl.implementationDueDate));
-  const [effectivenessCheckPlan, setEffectivenessCheckPlan] = React.useState(impl.effectivenessCheckPlan || "");
-  const [effectivenessDueDate, setEffectivenessDueDate] = React.useState(toDateString(impl.effectivenessDueDate));
+  const [implementationDateDue, setImplementationDateDue] = React.useState(toDateString(impl.dateDue || impl.implementationDueDate));
+  const [implementationActionPlan, setImplementationActionPlan] = React.useState(impl.actionPlan || "");
+  const [implementationEffectivenessCheckPlan, setImplementationEffectivenessCheckPlan] = React.useState(impl.effectivenessCheckPlan || "");
+  const [implementationEffectivenessDueDate, setImplementationEffectivenessDueDate] = React.useState(toDateString(impl.effectivenessDueDate));
+  const [implementationValidateComments, setImplementationValidateComments] = React.useState(impl.validateComments || "");
+  const [implementationActionPlanSummary, setImplementationActionPlanSummary] = React.useState(impl.actionPlanSummary || "");
+  const [implementationRiskEvaluation, setImplementationRiskEvaluation] = React.useState(impl.riskEvaluation || "");
   const [implementationPrimaryApproverId, setImplementationPrimaryApproverId] = React.useState(impl.primaryApproverId || "");
   const [implementationSecondaryApproverId, setImplementationSecondaryApproverId] = React.useState(impl.secondaryApproverId || "");
   const [implementationAttachments, setImplementationAttachments] = React.useState<AttachmentInput[]>(
@@ -354,77 +368,32 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
       investigationSummary.trim() || rootCauseDescription.trim()
         ? rootCauseDescription.trim() ? "done" : "attention"
         : "empty";
+    const planning: Completion =
+      planningActionPlan.trim() ? (planningEffectivenessCheckPlan.trim() ? "done" : "attention") : "empty";
     const implementation: Completion =
-      actionPlan.trim() ? (effectivenessCheckPlan.trim() ? "done" : "attention") : "empty";
+      implementationActionPlanSummary.trim() || implementationValidateComments.trim()
+        ? (implementationValidateComments.trim() ? "done" : "attention")
+        : "empty";
     const effectiveness: Completion = effectivenessVerificationSummary.trim() ? "done" : "empty";
     const controls: Completion = cancellationRequested
       ? cancellationJustification.trim() ? "done" : "attention"
       : "empty";
-    return { initiation, investigation, implementation, effectiveness, controls };
+    return { initiation, investigation, planning, implementation, effectiveness, controls };
   }, [
     shortDescription,
     problemStatement,
     investigationSummary,
     rootCauseDescription,
-    actionPlan,
-    effectivenessCheckPlan,
+    planningActionPlan,
+    planningEffectivenessCheckPlan,
+    implementationActionPlanSummary,
+    implementationValidateComments,
     effectivenessVerificationSummary,
     cancellationRequested,
     cancellationJustification,
   ]);
 
   const phaseIndex = PHASE_STEPS.findIndex((p) => p.phase === String(currentPhase));
-
-  /* ---------- scroll-spy ---------- */
-
-  const rootRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    let scroller: HTMLElement | null = root.parentElement;
-    while (scroller && scroller !== document.body) {
-      const { overflowY } = getComputedStyle(scroller);
-      if (overflowY === "auto" || overflowY === "scroll") break;
-      scroller = scroller.parentElement;
-    }
-    if (scroller === document.body) scroller = null;
-    const target: HTMLElement | Window = scroller ?? window;
-
-    const update = () => {
-      const els = SECTIONS.map((s) => document.getElementById(s.id)).filter(Boolean) as HTMLElement[];
-      if (els.length === 0) return;
-
-      const scrollTop = scroller ? scroller.scrollTop : window.scrollY;
-      const viewport = scroller ? scroller.clientHeight : window.innerHeight;
-      const scrollHeight = scroller ? scroller.scrollHeight : document.documentElement.scrollHeight;
-
-      if (scrollTop + viewport >= scrollHeight - 4) {
-        setActiveSection(els[els.length - 1].id as SectionId);
-        return;
-      }
-
-      const line = 140;
-      const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
-      let current: SectionId = els[0].id as SectionId;
-      for (const el of els) {
-        if (el.getBoundingClientRect().top - containerTop <= line) current = el.id as SectionId;
-      }
-      setActiveSection(current);
-    };
-
-    update();
-    target.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => {
-      target.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-  }, []);
-
-  const scrollTo = (id: SectionId) =>
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   /* ---------- submit (payload unchanged) ---------- */
 
@@ -433,12 +402,12 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
 
     if (!shortDescription.trim()) {
       toast.error("Enter a short description");
-      scrollTo("initiation");
+      setActiveSection("initiation");
       return;
     }
     if (!problemStatement.trim()) {
       toast.error("Problem statement is required");
-      scrollTo("initiation");
+      setActiveSection("initiation");
       return;
     }
 
@@ -499,13 +468,24 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
           attachments: investigationAttachments,
         },
 
+        planning: {
+          capaPlanDueDate: capaPlanDueDate ? new Date(capaPlanDueDate) : null,
+          actionPlan: planningActionPlan.trim() || null,
+          effectivenessCheckPlan: planningEffectivenessCheckPlan.trim() || null,
+          primaryApproverId: planningPrimaryApproverId || null,
+          secondaryApproverId: planningSecondaryApproverId || null,
+          attachments: planningAttachments,
+        },
+
         implementation: {
-          actionPlan: actionPlan.trim() || null,
-          actionPlanSummary: actionPlanSummary.trim() || null,
-          riskEvaluation: riskEvaluation.trim() || null,
-          implementationDueDate: implementationDueDate ? new Date(implementationDueDate) : null,
-          effectivenessCheckPlan: effectivenessCheckPlan.trim() || null,
-          effectivenessDueDate: effectivenessDueDate ? new Date(effectivenessDueDate) : null,
+          dateDue: implementationDateDue ? new Date(implementationDateDue) : null,
+          implementationDueDate: implementationDateDue ? new Date(implementationDateDue) : null,
+          actionPlan: implementationActionPlan.trim() || null,
+          effectivenessCheckPlan: implementationEffectivenessCheckPlan.trim() || null,
+          effectivenessDueDate: implementationEffectivenessDueDate ? new Date(implementationEffectivenessDueDate) : null,
+          validateComments: implementationValidateComments.trim() || null,
+          actionPlanSummary: implementationActionPlanSummary.trim() || null,
+          riskEvaluation: implementationRiskEvaluation.trim() || null,
           primaryApproverId: implementationPrimaryApproverId || null,
           secondaryApproverId: implementationSecondaryApproverId || null,
           attachments: implementationAttachments,
@@ -563,7 +543,11 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
   /* ------------------------------------------------------------------ */
 
   return (
-    <div ref={rootRef} className="-m-6 lg:-m-8">
+    <Tabs
+      value={activeSection}
+      onValueChange={(val) => setActiveSection(val as SectionId)}
+      className="-m-6 lg:-m-8 gap-0"
+    >
       {/* ---------- Sticky record bar ---------- */}
       <div className="sticky -top-10 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="px-6 pt-3 lg:px-8">
@@ -624,28 +608,30 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
             </div>
           </div>
 
-          <nav className="-mb-px mt-2 flex gap-1 overflow-x-auto" aria-label="Phases">
+          <TabsList
+            className="-mb-px mt-2 flex h-auto w-full gap-1 overflow-x-auto bg-transparent p-0 justify-start"
+            aria-label="Phases"
+          >
             {SECTIONS.map((s, i) => {
               const active = activeSection === s.id;
               return (
-                <button
+                <TabsTrigger
                   key={s.id}
-                  type="button"
-                  onClick={() => scrollTo(s.id)}
+                  value={s.id}
                   className={cn(
-                    "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors",
+                    "flex items-center gap-2 whitespace-nowrap rounded-none border-b-2 px-3 py-2.5 text-xs transition-colors bg-transparent shadow-none hover:bg-transparent data-[active]:border-foreground data-[selected]:border-foreground",
                     active
                       ? "border-foreground font-medium text-foreground"
                       : "border-transparent text-muted-foreground hover:text-foreground"
                   )}
                 >
                   <CompletionDot state={completion[s.id]} />
-                  {i < 4 ? `${i + 1}. ` : ""}
+                  {i < 5 ? `${i + 1}. ` : ""}
                   {s.label}
-                </button>
+                </TabsTrigger>
               );
             })}
-          </nav>
+          </TabsList>
         </div>
       </div>
 
@@ -664,155 +650,158 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
 
           <fieldset disabled={isLockReadOnly} className="contents space-y-6">
             {/* ---------- 1. Initiation ---------- */}
-            <SectionCard
-              id="initiation"
-              title="Initiation and problem definition"
-              description="Problem statement, origin, containment, and risk evaluation."
-              badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 1</Badge>}
-            >
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <Field label="Short description" htmlFor="shortDescription" required className="md:col-span-2">
-                    <Input
-                      id="shortDescription"
-                      value={shortDescription}
-                      onChange={(e) => setShortDescription(e.target.value)}
-                      placeholder="Recurring sensor drift in lot 2026-04"
+            <TabsContent value="initiation">
+              <SectionCard
+                id="initiation"
+                title="Initiation and problem definition"
+                description="Problem statement, origin, containment, and risk evaluation."
+                badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 1</Badge>}
+              >
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <Field label="Short description" htmlFor="shortDescription" required className="md:col-span-2">
+                      <Input
+                        id="shortDescription"
+                        value={shortDescription}
+                        onChange={(e) => setShortDescription(e.target.value)}
+                        placeholder="Recurring sensor drift in lot 2026-04"
+                        required
+                      />
+                    </Field>
+                    <Field label="CAPA type" htmlFor="type">
+                      <select
+                        id="type"
+                        value={type}
+                        onChange={(e) => setType(e.target.value as CapaType)}
+                        className={selectClass}
+                      >
+                        <option value={CapaType.CORRECTIVE}>Corrective action</option>
+                        <option value={CapaType.PREVENTIVE}>Preventive action</option>
+                      </select>
+                    </Field>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <Field label="Owner" htmlFor="ownerId">
+                      <MemberSelect id="ownerId" value={ownerId} onChange={setOwnerId} placeholder="Unassigned" />
+                    </Field>
+                    <Field label="Initiation due date" htmlFor="dateDue">
+                      <Input id="dateDue" type="date" value={dateDue} onChange={(e) => setDateDue(e.target.value)} />
+                    </Field>
+                    <Field label="Origin or trigger" htmlFor="source">
+                      <Input
+                        id="source"
+                        value={source}
+                        onChange={(e) => setSource(e.target.value)}
+                        placeholder="Complaint CMP-2026-0418"
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Problem statement" htmlFor="problemStatement" required>
+                    <Textarea
+                      id="problemStatement"
+                      rows={4}
+                      value={problemStatement}
+                      onChange={(e) => setProblemStatement(e.target.value)}
+                      placeholder="What is wrong, where it was observed, and the impact so far."
                       required
                     />
                   </Field>
-                  <Field label="CAPA type" htmlFor="type">
-                    <select
-                      id="type"
-                      value={type}
-                      onChange={(e) => setType(e.target.value as CapaType)}
-                      className={selectClass}
-                    >
-                      <option value={CapaType.CORRECTIVE}>Corrective action</option>
-                      <option value={CapaType.PREVENTIVE}>Preventive action</option>
-                    </select>
-                  </Field>
-                </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <Field label="Owner" htmlFor="ownerId">
-                    <MemberSelect id="ownerId" value={ownerId} onChange={setOwnerId} placeholder="Unassigned" />
-                  </Field>
-                  <Field label="Initiation due date" htmlFor="dateDue">
-                    <Input id="dateDue" type="date" value={dateDue} onChange={(e) => setDateDue(e.target.value)} />
-                  </Field>
-                  <Field label="Origin or trigger" htmlFor="source">
-                    <Input
-                      id="source"
-                      value={source}
-                      onChange={(e) => setSource(e.target.value)}
-                      placeholder="Complaint CMP-2026-0418"
+                  <Field label="Immediate containment action" htmlFor="containmentAction">
+                    <Textarea
+                      id="containmentAction"
+                      rows={3}
+                      value={containmentAction}
+                      onChange={(e) => setContainmentAction(e.target.value)}
+                      placeholder="Quarantine, hold, or interim control already in place."
                     />
                   </Field>
-                </div>
 
-                <Field label="Problem statement" htmlFor="problemStatement" required>
-                  <Textarea
-                    id="problemStatement"
-                    rows={4}
-                    value={problemStatement}
-                    onChange={(e) => setProblemStatement(e.target.value)}
-                    placeholder="What is wrong, where it was observed, and the impact so far."
-                    required
-                  />
-                </Field>
-
-                <Field label="Immediate containment action" htmlFor="containmentAction">
-                  <Textarea
-                    id="containmentAction"
-                    rows={3}
-                    value={containmentAction}
-                    onChange={(e) => setContainmentAction(e.target.value)}
-                    placeholder="Quarantine, hold, or interim control already in place."
-                  />
-                </Field>
-
-                {/* Risk assessment */}
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                      <p className="text-sm font-medium text-foreground">ISO 14971 risk assessment</p>
+                  {/* Risk assessment */}
+                  <div className="rounded-lg border border-border bg-muted/30 p-4">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm font-medium text-foreground">ISO 14971 risk assessment</p>
+                      </div>
+                      <Badge variant="outline" className={cn("font-medium", RISK_TONE[riskCategory])}>
+                        {humanize(riskCategory)} risk
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className={cn("font-medium", RISK_TONE[riskCategory])}>
-                      {humanize(riskCategory)} risk
-                    </Badge>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <Field label="Severity" htmlFor="severityRanking">
+                        <select
+                          id="severityRanking"
+                          value={severityRanking}
+                          onChange={(e) => setSeverityRanking(e.target.value)}
+                          className={selectClass}
+                        >
+                          {SEVERITY_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Occurrence" htmlFor="occurrenceRanking">
+                        <select
+                          id="occurrenceRanking"
+                          value={occurrenceRanking}
+                          onChange={(e) => setOccurrenceRanking(e.target.value)}
+                          className={selectClass}
+                        >
+                          {OCCURRENCE_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Risk category" htmlFor="riskCategory">
+                        <select
+                          id="riskCategory"
+                          value={riskCategory}
+                          onChange={(e) => setRiskCategory(e.target.value)}
+                          className={selectClass}
+                        >
+                          {RISK_CATEGORIES.map((c) => (
+                            <option key={c.value} value={c.value}>{c.label}</option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <Field label="Severity" htmlFor="severityRanking">
-                      <select
-                        id="severityRanking"
-                        value={severityRanking}
-                        onChange={(e) => setSeverityRanking(e.target.value)}
-                        className={selectClass}
-                      >
-                        {SEVERITY_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Occurrence" htmlFor="occurrenceRanking">
-                      <select
-                        id="occurrenceRanking"
-                        value={occurrenceRanking}
-                        onChange={(e) => setOccurrenceRanking(e.target.value)}
-                        className={selectClass}
-                      >
-                        {OCCURRENCE_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Risk category" htmlFor="riskCategory">
-                      <select
-                        id="riskCategory"
-                        value={riskCategory}
-                        onChange={(e) => setRiskCategory(e.target.value)}
-                        className={selectClass}
-                      >
-                        {RISK_CATEGORIES.map((c) => (
-                          <option key={c.value} value={c.value}>{c.label}</option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
+
+                  <SubGroup title="Approval">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <Field label="Primary approver">
+                        <MemberSelect value={initiationPrimaryApproverId} onChange={setInitiationPrimaryApproverId} />
+                      </Field>
+                      <Field label="Secondary approver">
+                        <MemberSelect value={initiationSecondaryApproverId} onChange={setInitiationSecondaryApproverId} />
+                      </Field>
+                      <Field label="Completed by">
+                        <MemberSelect value={initiationCompletedById} onChange={setInitiationCompletedById} />
+                      </Field>
+                      <Field label="Completed on">
+                        <Input type="date" value={initiationCompletedAt} onChange={(e) => setInitiationCompletedAt(e.target.value)} />
+                      </Field>
+                    </div>
+                  </SubGroup>
+
+                  <SubGroup title={`Attachments · ${initiationAttachments.length}`}>
+                    <FileUploader attachments={initiationAttachments} onChange={setInitiationAttachments} />
+                  </SubGroup>
                 </div>
-
-                <SubGroup title="Approval">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <Field label="Primary approver">
-                      <MemberSelect value={initiationPrimaryApproverId} onChange={setInitiationPrimaryApproverId} />
-                    </Field>
-                    <Field label="Secondary approver">
-                      <MemberSelect value={initiationSecondaryApproverId} onChange={setInitiationSecondaryApproverId} />
-                    </Field>
-                    <Field label="Completed by">
-                      <MemberSelect value={initiationCompletedById} onChange={setInitiationCompletedById} />
-                    </Field>
-                    <Field label="Completed on">
-                      <Input type="date" value={initiationCompletedAt} onChange={(e) => setInitiationCompletedAt(e.target.value)} />
-                    </Field>
-                  </div>
-                </SubGroup>
-
-                <SubGroup title={`Attachments · ${initiationAttachments.length}`}>
-                  <FileUploader attachments={initiationAttachments} onChange={setInitiationAttachments} />
-                </SubGroup>
-              </div>
-            </SectionCard>
+              </SectionCard>
+            </TabsContent>
 
             {/* ---------- 2. Investigation ---------- */}
-            <SectionCard
-              id="investigation"
-              title="Root cause investigation"
-              description="Analysis method, findings, and containment verification."
-              badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 2</Badge>}
-            >
+            <TabsContent value="investigation">
+              <SectionCard
+                id="investigation"
+                title="Root cause investigation"
+                description="Analysis method, findings, and containment verification."
+                badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 2</Badge>}
+              >
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Field label="Investigation summary" htmlFor="investigationSummary">
@@ -890,61 +879,114 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                 </SubGroup>
               </div>
             </SectionCard>
+            </TabsContent>
 
-            {/* ---------- 3. Implementation ---------- */}
-            <SectionCard
-              id="implementation"
-              title="Action implementation"
-              description="Action plan, change risk, and the criteria that will prove it worked."
-              badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 3</Badge>}
-            >
+            {/* ---------- 3. Planning ---------- */}
+            <TabsContent value="planning">
+              <SectionCard
+                id="planning"
+                title="Action planning"
+                description="Capa plan due date, action plan, effectiveness check plan, attachments, and approvals."
+                badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 3</Badge>}
+              >
               <div className="space-y-4">
-                <Field label="Action plan tasks" htmlFor="actionPlan">
+                <Field label="Action plan" htmlFor="planningActionPlan">
                   <Textarea
-                    id="actionPlan"
+                    id="planningActionPlan"
                     rows={4}
-                    value={actionPlan}
-                    onChange={(e) => setActionPlan(e.target.value)}
+                    value={planningActionPlan}
+                    onChange={(e) => setPlanningActionPlan(e.target.value)}
                     placeholder="One task per line: what, who, by when."
                   />
                 </Field>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Field label="Action plan summary" htmlFor="actionPlanSummary">
-                    <Textarea
-                      id="actionPlanSummary"
-                      rows={3}
-                      value={actionPlanSummary}
-                      onChange={(e) => setActionPlanSummary(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Risk evaluation of changes" htmlFor="riskEvaluation">
-                    <Textarea
-                      id="riskEvaluation"
-                      rows={3}
-                      value={riskEvaluation}
-                      onChange={(e) => setRiskEvaluation(e.target.value)}
-                    />
-                  </Field>
-                </div>
-
-                <Field label="Effectiveness verification criteria" htmlFor="effectivenessCheckPlan">
+                <Field label="Effectiveness check plan" htmlFor="planningEffectivenessCheckPlan">
                   <Textarea
-                    id="effectivenessCheckPlan"
+                    id="planningEffectivenessCheckPlan"
                     rows={3}
-                    value={effectivenessCheckPlan}
-                    onChange={(e) => setEffectivenessCheckPlan(e.target.value)}
+                    value={planningEffectivenessCheckPlan}
+                    onChange={(e) => setPlanningEffectivenessCheckPlan(e.target.value)}
                     placeholder="Measurable criteria and the data that will be reviewed."
                   />
                 </Field>
 
                 <SubGroup title="Dates and approval">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <Field label="Implementation due">
-                      <Input type="date" value={implementationDueDate} onChange={(e) => setImplementationDueDate(e.target.value)} />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <Field label="Capa plan due date">
+                      <Input type="date" value={capaPlanDueDate} onChange={(e) => setCapaPlanDueDate(e.target.value)} />
                     </Field>
-                    <Field label="Effectiveness check due">
-                      <Input type="date" value={effectivenessDueDate} onChange={(e) => setEffectivenessDueDate(e.target.value)} />
+                    <Field label="Primary approver">
+                      <MemberSelect value={planningPrimaryApproverId} onChange={setPlanningPrimaryApproverId} />
+                    </Field>
+                    <Field label="Secondary approver">
+                      <MemberSelect value={planningSecondaryApproverId} onChange={setPlanningSecondaryApproverId} />
+                    </Field>
+                  </div>
+                </SubGroup>
+
+                <SubGroup title={`Capa plan attachments · ${planningAttachments.length}`}>
+                  <FileUploader attachments={planningAttachments} onChange={setPlanningAttachments} />
+                </SubGroup>
+              </div>
+            </SectionCard>
+            </TabsContent>
+
+            {/* ---------- 4. Implementation ---------- */}
+            <TabsContent value="implementation">
+              <SectionCard
+                id="implementation"
+                title="Action implementation"
+                description="Execution details, validate comments, action plan summary, attachments, and approvals."
+                badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 4</Badge>}
+              >
+              <div className="space-y-4">
+                <Field label="Action plan" htmlFor="implementationActionPlan">
+                  <Textarea
+                    id="implementationActionPlan"
+                    rows={4}
+                    value={implementationActionPlan}
+                    onChange={(e) => setImplementationActionPlan(e.target.value)}
+                    placeholder="Execution details of the action plan tasks."
+                  />
+                </Field>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Field label="Action plan summary" htmlFor="implementationActionPlanSummary">
+                    <Textarea
+                      id="implementationActionPlanSummary"
+                      rows={3}
+                      value={implementationActionPlanSummary}
+                      onChange={(e) => setImplementationActionPlanSummary(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Validate comments" htmlFor="implementationValidateComments">
+                    <Textarea
+                      id="implementationValidateComments"
+                      rows={3}
+                      value={implementationValidateComments}
+                      onChange={(e) => setImplementationValidateComments(e.target.value)}
+                      placeholder="Validation and verification comments on executed actions."
+                    />
+                  </Field>
+                </div>
+
+                <Field label="Effectiveness check plan" htmlFor="implementationEffectivenessCheckPlan">
+                  <Textarea
+                    id="implementationEffectivenessCheckPlan"
+                    rows={3}
+                    value={implementationEffectivenessCheckPlan}
+                    onChange={(e) => setImplementationEffectivenessCheckPlan(e.target.value)}
+                    placeholder="Measurable criteria and verification execution details."
+                  />
+                </Field>
+
+                <SubGroup title="Dates and approval">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Field label="Date due">
+                      <Input type="date" value={implementationDateDue} onChange={(e) => setImplementationDateDue(e.target.value)} />
+                    </Field>
+                    <Field label="Effectiveness date due">
+                      <Input type="date" value={implementationEffectivenessDueDate} onChange={(e) => setImplementationEffectivenessDueDate(e.target.value)} />
                     </Field>
                     <Field label="Primary approver">
                       <MemberSelect value={implementationPrimaryApproverId} onChange={setImplementationPrimaryApproverId} />
@@ -960,14 +1002,16 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                 </SubGroup>
               </div>
             </SectionCard>
+            </TabsContent>
 
-            {/* ---------- 4. Effectiveness ---------- */}
-            <SectionCard
-              id="effectiveness"
-              title="Effectiveness verification"
-              description="Evidence of non-recurrence and closeout authorisation."
-              badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 4</Badge>}
-            >
+            {/* ---------- 5. Effectiveness ---------- */}
+            <TabsContent value="effectiveness">
+              <SectionCard
+                id="effectiveness"
+                title="Effectiveness verification"
+                description="Evidence of non-recurrence and closeout authorisation."
+                badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 5</Badge>}
+              >
               <div className="space-y-4">
                 <Field label="Verification summary" htmlFor="effectivenessVerificationSummary">
                   <Textarea
@@ -1007,55 +1051,58 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                 </SubGroup>
               </div>
             </SectionCard>
+            </TabsContent>
 
             {/* ---------- 5. Controls ---------- */}
-            <SectionCard
-              id="controls"
-              title="Extensions and cancellation"
-              description="Due-date extensions and formal cancellation."
-            >
-              <div
-                className={cn(
-                  "rounded-lg border p-4 transition-colors",
-                  cancellationRequested
-                    ? "border-red-500/30 bg-red-500/10"
-                    : "border-border bg-muted/30"
-                )}
+            <TabsContent value="controls">
+              <SectionCard
+                id="controls"
+                title="Extensions and cancellation"
+                description="Due-date extensions and formal cancellation."
               >
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={cancellationRequested}
-                    onChange={(e) => setCancellationRequested(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-border accent-red-600"
-                  />
-                  <span>
-                    <span className="block text-sm font-medium text-foreground">
-                      Request formal cancellation
+                <div
+                  className={cn(
+                    "rounded-lg border p-4 transition-colors",
+                    cancellationRequested
+                      ? "border-red-500/30 bg-red-500/10"
+                      : "border-border bg-muted/30"
+                  )}
+                >
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={cancellationRequested}
+                      onChange={(e) => setCancellationRequested(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-red-600"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-foreground">
+                        Request formal cancellation
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        Voids this CAPA. Requires a justification and approval.
+                      </span>
                     </span>
-                    <span className="block text-xs text-muted-foreground">
-                      Voids this CAPA. Requires a justification and approval.
-                    </span>
-                  </span>
-                </label>
+                  </label>
 
-                {cancellationRequested && (
-                  <div className="mt-4">
-                    <Field label="Cancellation justification" htmlFor="cancellationJustification" required>
-                      <Textarea
-                        id="cancellationJustification"
-                        rows={3}
-                        value={cancellationJustification}
-                        onChange={(e) => setCancellationJustification(e.target.value)}
-                        className="bg-background"
-                        required={cancellationRequested}
-                        placeholder="Why this CAPA is no longer required, with regulatory rationale."
-                      />
-                    </Field>
-                  </div>
-                )}
-              </div>
-            </SectionCard>
+                  {cancellationRequested && (
+                    <div className="mt-4">
+                      <Field label="Cancellation justification" htmlFor="cancellationJustification" required>
+                        <Textarea
+                          id="cancellationJustification"
+                          rows={3}
+                          value={cancellationJustification}
+                          onChange={(e) => setCancellationJustification(e.target.value)}
+                          className="bg-background"
+                          required={cancellationRequested}
+                          placeholder="Why this CAPA is no longer required, with regulatory rationale."
+                        />
+                      </Field>
+                    </div>
+                  )}
+                </div>
+              </SectionCard>
+            </TabsContent>
 
             <div className="flex items-center justify-between pt-2">
               <Link
@@ -1151,6 +1198,6 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
           </PanelCard>
         </aside>
       </div>
-    </div>
+    </Tabs>
   );
 }

@@ -43,6 +43,8 @@ model User {
   investigatedCapaPhases           CapaInvestigation[]          @relation("InvestigationInvestigator")
   primaryApprovedInvestigations    CapaInvestigation[]          @relation("InvestigationPrimaryApprover")
   secondaryApprovedInvestigations  CapaInvestigation[]          @relation("InvestigationSecondaryApprover")
+  primaryApprovedPlannings         CapaPlanning[]               @relation("PlanningPrimaryApprover")
+  secondaryApprovedPlannings       CapaPlanning[]               @relation("PlanningSecondaryApprover")
   primaryApprovedImplementations   CapaImplementation[]         @relation("ImplementationPrimaryApprover")
   secondaryApprovedImplementations CapaImplementation[]         @relation("ImplementationSecondaryApprover")
   primaryApprovedEffectivenesses   CapaEffectiveness[]          @relation("EffectivenessPrimaryApprover")
@@ -86,6 +88,7 @@ model Organization {
   capas                         Capa[]
   capaInitiations               CapaInitiation[]
   capaInvestigations            CapaInvestigation[]
+  capaPlannings                 CapaPlanning[]
   capaImplementations           CapaImplementation[]
   capaEffectivenesses           CapaEffectiveness[]
   extensionRequests             ExtensionRequest[]
@@ -533,6 +536,8 @@ model Attachment {
   capaInitiation       CapaInitiation?        @relation(fields: [capaInitiationId], references: [id], onDelete: Cascade)
   capaInvestigationId  String?
   capaInvestigation    CapaInvestigation?     @relation(fields: [capaInvestigationId], references: [id], onDelete: Cascade)
+  capaPlanningId       String?
+  capaPlanning         CapaPlanning?          @relation(fields: [capaPlanningId], references: [id], onDelete: Cascade)
   capaImplementationId String?
   capaImplementation   CapaImplementation?    @relation(fields: [capaImplementationId], references: [id], onDelete: Cascade)
   capaEffectivenessId  String?
@@ -548,6 +553,7 @@ model Attachment {
   @@index([capaId])
   @@index([capaInitiationId])
   @@index([capaInvestigationId])
+  @@index([capaPlanningId])
   @@index([capaImplementationId])
   @@index([capaEffectivenessId])
 }
@@ -620,6 +626,7 @@ model ComplaintTask {
 enum CapaPhase {
   INITIATION
   INVESTIGATION
+  PLANNING
   IMPLEMENTATION
   EFFECTIVENESS
   CLOSED
@@ -656,6 +663,7 @@ model Capa {
   // 1:1 Phase Relations
   initiation     CapaInitiation?
   investigation  CapaInvestigation?
+  planning       CapaPlanning?
   implementation CapaImplementation?
   effectiveness  CapaEffectiveness?
 
@@ -797,18 +805,48 @@ model CapaInvestigation {
   @@index([primaryApproverId])
 }
 
+model CapaPlanning {
+  id     String @id @default(cuid())
+  orgId  String
+  capaId String @unique
+
+  capaPlanDueDate        DateTime?
+  actionPlan             String?   @db.Text
+  effectivenessCheckPlan String?   @db.Text
+
+  // Approvals
+  primaryApproverId   String?
+  secondaryApproverId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  capa         Capa         @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  primaryApprover   User? @relation("PlanningPrimaryApprover", fields: [primaryApproverId], references: [id])
+  secondaryApprover User? @relation("PlanningSecondaryApprover", fields: [secondaryApproverId], references: [id])
+
+  attachments Attachment[]
+
+  @@index([orgId])
+  @@index([primaryApproverId])
+  @@index([secondaryApproverId])
+}
+
 model CapaImplementation {
   id     String @id @default(cuid())
   orgId  String
   capaId String @unique
 
-  actionPlan        String? @db.Text
-  actionPlanSummary String? @db.Text
-  riskEvaluation    String? @db.Text
-
-  implementationDueDate  DateTime?
+  dateDue                DateTime?
+  implementationDueDate  DateTime? // kept for backwards compatibility
+  actionPlan             String?   @db.Text
   effectivenessCheckPlan String?   @db.Text
   effectivenessDueDate   DateTime?
+  validateComments       String?   @db.Text
+  actionPlanSummary      String?   @db.Text
+  riskEvaluation         String?   @db.Text
 
   // Approvals
   primaryApproverId   String?
@@ -827,6 +865,7 @@ model CapaImplementation {
 
   @@index([orgId])
   @@index([primaryApproverId])
+  @@index([secondaryApproverId])
 }
 
 model CapaEffectiveness {

@@ -66,13 +66,24 @@ export const CapaInvestigationInputSchema = z.object({
   attachments: z.array(AttachmentInputSchema).default([]),
 });
 
-export const CapaImplementationInputSchema = z.object({
+export const CapaPlanningInputSchema = z.object({
+  capaPlanDueDate: z.union([z.date(), z.string(), z.null()]).optional(),
   actionPlan: z.string().nullable().optional(),
-  actionPlanSummary: z.string().nullable().optional(),
-  riskEvaluation: z.string().nullable().optional(),
+  effectivenessCheckPlan: z.string().nullable().optional(),
+  primaryApproverId: z.string().nullable().optional(),
+  secondaryApproverId: z.string().nullable().optional(),
+  attachments: z.array(AttachmentInputSchema).default([]),
+});
+
+export const CapaImplementationInputSchema = z.object({
+  dateDue: z.union([z.date(), z.string(), z.null()]).optional(),
   implementationDueDate: z.union([z.date(), z.string(), z.null()]).optional(),
+  actionPlan: z.string().nullable().optional(),
   effectivenessCheckPlan: z.string().nullable().optional(),
   effectivenessDueDate: z.union([z.date(), z.string(), z.null()]).optional(),
+  validateComments: z.string().nullable().optional(),
+  actionPlanSummary: z.string().nullable().optional(),
+  riskEvaluation: z.string().nullable().optional(),
   primaryApproverId: z.string().nullable().optional(),
   secondaryApproverId: z.string().nullable().optional(),
   attachments: z.array(AttachmentInputSchema).default([]),
@@ -98,6 +109,7 @@ export const CreateCapaSchema = z.object({
   // Phase Models
   initiation: CapaInitiationInputSchema,
   investigation: CapaInvestigationInputSchema.optional(),
+  planning: CapaPlanningInputSchema.optional(),
   implementation: CapaImplementationInputSchema.optional(),
   effectiveness: CapaEffectivenessInputSchema.optional(),
 
@@ -107,3 +119,4 @@ export const CreateCapaSchema = z.object({
 });
 
 export type CreateCapaFormValues = z.infer<typeof CreateCapaSchema>;
+export type CreateCapaInput = z.input<typeof CreateCapaSchema>;

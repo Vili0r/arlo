@@ -43,6 +43,10 @@ const { mockAuthCtx, mockTx, mockPrisma } = vi.hoisted(() => {
     capaInvestigation: {
       create: vi.fn(),
     },
+    capaPlanning: {
+      create: vi.fn(),
+      upsert: vi.fn(),
+    },
     capaImplementation: {
       create: vi.fn(),
     },

@@ -398,7 +398,7 @@ export const COMPLAINT_TASK_STATUS_CONFIG: EntityStatusConfig = {
 
 // -----------------------------------------------------------------------------
 // CAPA Lifecycle (21 CFR 820.100 / ISO 13485)
-// INITIATION → INVESTIGATION → IMPLEMENTATION → EFFECTIVENESS → CLOSED
+// INITIATION → INVESTIGATION → PLANNING → IMPLEMENTATION → EFFECTIVENESS → CLOSED
 // -----------------------------------------------------------------------------
 
 export const CAPA_STATUS_CONFIG: EntityStatusConfig = {
@@ -421,17 +421,26 @@ export const CAPA_STATUS_CONFIG: EntityStatusConfig = {
       description:
         "Root cause analysis tools, investigation summary, and product quality impact assessment.",
       color: "bg-indigo-500",
-      allowedNextStatuses: [CapaPhase.IMPLEMENTATION],
+      allowedNextStatuses: [CapaPhase.PLANNING],
       allowedPreviousStatuses: [CapaPhase.INITIATION],
+    },
+    {
+      value: CapaPhase.PLANNING,
+      label: "Planning",
+      description:
+        "Corrective and preventive action planning, effectiveness check protocol design, and approvals.",
+      color: "bg-amber-500",
+      allowedNextStatuses: [CapaPhase.IMPLEMENTATION],
+      allowedPreviousStatuses: [CapaPhase.INVESTIGATION],
     },
     {
       value: CapaPhase.IMPLEMENTATION,
       label: "Implementation",
       description:
-        "Corrective/preventive action execution, ECOs, and effectiveness check criteria design.",
-      color: "bg-amber-500",
+        "Action plan execution, validation comments, action plan summary, and verification.",
+      color: "bg-orange-500",
       allowedNextStatuses: [CapaPhase.EFFECTIVENESS],
-      allowedPreviousStatuses: [CapaPhase.INVESTIGATION],
+      allowedPreviousStatuses: [CapaPhase.PLANNING, CapaPhase.INVESTIGATION],
     },
     {
       value: CapaPhase.EFFECTIVENESS,

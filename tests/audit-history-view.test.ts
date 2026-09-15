@@ -81,6 +81,10 @@ const { mockVerifyPassword, mockAuth, mockAuthCtx, mockTx, mockPrisma } = vi.hoi
       upsert: vi.fn(),
       create: vi.fn(),
     },
+    capaPlanning: {
+      upsert: vi.fn(),
+      create: vi.fn(),
+    },
     capaImplementation: {
       upsert: vi.fn(),
       create: vi.fn(),
@@ -968,6 +972,7 @@ describe("[TEST-014] View History & Audit Trail Logging - Complaint Sub-Folders 
                   "Capa",
                   "CapaInitiation",
                   "CapaInvestigation",
+                  "CapaPlanning",
                   "CapaImplementation",
                   "CapaEffectiveness",
                   "ExtensionRequest",

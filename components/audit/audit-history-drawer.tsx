@@ -255,6 +255,8 @@ export function AuditHistoryDrawer({
         return num ? `CAPA Initiation (${num})` : "CAPA Initiation";
       case "CapaInvestigation":
         return num ? `CAPA Investigation (${num})` : "CAPA Investigation";
+      case "CapaPlanning":
+        return num ? `CAPA Planning (${num})` : "CAPA Planning";
       case "CapaImplementation":
         return num ? `CAPA Implementation (${num})` : "CAPA Implementation";
       case "CapaEffectiveness":

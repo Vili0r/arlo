@@ -5,7 +5,7 @@ import { requireOrgAuth } from "@/lib/auth-guard";
 import { revalidatePath } from "next/cache";
 import { CapaType, CapaPhase, ExtensionRequestStatus, AuditAction, LockEntityType, Prisma } from "@prisma/client";
 import { assertRecordNotLocked } from "@/lib/actions/record-lock";
-import { CreateCapaSchema, type CreateCapaFormValues } from "@/lib/validations/capa";
+import { CreateCapaSchema, type CreateCapaFormValues, type CreateCapaInput } from "@/lib/validations/capa";
 import { generateAuditDiff, stripMetadata } from "@/utils/auditDiff";
 
 export interface AttachmentInput {
@@ -15,7 +15,7 @@ export interface AttachmentInput {
   mimeType?: string | null;
 }
 
-export async function createCapa(data: CreateCapaFormValues) {
+export async function createCapa(data: CreateCapaInput) {
   const { orgId, userId } = await requireOrgAuth();
 
   // Validate input
@@ -134,17 +134,52 @@ export async function createCapa(data: CreateCapaFormValues) {
       });
     }
 
-    // 5. Create CapaImplementation
+    // 5. Create CapaPlanning
+    const planning = await tx.capaPlanning.create({
+      data: {
+        orgId,
+        capaId: capa.id,
+        capaPlanDueDate: validated.planning?.capaPlanDueDate ? new Date(validated.planning.capaPlanDueDate) : null,
+        actionPlan: validated.planning?.actionPlan || null,
+        effectivenessCheckPlan: validated.planning?.effectivenessCheckPlan || null,
+        primaryApproverId: validated.planning?.primaryApproverId || null,
+        secondaryApproverId: validated.planning?.secondaryApproverId || null,
+      },
+    });
+
+    if (validated.planning?.attachments && validated.planning.attachments.length > 0) {
+      await tx.attachment.createMany({
+        data: validated.planning.attachments.map((att) => ({
+          orgId,
+          capaPlanningId: planning.id,
+          fileUrl: att.fileUrl,
+          fileName: att.fileName,
+          fileSize: att.fileSize ?? null,
+          mimeType: att.mimeType ?? null,
+          uploadedById: userId,
+        })),
+      });
+    }
+
+    // 6. Create CapaImplementation
+    const implDueDate = validated.implementation?.dateDue
+      ? new Date(validated.implementation.dateDue)
+      : validated.implementation?.implementationDueDate
+      ? new Date(validated.implementation.implementationDueDate)
+      : null;
+
     const implementation = await tx.capaImplementation.create({
       data: {
         orgId,
         capaId: capa.id,
+        dateDue: implDueDate,
+        implementationDueDate: implDueDate,
         actionPlan: validated.implementation?.actionPlan || null,
-        actionPlanSummary: validated.implementation?.actionPlanSummary || null,
-        riskEvaluation: validated.implementation?.riskEvaluation || null,
-        implementationDueDate: validated.implementation?.implementationDueDate ? new Date(validated.implementation.implementationDueDate) : null,
         effectivenessCheckPlan: validated.implementation?.effectivenessCheckPlan || null,
         effectivenessDueDate: validated.implementation?.effectivenessDueDate ? new Date(validated.implementation.effectivenessDueDate) : null,
+        validateComments: validated.implementation?.validateComments || null,
+        actionPlanSummary: validated.implementation?.actionPlanSummary || null,
+        riskEvaluation: validated.implementation?.riskEvaluation || null,
         primaryApproverId: validated.implementation?.primaryApproverId || null,
         secondaryApproverId: validated.implementation?.secondaryApproverId || null,
       },
@@ -249,7 +284,7 @@ export async function createCapa(data: CreateCapaFormValues) {
   });
 }
 
-export async function updateCapa(capaId: string, data: CreateCapaFormValues) {
+export async function updateCapa(capaId: string, data: CreateCapaInput) {
   const { orgId, userId } = await requireOrgAuth();
 
   const validated = CreateCapaSchema.parse(data);
@@ -260,6 +295,7 @@ export async function updateCapa(capaId: string, data: CreateCapaFormValues) {
       include: {
         initiation: true,
         investigation: true,
+        planning: true,
         implementation: true,
         effectiveness: true,
       },
@@ -389,36 +425,69 @@ export async function updateCapa(capaId: string, data: CreateCapaFormValues) {
       });
     }
 
-    // 4. Upsert Implementation
+    // 4. Upsert Planning
+    if (validated.planning) {
+      await tx.capaPlanning.upsert({
+        where: { capaId },
+        create: {
+          orgId,
+          capaId,
+          capaPlanDueDate: validated.planning.capaPlanDueDate ? new Date(validated.planning.capaPlanDueDate) : null,
+          actionPlan: validated.planning.actionPlan || null,
+          effectivenessCheckPlan: validated.planning.effectivenessCheckPlan || null,
+          primaryApproverId: validated.planning.primaryApproverId || null,
+          secondaryApproverId: validated.planning.secondaryApproverId || null,
+        },
+        update: {
+          capaPlanDueDate: validated.planning.capaPlanDueDate ? new Date(validated.planning.capaPlanDueDate) : null,
+          actionPlan: validated.planning.actionPlan || null,
+          effectivenessCheckPlan: validated.planning.effectivenessCheckPlan || null,
+          primaryApproverId: validated.planning.primaryApproverId || null,
+          secondaryApproverId: validated.planning.secondaryApproverId || null,
+        },
+      });
+    }
+
+    // 5. Upsert Implementation
     if (validated.implementation) {
+      const implDateDue = validated.implementation.dateDue
+        ? new Date(validated.implementation.dateDue)
+        : validated.implementation.implementationDueDate
+        ? new Date(validated.implementation.implementationDueDate)
+        : null;
+
       await tx.capaImplementation.upsert({
         where: { capaId },
         create: {
           orgId,
           capaId,
+          dateDue: implDateDue,
+          implementationDueDate: implDateDue,
           actionPlan: validated.implementation.actionPlan || null,
-          actionPlanSummary: validated.implementation.actionPlanSummary || null,
-          riskEvaluation: validated.implementation.riskEvaluation || null,
-          implementationDueDate: validated.implementation.implementationDueDate ? new Date(validated.implementation.implementationDueDate) : null,
           effectivenessCheckPlan: validated.implementation.effectivenessCheckPlan || null,
           effectivenessDueDate: validated.implementation.effectivenessDueDate ? new Date(validated.implementation.effectivenessDueDate) : null,
+          validateComments: validated.implementation.validateComments || null,
+          actionPlanSummary: validated.implementation.actionPlanSummary || null,
+          riskEvaluation: validated.implementation.riskEvaluation || null,
           primaryApproverId: validated.implementation.primaryApproverId || null,
           secondaryApproverId: validated.implementation.secondaryApproverId || null,
         },
         update: {
+          dateDue: implDateDue,
+          implementationDueDate: implDateDue,
           actionPlan: validated.implementation.actionPlan || null,
-          actionPlanSummary: validated.implementation.actionPlanSummary || null,
-          riskEvaluation: validated.implementation.riskEvaluation || null,
-          implementationDueDate: validated.implementation.implementationDueDate ? new Date(validated.implementation.implementationDueDate) : null,
           effectivenessCheckPlan: validated.implementation.effectivenessCheckPlan || null,
           effectivenessDueDate: validated.implementation.effectivenessDueDate ? new Date(validated.implementation.effectivenessDueDate) : null,
+          validateComments: validated.implementation.validateComments || null,
+          actionPlanSummary: validated.implementation.actionPlanSummary || null,
+          riskEvaluation: validated.implementation.riskEvaluation || null,
           primaryApproverId: validated.implementation.primaryApproverId || null,
           secondaryApproverId: validated.implementation.secondaryApproverId || null,
         },
       });
     }
 
-    // 5. Upsert Effectiveness
+    // 6. Upsert Effectiveness
     if (validated.effectiveness) {
       await tx.capaEffectiveness.upsert({
         where: { capaId },
@@ -450,6 +519,7 @@ export async function updateCapa(capaId: string, data: CreateCapaFormValues) {
       cancellationJustification: existing.cancellationJustification,
       initiation: existing.initiation ? stripMetadata(existing.initiation) : null,
       investigation: existing.investigation ? stripMetadata(existing.investigation) : null,
+      planning: existing.planning ? stripMetadata(existing.planning) : null,
       implementation: existing.implementation ? stripMetadata(existing.implementation) : null,
       effectiveness: existing.effectiveness ? stripMetadata(existing.effectiveness) : null,
     };
@@ -463,6 +533,7 @@ export async function updateCapa(capaId: string, data: CreateCapaFormValues) {
       cancellationJustification: updatedCapa.cancellationJustification,
       initiation: validated.initiation ? stripMetadata(validated.initiation) : null,
       investigation: validated.investigation ? stripMetadata(validated.investigation) : null,
+      planning: validated.planning ? stripMetadata(validated.planning) : null,
       implementation: validated.implementation ? stripMetadata(validated.implementation) : null,
       effectiveness: validated.effectiveness ? stripMetadata(validated.effectiveness) : null,
     };
@@ -512,6 +583,13 @@ export async function getCapaById(capaId: string) {
       investigation: {
         include: {
           investigator: { select: { id: true, email: true, firstName: true, lastName: true } },
+          primaryApprover: { select: { id: true, email: true, firstName: true, lastName: true } },
+          secondaryApprover: { select: { id: true, email: true, firstName: true, lastName: true } },
+          attachments: true,
+        },
+      },
+      planning: {
+        include: {
           primaryApprover: { select: { id: true, email: true, firstName: true, lastName: true } },
           secondaryApprover: { select: { id: true, email: true, firstName: true, lastName: true } },
           attachments: true,

@@ -40,6 +40,7 @@ export async function getAuditHistory(entityType: string, entityId: string) {
                   "Capa",
                   "CapaInitiation",
                   "CapaInvestigation",
+                  "CapaPlanning",
                   "CapaImplementation",
                   "CapaEffectiveness",
                   "ExtensionRequest",

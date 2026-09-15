@@ -31,8 +31,14 @@ export default async function CapaPage({ params }: CapaPageProps) {
           planDueDate: true,
         },
       },
+      planning: {
+        select: {
+          capaPlanDueDate: true,
+        },
+      },
       implementation: {
         select: {
+          dateDue: true,
           implementationDueDate: true,
         },
       },

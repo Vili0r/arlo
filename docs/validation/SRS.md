@@ -54,7 +54,9 @@ This document defines the functional and software requirements for Arlo. Each so
 
 ### URS-006: CAPA Integration
 - **SRS-016 (Complaint-to-CAPA Traceability & Subrecord Audit):**  
-  The system shall record bidirectional relationships between complaints and CAPA records, capturing modifications in the audit trail.
+  The system shall record bidirectional relationships between complaints and CAPA records, capturing modifications across all phase subrecords in the audit trail.
+- **SRS-024 (CAPA 6-Phase Lifecycle & Planning-Implementation Separation):**  
+  The system shall govern CAPA progression across 6 distinct phases: `INITIATION` $\rightarrow$ `INVESTIGATION` $\rightarrow$ `PLANNING` $\rightarrow$ `IMPLEMENTATION` $\rightarrow$ `EFFECTIVENESS` $\rightarrow$ `CLOSED`. The system shall enforce separate subrecords for `CapaPlanning` (capturing CAPA plan due date, action plan, effectiveness check plan, approvals, and attachments) and `CapaImplementation` (capturing date due, action plan execution, effectiveness check plan, effectiveness date due, validate comments, action plan summary, approvals, and attachments).
 
 ### URS-007: Device Sample Management
 - **SRS-013 (Device Sample Tracking & Condition Evaluation):**  

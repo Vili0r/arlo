@@ -65,6 +65,7 @@ type Completion = "done" | "attention" | "empty";
 const PHASE_STEPS: Array<{ phase: string; label: string }> = [
   { phase: "INITIATION", label: "Initiation" },
   { phase: "INVESTIGATION", label: "Investigation" },
+  { phase: "PLANNING", label: "Planning" },
   { phase: "IMPLEMENTATION", label: "Implementation" },
   { phase: "EFFECTIVENESS", label: "Effectiveness" },
   { phase: "CLOSED", label: "Closed" },

@@ -27,6 +27,7 @@ import {
   Target,
   FileText,
   History,
+  ClipboardList,
 } from "lucide-react";
 import { CapaPhase, CapaType } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
@@ -78,7 +79,11 @@ export interface CapaRecordItem {
     investigationSummary?: string | null;
     planDueDate?: Date | string | null;
   } | null;
+  planning?: {
+    capaPlanDueDate?: Date | string | null;
+  } | null;
   implementation?: {
+    dateDue?: Date | string | null;
     implementationDueDate?: Date | string | null;
   } | null;
   effectiveness?: {
@@ -213,9 +218,15 @@ export function CapaView({ orgSlug, capas }: CapaViewProps) {
             <SearchCode className="h-3 w-3" /> Investigation
           </span>
         );
-      case "IMPLEMENTATION":
+      case "PLANNING":
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 border border-amber-500/20">
+            <ClipboardList className="h-3 w-3" /> Planning
+          </span>
+        );
+      case "IMPLEMENTATION":
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400 border border-orange-500/20">
             <Wrench className="h-3 w-3" /> Implementation
           </span>
         );
@@ -254,8 +265,10 @@ export function CapaView({ orgSlug, capas }: CapaViewProps) {
         return capa.initiation?.dateDue;
       case "INVESTIGATION":
         return capa.investigation?.planDueDate;
+      case "PLANNING":
+        return capa.planning?.capaPlanDueDate;
       case "IMPLEMENTATION":
-        return capa.implementation?.implementationDueDate;
+        return capa.implementation?.dateDue || capa.implementation?.implementationDueDate;
       case "EFFECTIVENESS":
         return capa.effectiveness?.dateDue;
       case "CLOSED":
@@ -354,7 +367,7 @@ export function CapaView({ orgSlug, capas }: CapaViewProps) {
                   Filter by Phase
                 </DropdownMenuLabel>
                 <div className="space-y-1 mt-1">
-                  {["ALL", "INITIATION", "INVESTIGATION", "IMPLEMENTATION", "EFFECTIVENESS", "CLOSED"].map((phase) => (
+                  {["ALL", "INITIATION", "INVESTIGATION", "PLANNING", "IMPLEMENTATION", "EFFECTIVENESS", "CLOSED"].map((phase) => (
                     <button
                       key={phase}
                       onClick={() => {

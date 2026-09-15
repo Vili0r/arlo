@@ -88,6 +88,10 @@ const { mockVerifyPassword, mockAuth, mockAuthCtx, mockTx, mockPrisma } = vi.hoi
       create: vi.fn(),
       upsert: vi.fn(),
     },
+    capaPlanning: {
+      create: vi.fn(),
+      upsert: vi.fn(),
+    },
     capaImplementation: {
       create: vi.fn(),
       upsert: vi.fn(),
@@ -741,6 +745,7 @@ describe("[TEST-015] Requirement: The system shall maintain an audit trail for c
       mockTx.capa.create.mockResolvedValue(mockCapa);
       mockTx.capaInitiation.create.mockResolvedValue({ id: "init_1", capaId: CAPA_ID });
       mockTx.capaInvestigation.create.mockResolvedValue({ id: "inv_capa_1", capaId: CAPA_ID });
+      mockTx.capaPlanning.create.mockResolvedValue({ id: "plan_1", capaId: CAPA_ID });
       mockTx.capaImplementation.create.mockResolvedValue({ id: "imp_1", capaId: CAPA_ID });
       mockTx.capaEffectiveness.create.mockResolvedValue({ id: "eff_1", capaId: CAPA_ID });
       mockTx.auditLog.create.mockResolvedValue({ id: "log_capa_create" });
@@ -1076,6 +1081,7 @@ describe("[TEST-015] Requirement: The system shall maintain an audit trail for c
                   "Capa",
                   "CapaInitiation",
                   "CapaInvestigation",
+                  "CapaPlanning",
                   "CapaImplementation",
                   "CapaEffectiveness",
                   "ExtensionRequest",
