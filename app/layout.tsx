@@ -2,12 +2,20 @@ import { Toaster } from "@/components/ui/sonner";
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Geist, Geist_Mono, Inter, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-serif",
+  display: "swap",
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,8 +28,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Meet Arlo",
-  description: "Post-Market Surveillance for medical device manufacturers",
+  title: "cvmed — Complaint handling and vigilance for medical device companies",
+  description:
+    "cvmed logs every complaint, runs the vigilance clock for each market you sell in, and turns your records into the MIR your notified body will accept.",
 };
 
 export default function RootLayout({
@@ -39,7 +48,8 @@ export default function RootLayout({
         geistSans.variable,
         geistMono.variable,
         "font-sans",
-        inter.variable
+        inter.variable,
+        serif.variable
       )}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-150">

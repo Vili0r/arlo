@@ -12,8 +12,13 @@ import {
   Paperclip,
   AlertTriangle,
   ShieldAlert,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Plus,
+  Calendar,
 } from "lucide-react";
-import { CapaType, CapaPhase, LockEntityType } from "@prisma/client";
+import { CapaType, CapaPhase, ExtensionRequestStatus, LockEntityType } from "@prisma/client";
 import { useOrganization, useUser } from "@clerk/nextjs";
 import { useRecordLock } from "@/hooks/useRecordLock";
 import { StatusTransitionTracker } from "@/components/status-transition-tracker";
@@ -24,7 +29,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FileUploader } from "@/components/file-uploader";
-import { updateCapa, type AttachmentInput } from "@/lib/actions/capa";
+import {
+  updateCapa,
+  createExtensionRequest,
+  reviewExtensionRequest,
+  approveCapaPhase,
+  type AttachmentInput,
+} from "@/lib/actions/capa";
 import { formatUserName, cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -233,6 +244,7 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
     entityType: LockEntityType.Capa,
     recordId: capa.id,
   });
+  const isReadOnly = isLockReadOnly;
 
   const { memberships } = useOrganization({
     memberships: { pageSize: 100, keepPreviousData: true },
@@ -338,6 +350,227 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
   const [rootAttachments, setRootAttachments] = React.useState<AttachmentInput[]>(
     capa.attachments?.map((a: any) => ({ fileUrl: a.fileUrl, fileName: a.fileName, fileSize: a.fileSize, mimeType: a.mimeType })) || []
   );
+
+  // Due Date Immutability: Once a due date has been saved for any phase, it cannot be edited directly.
+  const isInitiationDateDueLocked = Boolean(init.dateDue);
+  const isInvestigationPlanDueDateLocked = Boolean(inv.planDueDate);
+  const isPlanningDueDateLocked = Boolean(plan.capaPlanDueDate);
+  const isImplementationDueDateLocked = Boolean(impl.dateDue || impl.implementationDueDate);
+  const isEffectivenessDueDateLocked = Boolean(eff.dateDue);
+
+  // Investigation Phase Locking: If CAPA is in Investigation phase, lock all fields and tabs before and after.
+  const isInvestigationPhase = currentPhase === CapaPhase.INVESTIGATION;
+
+  // Approvers designated for the current phase:
+  const currentPhaseApprovers = React.useMemo(() => {
+    switch (currentPhase) {
+      case CapaPhase.INITIATION:
+        return {
+          primaryId: initiationPrimaryApproverId,
+          secondaryId: initiationSecondaryApproverId,
+        };
+      case CapaPhase.INVESTIGATION:
+        return {
+          primaryId: investigationPrimaryApproverId,
+          secondaryId: investigationSecondaryApproverId,
+        };
+      case CapaPhase.PLANNING:
+        return {
+          primaryId: planningPrimaryApproverId,
+          secondaryId: planningSecondaryApproverId,
+        };
+      case CapaPhase.IMPLEMENTATION:
+        return {
+          primaryId: implementationPrimaryApproverId,
+          secondaryId: implementationSecondaryApproverId,
+        };
+      case CapaPhase.EFFECTIVENESS:
+        return {
+          primaryId: effectivenessPrimaryApproverId,
+          secondaryId: effectivenessSecondaryApproverId,
+        };
+      default:
+        return { primaryId: "", secondaryId: "" };
+    }
+  }, [
+    currentPhase,
+    initiationPrimaryApproverId,
+    initiationSecondaryApproverId,
+    investigationPrimaryApproverId,
+    investigationSecondaryApproverId,
+    planningPrimaryApproverId,
+    planningSecondaryApproverId,
+    implementationPrimaryApproverId,
+    implementationSecondaryApproverId,
+    effectivenessPrimaryApproverId,
+    effectivenessSecondaryApproverId,
+  ]);
+
+  // Phase Approval Status:
+  const isCurrentPhaseApproved = React.useMemo(() => {
+    const hasApprovalLog = Boolean(
+      capa.auditLogs?.some((log: any) => {
+        const data = log.newData as Record<string, any> | null;
+        return (
+          log.entityType === "CapaPhaseApproval" &&
+          data?.phase === currentPhase &&
+          data?.status === "APPROVED"
+        );
+      })
+    );
+    if (hasApprovalLog) return true;
+
+    // Investigation phase strictly requires designated approval
+    if (currentPhase === CapaPhase.INVESTIGATION) {
+      return false;
+    }
+
+    if (currentPhase === CapaPhase.INITIATION) {
+      if (init.completedAt) return true;
+      if (currentPhaseApprovers.primaryId) return false;
+      return true;
+    }
+
+    if (currentPhaseApprovers.primaryId) {
+      return false;
+    }
+
+    return true;
+  }, [capa, currentPhase, init.completedAt, currentPhaseApprovers.primaryId]);
+
+  const currentPhaseApprovalInfo = React.useMemo(() => {
+    const log = capa.auditLogs?.find((l: any) => {
+      const data = l.newData as Record<string, any> | null;
+      return (
+        l.entityType === "CapaPhaseApproval" &&
+        data?.phase === currentPhase &&
+        data?.status === "APPROVED"
+      );
+    });
+    if (log) {
+      return {
+        approver: log.changedBy,
+        approvedAt: log.timestamp,
+      };
+    }
+    if (currentPhase === CapaPhase.INITIATION && init.completedAt) {
+      return {
+        approver: init.completedBy,
+        approvedAt: init.completedAt,
+      };
+    }
+    return null;
+  }, [capa, currentPhase, init.completedAt, init.completedBy]);
+
+  const canCurrentUserApprove = React.useMemo(() => {
+    if (!user?.id) return false;
+    return (
+      user.id === currentPhaseApprovers.primaryId ||
+      user.id === currentPhaseApprovers.secondaryId
+    );
+  }, [user?.id, currentPhaseApprovers]);
+
+  const [isApprovingPhase, setIsApprovingPhase] = React.useState(false);
+
+  const handleApprovePhase = async () => {
+    if (!currentPhaseApprovers.primaryId) {
+      toast.error("Please assign a primary approver before approving this phase.");
+      return;
+    }
+    try {
+      setIsApprovingPhase(true);
+      await approveCapaPhase(capa.id, currentPhase);
+      toast.success(`${humanize(currentPhase)} phase approved successfully`);
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve phase");
+    } finally {
+      setIsApprovingPhase(false);
+    }
+  };
+
+  // Extension request UI state
+  const [showExtensionForm, setShowExtensionForm] = React.useState(false);
+  const [extTargetPhase, setExtTargetPhase] = React.useState<CapaPhase>(CapaPhase.INITIATION);
+  const [extRequestedDueDate, setExtRequestedDueDate] = React.useState("");
+  const [extJustification, setExtJustification] = React.useState("");
+  const [extRiskRationale, setExtRiskRationale] = React.useState("");
+  const [extPrimaryApproverId, setExtPrimaryApproverId] = React.useState("");
+  const [extSecondaryApproverId, setExtSecondaryApproverId] = React.useState("");
+  const [isSubmittingExt, setIsSubmittingExt] = React.useState(false);
+  const [reviewingExtId, setReviewingExtId] = React.useState<string | null>(null);
+
+  const getPhaseCurrentDueDate = (phase: CapaPhase) => {
+    switch (phase) {
+      case CapaPhase.INITIATION:
+        return init.dateDue ? formatDate(init.dateDue) : "Not set";
+      case CapaPhase.INVESTIGATION:
+        return inv.planDueDate ? formatDate(inv.planDueDate) : "Not set";
+      case CapaPhase.PLANNING:
+        return plan.capaPlanDueDate ? formatDate(plan.capaPlanDueDate) : "Not set";
+      case CapaPhase.IMPLEMENTATION:
+        return (impl.dateDue || impl.implementationDueDate)
+          ? formatDate(impl.dateDue || impl.implementationDueDate)
+          : "Not set";
+      case CapaPhase.EFFECTIVENESS:
+        return eff.dateDue ? formatDate(eff.dateDue) : "Not set";
+      default:
+        return "Not set";
+    }
+  };
+
+  const handleCreateExtension = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extRequestedDueDate) {
+      toast.error("Please specify a requested due date");
+      return;
+    }
+    if (!extJustification.trim()) {
+      toast.error("Justification is required for an extension request");
+      return;
+    }
+
+    try {
+      setIsSubmittingExt(true);
+      await createExtensionRequest({
+        capaId: capa.id,
+        targetPhase: extTargetPhase,
+        requestedDueDate: new Date(extRequestedDueDate),
+        justification: extJustification.trim(),
+        riskEvaluationRationale: extRiskRationale.trim() || null,
+        primaryApproverId: extPrimaryApproverId || null,
+        secondaryApproverId: extSecondaryApproverId || null,
+      });
+      toast.success("Extension request submitted successfully");
+      setShowExtensionForm(false);
+      setExtRequestedDueDate("");
+      setExtJustification("");
+      setExtRiskRationale("");
+      setExtPrimaryApproverId("");
+      setExtSecondaryApproverId("");
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit extension request");
+    } finally {
+      setIsSubmittingExt(false);
+    }
+  };
+
+  const handleReviewExtension = async (extensionRequestId: string, decision: "APPROVED" | "REJECTED") => {
+    try {
+      setReviewingExtId(extensionRequestId);
+      await reviewExtensionRequest({
+        extensionRequestId,
+        decision,
+      });
+      toast.success(`Extension request ${decision.toLowerCase()} successfully`);
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || `Failed to ${decision.toLowerCase()} extension request`);
+    } finally {
+      setReviewingExtId(null);
+    }
+  };
 
   const toggleRootCauseTool = (tool: string) => {
     setSelectedRootCauseTools((prev) =>
@@ -586,6 +819,8 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                 entityId={capa.id}
                 currentStatus={currentPhase}
                 disabled={isLockReadOnly}
+                isAdvanceDisabled={!isCurrentPhaseApproved}
+                advanceDisabledReason={`The ${humanize(currentPhase)} phase must be approved by the designated approver before moving to the next step.`}
                 onStatusChanged={(newStatus) => {
                   setCurrentPhase(newStatus as CapaPhase);
                   router.refresh();
@@ -627,7 +862,14 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                 >
                   <CompletionDot state={completion[s.id]} />
                   {i < 5 ? `${i + 1}. ` : ""}
-                  {s.label}
+                  <span>{s.label}</span>
+                  {isInvestigationPhase &&
+                    (s.id === "initiation" ||
+                      s.id === "planning" ||
+                      s.id === "implementation" ||
+                      s.id === "effectiveness") && (
+                      <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    )}
                 </TabsTrigger>
               );
             })}
@@ -651,14 +893,24 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
           <fieldset disabled={isLockReadOnly} className="contents space-y-6">
             {/* ---------- 1. Initiation ---------- */}
             <TabsContent value="initiation">
-              <SectionCard
-                id="initiation"
-                title="Initiation and problem definition"
-                description="Problem statement, origin, containment, and risk evaluation."
-                badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 1</Badge>}
-              >
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <fieldset disabled={isLockReadOnly || isInvestigationPhase} className="contents">
+                <SectionCard
+                  id="initiation"
+                  title="Initiation and problem definition"
+                  description="Problem statement, origin, containment, and risk evaluation."
+                  badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 1</Badge>}
+                >
+                  <div className="space-y-4">
+                    {isInvestigationPhase && (
+                      <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+                        <Lock className="h-4 w-4 shrink-0 text-amber-600" />
+                        <div>
+                          <span className="font-semibold">Initiation Phase Locked:</span> All fields in this phase are locked because the CAPA has advanced to the Investigation phase.
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <Field label="Short description" htmlFor="shortDescription" required className="md:col-span-2">
                       <Input
                         id="shortDescription"
@@ -686,7 +938,19 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                       <MemberSelect id="ownerId" value={ownerId} onChange={setOwnerId} placeholder="Unassigned" />
                     </Field>
                     <Field label="Initiation due date" htmlFor="dateDue">
-                      <Input id="dateDue" type="date" value={dateDue} onChange={(e) => setDateDue(e.target.value)} />
+                      <Input
+                        id="dateDue"
+                        type="date"
+                        value={dateDue}
+                        onChange={(e) => setDateDue(e.target.value)}
+                        disabled={isInitiationDateDueLocked || isReadOnly}
+                      />
+                      {isInitiationDateDueLocked && (
+                        <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                          <Lock className="h-3 w-3 shrink-0" />
+                          <span>Locked. Request extension in Controls.</span>
+                        </p>
+                      )}
                     </Field>
                     <Field label="Origin or trigger" htmlFor="source">
                       <Input
@@ -792,6 +1056,7 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                   </SubGroup>
                 </div>
               </SectionCard>
+              </fieldset>
             </TabsContent>
 
             {/* ---------- 2. Investigation ---------- */}
@@ -862,8 +1127,19 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                     <Field label="Lead investigator">
                       <MemberSelect value={investigatorId} onChange={setInvestigatorId} />
                     </Field>
-                    <Field label="Plan due date">
-                      <Input type="date" value={investigationPlanDueDate} onChange={(e) => setInvestigationPlanDueDate(e.target.value)} />
+                    <Field label="Investigation due date">
+                      <Input
+                        type="date"
+                        value={investigationPlanDueDate}
+                        onChange={(e) => setInvestigationPlanDueDate(e.target.value)}
+                        disabled={isInvestigationPlanDueDateLocked || isReadOnly}
+                      />
+                      {isInvestigationPlanDueDateLocked && (
+                        <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                          <Lock className="h-3 w-3 shrink-0" />
+                          <span>Locked. Request extension in Controls.</span>
+                        </p>
+                      )}
                     </Field>
                     <Field label="Primary approver">
                       <MemberSelect value={investigationPrimaryApproverId} onChange={setInvestigationPrimaryApproverId} />
@@ -871,6 +1147,54 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
                     <Field label="Secondary approver">
                       <MemberSelect value={investigationSecondaryApproverId} onChange={setInvestigationSecondaryApproverId} />
                     </Field>
+                  </div>
+
+                  {/* Phase Approval Status & Sign-off */}
+                  <div className="mt-2 pt-3 border-t border-border">
+                    {isCurrentPhaseApproved && currentPhase === CapaPhase.INVESTIGATION ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-300">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="font-semibold">Investigation Phase Approved:</span>{" "}
+                            Approved by {currentPhaseApprovalInfo?.approver ? formatUserName(currentPhaseApprovalInfo.approver) : "Designated Approver"}
+                            {currentPhaseApprovalInfo?.approvedAt ? ` on ${formatDate(currentPhaseApprovalInfo.approvedAt)}` : ""}.
+                          </div>
+                        </div>
+                        <Badge className="bg-emerald-600 text-white font-medium border-0">
+                          Ready to Advance
+                        </Badge>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                          <div>
+                            <span className="font-semibold">Approval Required:</span>{" "}
+                            The approver must approve this phase before it can be moved to the next step (Planning).
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleApprovePhase}
+                          disabled={isApprovingPhase || !investigationPrimaryApproverId || isLockReadOnly}
+                          className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                        >
+                          {isApprovingPhase ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              Approving...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                              Approve Investigation Phase
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </SubGroup>
 
@@ -883,182 +1207,492 @@ export function CapaEditForm({ orgSlug, capa }: CapaEditFormProps) {
 
             {/* ---------- 3. Planning ---------- */}
             <TabsContent value="planning">
-              <SectionCard
-                id="planning"
-                title="Action planning"
-                description="Capa plan due date, action plan, effectiveness check plan, attachments, and approvals."
-                badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 3</Badge>}
-              >
-              <div className="space-y-4">
-                <Field label="Action plan" htmlFor="planningActionPlan">
-                  <Textarea
-                    id="planningActionPlan"
-                    rows={4}
-                    value={planningActionPlan}
-                    onChange={(e) => setPlanningActionPlan(e.target.value)}
-                    placeholder="One task per line: what, who, by when."
-                  />
-                </Field>
+              <fieldset disabled={isLockReadOnly || isInvestigationPhase} className="contents">
+                <SectionCard
+                  id="planning"
+                  title="Action planning"
+                  description="Capa plan due date, action plan, effectiveness check plan, attachments, and approvals."
+                  badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 3</Badge>}
+                >
+                <div className="space-y-4">
+                  {isInvestigationPhase && (
+                    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+                      <Lock className="h-4 w-4 shrink-0" />
+                      <div>
+                        <span className="font-semibold">Phase Locked:</span> Action Planning is locked until the Investigation phase is completed, approved, and advanced.
+                      </div>
+                    </div>
+                  )}
 
-                <Field label="Effectiveness check plan" htmlFor="planningEffectivenessCheckPlan">
-                  <Textarea
-                    id="planningEffectivenessCheckPlan"
-                    rows={3}
-                    value={planningEffectivenessCheckPlan}
-                    onChange={(e) => setPlanningEffectivenessCheckPlan(e.target.value)}
-                    placeholder="Measurable criteria and the data that will be reviewed."
-                  />
-                </Field>
+                  <Field label="Action plan" htmlFor="planningActionPlan">
+                    <Textarea
+                      id="planningActionPlan"
+                      rows={4}
+                      value={planningActionPlan}
+                      onChange={(e) => setPlanningActionPlan(e.target.value)}
+                      placeholder="One task per line: what, who, by when."
+                    />
+                  </Field>
 
-                <SubGroup title="Dates and approval">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <Field label="Capa plan due date">
-                      <Input type="date" value={capaPlanDueDate} onChange={(e) => setCapaPlanDueDate(e.target.value)} />
-                    </Field>
-                    <Field label="Primary approver">
-                      <MemberSelect value={planningPrimaryApproverId} onChange={setPlanningPrimaryApproverId} />
-                    </Field>
-                    <Field label="Secondary approver">
-                      <MemberSelect value={planningSecondaryApproverId} onChange={setPlanningSecondaryApproverId} />
-                    </Field>
-                  </div>
-                </SubGroup>
+                  <Field label="Effectiveness check plan" htmlFor="planningEffectivenessCheckPlan">
+                    <Textarea
+                      id="planningEffectivenessCheckPlan"
+                      rows={3}
+                      value={planningEffectivenessCheckPlan}
+                      onChange={(e) => setPlanningEffectivenessCheckPlan(e.target.value)}
+                      placeholder="Measurable criteria and the data that will be reviewed."
+                    />
+                  </Field>
 
-                <SubGroup title={`Capa plan attachments · ${planningAttachments.length}`}>
-                  <FileUploader attachments={planningAttachments} onChange={setPlanningAttachments} />
-                </SubGroup>
-              </div>
-            </SectionCard>
+                  <SubGroup title="Dates and approval">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <Field label="Capa plan due date">
+                        <Input
+                          type="date"
+                          value={capaPlanDueDate}
+                          onChange={(e) => setCapaPlanDueDate(e.target.value)}
+                          disabled={isPlanningDueDateLocked || isReadOnly}
+                        />
+                        {isPlanningDueDateLocked && (
+                          <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                            <Lock className="h-3 w-3 shrink-0" />
+                            <span>Locked. Request extension in Controls.</span>
+                          </p>
+                        )}
+                      </Field>
+                      <Field label="Primary approver">
+                        <MemberSelect value={planningPrimaryApproverId} onChange={setPlanningPrimaryApproverId} />
+                      </Field>
+                      <Field label="Secondary approver">
+                        <MemberSelect value={planningSecondaryApproverId} onChange={setPlanningSecondaryApproverId} />
+                      </Field>
+                    </div>
+                  </SubGroup>
+
+                  <SubGroup title={`Capa plan attachments · ${planningAttachments.length}`}>
+                    <FileUploader attachments={planningAttachments} onChange={setPlanningAttachments} />
+                  </SubGroup>
+                </div>
+              </SectionCard>
+              </fieldset>
             </TabsContent>
 
             {/* ---------- 4. Implementation ---------- */}
             <TabsContent value="implementation">
-              <SectionCard
-                id="implementation"
-                title="Action implementation"
-                description="Execution details, validate comments, action plan summary, attachments, and approvals."
-                badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 4</Badge>}
-              >
-              <div className="space-y-4">
-                <Field label="Action plan" htmlFor="implementationActionPlan">
-                  <Textarea
-                    id="implementationActionPlan"
-                    rows={4}
-                    value={implementationActionPlan}
-                    onChange={(e) => setImplementationActionPlan(e.target.value)}
-                    placeholder="Execution details of the action plan tasks."
-                  />
-                </Field>
+              <fieldset disabled={isLockReadOnly || isInvestigationPhase} className="contents">
+                <SectionCard
+                  id="implementation"
+                  title="Action implementation"
+                  description="Execution details, validate comments, action plan summary, attachments, and approvals."
+                  badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 4</Badge>}
+                >
+                <div className="space-y-4">
+                  {isInvestigationPhase && (
+                    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+                      <Lock className="h-4 w-4 shrink-0" />
+                      <div>
+                        <span className="font-semibold">Phase Locked:</span> Action Implementation is locked until the Investigation and Planning phases are completed and approved.
+                      </div>
+                    </div>
+                  )}
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Field label="Action plan summary" htmlFor="implementationActionPlanSummary">
+                  <Field label="Action plan" htmlFor="implementationActionPlan">
                     <Textarea
-                      id="implementationActionPlanSummary"
-                      rows={3}
-                      value={implementationActionPlanSummary}
-                      onChange={(e) => setImplementationActionPlanSummary(e.target.value)}
+                      id="implementationActionPlan"
+                      rows={4}
+                      value={implementationActionPlan}
+                      onChange={(e) => setImplementationActionPlan(e.target.value)}
+                      placeholder="Execution details of the action plan tasks."
                     />
                   </Field>
-                  <Field label="Validate comments" htmlFor="implementationValidateComments">
-                    <Textarea
-                      id="implementationValidateComments"
-                      rows={3}
-                      value={implementationValidateComments}
-                      onChange={(e) => setImplementationValidateComments(e.target.value)}
-                      placeholder="Validation and verification comments on executed actions."
-                    />
-                  </Field>
-                </div>
 
-                <Field label="Effectiveness check plan" htmlFor="implementationEffectivenessCheckPlan">
-                  <Textarea
-                    id="implementationEffectivenessCheckPlan"
-                    rows={3}
-                    value={implementationEffectivenessCheckPlan}
-                    onChange={(e) => setImplementationEffectivenessCheckPlan(e.target.value)}
-                    placeholder="Measurable criteria and verification execution details."
-                  />
-                </Field>
-
-                <SubGroup title="Dates and approval">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <Field label="Date due">
-                      <Input type="date" value={implementationDateDue} onChange={(e) => setImplementationDateDue(e.target.value)} />
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field label="Action plan summary" htmlFor="implementationActionPlanSummary">
+                      <Textarea
+                        id="implementationActionPlanSummary"
+                        rows={3}
+                        value={implementationActionPlanSummary}
+                        onChange={(e) => setImplementationActionPlanSummary(e.target.value)}
+                      />
                     </Field>
-                    <Field label="Effectiveness date due">
-                      <Input type="date" value={implementationEffectivenessDueDate} onChange={(e) => setImplementationEffectivenessDueDate(e.target.value)} />
-                    </Field>
-                    <Field label="Primary approver">
-                      <MemberSelect value={implementationPrimaryApproverId} onChange={setImplementationPrimaryApproverId} />
-                    </Field>
-                    <Field label="Secondary approver">
-                      <MemberSelect value={implementationSecondaryApproverId} onChange={setImplementationSecondaryApproverId} />
+                    <Field label="Validate comments" htmlFor="implementationValidateComments">
+                      <Textarea
+                        id="implementationValidateComments"
+                        rows={3}
+                        value={implementationValidateComments}
+                        onChange={(e) => setImplementationValidateComments(e.target.value)}
+                        placeholder="Validation and verification comments on executed actions."
+                      />
                     </Field>
                   </div>
-                </SubGroup>
 
-                <SubGroup title={`Attachments · ${implementationAttachments.length}`}>
-                  <FileUploader attachments={implementationAttachments} onChange={setImplementationAttachments} />
-                </SubGroup>
-              </div>
-            </SectionCard>
+                  <Field label="Effectiveness check plan" htmlFor="implementationEffectivenessCheckPlan">
+                    <Textarea
+                      id="implementationEffectivenessCheckPlan"
+                      rows={3}
+                      value={implementationEffectivenessCheckPlan}
+                      onChange={(e) => setImplementationEffectivenessCheckPlan(e.target.value)}
+                      placeholder="Measurable criteria and verification execution details."
+                    />
+                  </Field>
+
+                  <SubGroup title="Dates and approval">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <Field label="Date due">
+                        <Input
+                          type="date"
+                          value={implementationDateDue}
+                          onChange={(e) => setImplementationDateDue(e.target.value)}
+                          disabled={isImplementationDueDateLocked || isReadOnly}
+                        />
+                        {isImplementationDueDateLocked && (
+                          <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                            <Lock className="h-3 w-3 shrink-0" />
+                            <span>Locked. Request extension in Controls.</span>
+                          </p>
+                        )}
+                      </Field>
+                      <Field label="Effectiveness date due">
+                        <Input type="date" value={implementationEffectivenessDueDate} onChange={(e) => setImplementationEffectivenessDueDate(e.target.value)} />
+                      </Field>
+                      <Field label="Primary approver">
+                        <MemberSelect value={implementationPrimaryApproverId} onChange={setImplementationPrimaryApproverId} />
+                      </Field>
+                      <Field label="Secondary approver">
+                        <MemberSelect value={implementationSecondaryApproverId} onChange={setImplementationSecondaryApproverId} />
+                      </Field>
+                    </div>
+                  </SubGroup>
+
+                  <SubGroup title={`Attachments · ${implementationAttachments.length}`}>
+                    <FileUploader attachments={implementationAttachments} onChange={setImplementationAttachments} />
+                  </SubGroup>
+                </div>
+              </SectionCard>
+              </fieldset>
             </TabsContent>
 
             {/* ---------- 5. Effectiveness ---------- */}
             <TabsContent value="effectiveness">
-              <SectionCard
-                id="effectiveness"
-                title="Effectiveness verification"
-                description="Evidence of non-recurrence and closeout authorisation."
-                badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 5</Badge>}
-              >
-              <div className="space-y-4">
-                <Field label="Verification summary" htmlFor="effectivenessVerificationSummary">
-                  <Textarea
-                    id="effectivenessVerificationSummary"
-                    rows={4}
-                    value={effectivenessVerificationSummary}
-                    onChange={(e) => setEffectivenessVerificationSummary(e.target.value)}
-                  />
-                </Field>
+              <fieldset disabled={isLockReadOnly || isInvestigationPhase} className="contents">
+                <SectionCard
+                  id="effectiveness"
+                  title="Effectiveness verification"
+                  description="Evidence of non-recurrence and closeout authorisation."
+                  badge={<Badge variant="outline" className="font-mono text-[11px]">Phase 5</Badge>}
+                >
+                <div className="space-y-4">
+                  {isInvestigationPhase && (
+                    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+                      <Lock className="h-4 w-4 shrink-0" />
+                      <div>
+                        <span className="font-semibold">Phase Locked:</span> Effectiveness Verification is locked until preceding phases are completed and approved.
+                      </div>
+                    </div>
+                  )}
 
-                <Field label="Ineffective action justification" htmlFor="ineffectiveJustification">
-                  <Textarea
-                    id="ineffectiveJustification"
-                    rows={3}
-                    value={ineffectiveJustification}
-                    onChange={(e) => setIneffectiveJustification(e.target.value)}
-                    placeholder="Only if the actions did not meet the criteria."
-                  />
-                </Field>
+                  <Field label="Verification summary" htmlFor="effectivenessVerificationSummary">
+                    <Textarea
+                      id="effectivenessVerificationSummary"
+                      rows={4}
+                      value={effectivenessVerificationSummary}
+                      onChange={(e) => setEffectivenessVerificationSummary(e.target.value)}
+                    />
+                  </Field>
 
-                <SubGroup title="Dates and approval">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <Field label="Verification due">
-                      <Input type="date" value={effectivenessDateDue} onChange={(e) => setEffectivenessDateDue(e.target.value)} />
-                    </Field>
-                    <Field label="Primary approver">
-                      <MemberSelect value={effectivenessPrimaryApproverId} onChange={setEffectivenessPrimaryApproverId} />
-                    </Field>
-                    <Field label="Secondary approver">
-                      <MemberSelect value={effectivenessSecondaryApproverId} onChange={setEffectivenessSecondaryApproverId} />
-                    </Field>
-                  </div>
-                </SubGroup>
+                  <Field label="Ineffective action justification" htmlFor="ineffectiveJustification">
+                    <Textarea
+                      id="ineffectiveJustification"
+                      rows={3}
+                      value={ineffectiveJustification}
+                      onChange={(e) => setIneffectiveJustification(e.target.value)}
+                      placeholder="Only if the actions did not meet the criteria."
+                    />
+                  </Field>
 
-                <SubGroup title={`Attachments · ${effectivenessAttachments.length}`}>
-                  <FileUploader attachments={effectivenessAttachments} onChange={setEffectivenessAttachments} />
-                </SubGroup>
-              </div>
-            </SectionCard>
+                  <SubGroup title="Dates and approval">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <Field label="Verification due">
+                        <Input
+                          type="date"
+                          value={effectivenessDateDue}
+                          onChange={(e) => setEffectivenessDateDue(e.target.value)}
+                          disabled={isEffectivenessDueDateLocked || isReadOnly}
+                        />
+                        {isEffectivenessDueDateLocked && (
+                          <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                            <Lock className="h-3 w-3 shrink-0" />
+                            <span>Locked. Request extension in Controls.</span>
+                          </p>
+                        )}
+                      </Field>
+                      <Field label="Primary approver">
+                        <MemberSelect value={effectivenessPrimaryApproverId} onChange={setEffectivenessPrimaryApproverId} />
+                      </Field>
+                      <Field label="Secondary approver">
+                        <MemberSelect value={effectivenessSecondaryApproverId} onChange={setEffectivenessSecondaryApproverId} />
+                      </Field>
+                    </div>
+                  </SubGroup>
+
+                  <SubGroup title={`Attachments · ${effectivenessAttachments.length}`}>
+                    <FileUploader attachments={effectivenessAttachments} onChange={setEffectivenessAttachments} />
+                  </SubGroup>
+                </div>
+              </SectionCard>
+              </fieldset>
             </TabsContent>
 
             {/* ---------- 5. Controls ---------- */}
-            <TabsContent value="controls">
+            <TabsContent value="controls" className="space-y-6">
               <SectionCard
                 id="controls"
-                title="Extensions and cancellation"
-                description="Due-date extensions and formal cancellation."
+                title="Phase due date extensions"
+                description="Formal due date extension requests subject to regulatory review and approval."
+                badge={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowExtensionForm((prev) => !prev)}
+                    className="h-7 text-xs"
+                    disabled={isReadOnly}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    {showExtensionForm ? "Cancel" : "New request"}
+                  </Button>
+                }
+              >
+                <div className="space-y-4">
+                  {showExtensionForm && (
+                    <div className="rounded-lg border border-primary/20 bg-muted/40 p-4 space-y-4">
+                      <div className="flex items-center justify-between border-b border-border pb-2">
+                        <span className="text-xs font-semibold text-foreground">
+                          Submit Stage Extension Request
+                        </span>
+                        <Badge variant="secondary" className="text-[10px] font-mono">
+                          Current: {getPhaseCurrentDueDate(extTargetPhase)}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <Field label="Target stage" htmlFor="extTargetPhase" required>
+                          <select
+                            id="extTargetPhase"
+                            value={extTargetPhase}
+                            onChange={(e) => setExtTargetPhase(e.target.value as CapaPhase)}
+                            className={selectClass}
+                          >
+                            <option value={CapaPhase.INITIATION}>Initiation</option>
+                            <option value={CapaPhase.INVESTIGATION}>Investigation</option>
+                            <option value={CapaPhase.PLANNING}>Planning</option>
+                            <option value={CapaPhase.IMPLEMENTATION}>Implementation</option>
+                            <option value={CapaPhase.EFFECTIVENESS}>Effectiveness</option>
+                          </select>
+                        </Field>
+
+                        <Field label="New requested due date" htmlFor="extRequestedDueDate" required>
+                          <Input
+                            id="extRequestedDueDate"
+                            type="date"
+                            value={extRequestedDueDate}
+                            onChange={(e) => setExtRequestedDueDate(e.target.value)}
+                            required
+                          />
+                        </Field>
+                      </div>
+
+                      <Field label="Justification" htmlFor="extJustification" required>
+                        <Textarea
+                          id="extJustification"
+                          rows={3}
+                          value={extJustification}
+                          onChange={(e) => setExtJustification(e.target.value)}
+                          placeholder="Provide root-cause delay explanation and technical justification."
+                          required
+                        />
+                      </Field>
+
+                      <Field label="Risk evaluation rationale" htmlFor="extRiskRationale">
+                        <Textarea
+                          id="extRiskRationale"
+                          rows={2}
+                          value={extRiskRationale}
+                          onChange={(e) => setExtRiskRationale(e.target.value)}
+                          placeholder="Assessment of impact on product quality and patient safety during extension."
+                        />
+                      </Field>
+
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <Field label="Primary approver">
+                          <MemberSelect
+                            value={extPrimaryApproverId}
+                            onChange={setExtPrimaryApproverId}
+                            placeholder="Select QA / Lead Approver"
+                          />
+                        </Field>
+                        <Field label="Secondary approver">
+                          <MemberSelect
+                            value={extSecondaryApproverId}
+                            onChange={setExtSecondaryApproverId}
+                            placeholder="Select Secondary Approver"
+                          />
+                        </Field>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowExtensionForm(false)}
+                          disabled={isSubmittingExt}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleCreateExtension}
+                          disabled={isSubmittingExt || !extRequestedDueDate || !extJustification.trim()}
+                        >
+                          {isSubmittingExt ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              Submitting...
+                            </>
+                          ) : (
+                            "Submit extension request"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Extension Requests List */}
+                  {(!capa.extensionRequests || capa.extensionRequests.length === 0) ? (
+                    <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                      No extension requests recorded. Phase due dates can be extended by submitting a formal request above.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {capa.extensionRequests.map((req: any) => {
+                        const isPending = req.status === ExtensionRequestStatus.PENDING;
+                        const isApproved = req.status === ExtensionRequestStatus.APPROVED;
+                        const isRejected = req.status === ExtensionRequestStatus.REJECTED;
+
+                        return (
+                          <div
+                            key={req.id}
+                            className="rounded-lg border border-border bg-card p-4 space-y-3 transition-colors"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="font-mono text-[11px] font-medium">
+                                  {humanize(req.targetPhase)}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  Requested date:{" "}
+                                  <strong className="text-foreground">
+                                    {formatDate(req.requestedDueDate)}
+                                  </strong>
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {isPending && (
+                                  <Badge className="border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400 gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Pending Review
+                                  </Badge>
+                                )}
+                                {isApproved && (
+                                  <Badge className="border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 gap-1">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Approved
+                                  </Badge>
+                                )}
+                                {isRejected && (
+                                  <Badge className="border-red-500/30 bg-red-500/15 text-red-700 dark:text-red-400 gap-1">
+                                    <XCircle className="h-3 w-3" />
+                                    Rejected
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5 text-xs">
+                              <div className="text-foreground">
+                                <span className="font-medium text-muted-foreground">Justification: </span>
+                                {req.justification}
+                              </div>
+                              {req.riskEvaluationRationale && (
+                                <div className="text-muted-foreground">
+                                  <span className="font-medium">Risk rationale: </span>
+                                  {req.riskEvaluationRationale}
+                                </div>
+                              )}
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-muted-foreground">
+                                <span>
+                                  Requester: <strong className="text-foreground">{formatUserName(req.requester)}</strong>
+                                </span>
+                                {req.primaryApprover && (
+                                  <span>
+                                    Primary: <strong className="text-foreground">{formatUserName(req.primaryApprover)}</strong>
+                                  </span>
+                                )}
+                                {req.secondaryApprover && (
+                                  <span>
+                                    Secondary: <strong className="text-foreground">{formatUserName(req.secondaryApprover)}</strong>
+                                  </span>
+                                )}
+                                <span>Created: {formatDate(req.createdAt)}</span>
+                              </div>
+                            </div>
+
+                            {isPending && !isReadOnly && (
+                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                  onClick={() => handleReviewExtension(req.id, "REJECTED")}
+                                  disabled={reviewingExtId === req.id}
+                                >
+                                  {reviewingExtId === req.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    "Reject"
+                                  )}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  onClick={() => handleReviewExtension(req.id, "APPROVED")}
+                                  disabled={reviewingExtId === req.id}
+                                >
+                                  {reviewingExtId === req.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    "Approve extension"
+                                  )}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                id="controls"
+                title="Formal cancellation"
+                description="Void this CAPA record subject to regulatory justification and signoff."
               >
                 <div
                   className={cn(

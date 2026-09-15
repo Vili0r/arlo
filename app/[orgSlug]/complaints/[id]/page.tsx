@@ -36,6 +36,9 @@ export default async function ComplaintDetailPage({
       investigation: {
         include: {
           summary: true,
+          noInvestigationDeterminedBy: {
+            select: { id: true, email: true, firstName: true, lastName: true },
+          },
         },
       },
     },
@@ -56,6 +59,14 @@ export default async function ComplaintDetailPage({
           ...pt,
           eventOccurred: pt.eventOccurred ? pt.eventOccurred.toISOString() : null,
         })),
+        investigation: complaint.investigation
+          ? {
+              ...complaint.investigation,
+              noInvestigationDeterminedAt: complaint.investigation.noInvestigationDeterminedAt
+                ? complaint.investigation.noInvestigationDeterminedAt.toISOString()
+                : null,
+            }
+          : null,
         sampleManagement: complaint.sampleManagement
           ? {
               ...complaint.sampleManagement,

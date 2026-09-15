@@ -1,10 +1,10 @@
 # Automated Verification Evidence - Release v1.0.0
 
-**Execution Date:** `2026-09-15T15:32:21.833Z`  
+**Execution Date:** `2026-09-15T17:36:26.749Z`  
 **Overall Status:** ✅ VERIFIED & VALIDATED  
-**Total Tests Executed:** 294  
-**Total Tests Passing:** 294  
-**Software Requirements Covered:** 23  
+**Total Tests Executed:** 319  
+**Total Tests Passing:** 319  
+**Software Requirements Covered:** 25  
 **Requirements Test Coverage:** 100%  
 
 ---
@@ -37,6 +37,8 @@
 | **SRS-006** | `tests/complaint-multi-tenant-isolation.test.ts` | 7/7 | ✅ Pass |
 | **SRS-018** | `tests/new-roles-rbac.test.ts` | 13/13 | ✅ Pass |
 | **SRS-019** | `tests/exports-generation.test.ts` | 10/10 | ✅ Pass |
+| **SRS-025** | `tests/capa-extension-requests-due-date-locking.test.ts` | 14/14 | ✅ Pass |
+| **SRS-026** | `tests/capa-phase-locking-and-approvals.test.ts` | 6/6 | ✅ Pass |
 
 ---
 *Generated automatically by `scripts/traceability.mjs` during automated verification.*

@@ -209,31 +209,46 @@ export function ESignatureModal({
           </div>
 
           {/* Rationale / Justification */}
-          <div className="space-y-2">
-            <Label htmlFor="rationale" className="text-xs">
-              {isCancel
-                ? "Cancellation Rationale"
-                : isRevert
-                ? "Rationale for Reversion"
-                : "Rationale (Optional)"}{" "}
-              {(isRevert || isCancel) && <span className="text-destructive">*</span>}
-            </Label>
-            <Textarea
-              id="rationale"
-              name="rationale"
-              required={isRevert || isCancel}
-              disabled={isPending || state?.success === true}
-              placeholder={
-                isCancel
-                  ? `Document mandatory rationale for cancelling this ${entityType} record (e.g., entered in error, duplicate complaint, customer retracted)...`
-                  : isRevert
-                  ? "Document the specific reason for reverting this stage (e.g., additional investigation requested by QA, new clinical data received)..."
-                  : "Optional rationale or change summary..."
-              }
-              rows={2}
-              className="text-xs resize-none"
-            />
-          </div>
+          {(() => {
+            const isInvestigationNotRequired =
+              entityType === "Investigation" && targetStatus === "NOT_REQUIRED";
+            const isRationaleMandatory =
+              isRevert || isCancel || isInvestigationNotRequired;
+
+            return (
+              <div className="space-y-2">
+                <Label htmlFor="rationale" className="text-xs">
+                  {isInvestigationNotRequired
+                    ? "Reason No Investigation is Needed (21 CFR § 820.198(b))"
+                    : isCancel
+                    ? "Cancellation Rationale"
+                    : isRevert
+                    ? "Rationale for Reversion"
+                    : "Rationale (Optional)"}{" "}
+                  {isRationaleMandatory && (
+                    <span className="text-destructive">*</span>
+                  )}
+                </Label>
+                <Textarea
+                  id="rationale"
+                  name="rationale"
+                  required={isRationaleMandatory}
+                  disabled={isPending || state?.success === true}
+                  placeholder={
+                    isInvestigationNotRequired
+                      ? "Document the reason no investigation was made (e.g., non-product issue, previously investigated under CAPA-..., customer confirmed user error, normal cosmetic wear per SOP)..."
+                      : isCancel
+                      ? `Document mandatory rationale for cancelling this ${entityType} record (e.g., entered in error, duplicate complaint, customer retracted)...`
+                      : isRevert
+                      ? "Document the specific reason for reverting this stage (e.g., additional investigation requested by QA, new clinical data received)..."
+                      : "Optional rationale or change summary..."
+                  }
+                  rows={3}
+                  className="text-xs resize-none"
+                />
+              </div>
+            );
+          })()}
 
           {/* Password */}
           <div className="space-y-2">

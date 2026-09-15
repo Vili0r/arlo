@@ -33,6 +33,9 @@ export default async function InvestigationPage({
             }
           },
           attachments: true,
+          noInvestigationDeterminedBy: {
+            select: { email: true, firstName: true, lastName: true },
+          },
         }
       },
       productInformation: true,
@@ -68,6 +71,9 @@ export default async function InvestigationPage({
           },
         },
         attachments: true,
+        noInvestigationDeterminedBy: {
+          select: { email: true, firstName: true, lastName: true },
+        },
       },
     });
   }
@@ -105,6 +111,7 @@ export default async function InvestigationPage({
         riskReviewCompletedAt: activeInvestigation.riskReviewCompletedAt?.toISOString() || null,
         investigationSummaryCompletedAt: activeInvestigation.summary?.completedAt?.toISOString() || null,
         investigationSummaryCompletedById: activeInvestigation.summary?.completedById || null,
+        noInvestigationDeterminedAt: activeInvestigation.noInvestigationDeterminedAt?.toISOString() || null,
         summaryText: activeInvestigation.summary?.summary || null, // renamed from summary to avoid conflict with relation
         report: activeInvestigation.summary?.report || null,
         capaFscaRationale: activeInvestigation.summary?.capaFscaRationale || null,

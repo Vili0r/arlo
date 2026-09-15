@@ -3,28 +3,20 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { OrganizationSwitcher, UserButton, useClerk } from "@clerk/nextjs";
+import { UserButton, useClerk } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   FileSpreadsheet,
-  PlusCircle,
   ClipboardCheck,
-  History,
   Users,
-  Building2,
-  Lock,
-  ShieldCheck,
   ChevronsUpDown,
   Search,
-  PanelLeftClose,
   PanelLeft,
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
   Bell,
   SlidersHorizontal,
-  LayoutGrid,
-  List,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -152,18 +144,13 @@ export function WorkspaceShell({
       icon: LayoutDashboard,
     },
     {
-      title: "Complaints",
+      title: "Complaint Module",
       href: "/complaints",
       exact: true,
       icon: FileSpreadsheet,
     },
     {
-      title: "New Complaint",
-      href: "/complaints/new",
-      icon: PlusCircle,
-    },
-    {
-      title: "CAPA Management",
+      title: "CAPA Module",
       href: "/capa",
       icon: ClipboardCheck,
     },

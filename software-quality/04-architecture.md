@@ -144,3 +144,17 @@ To ensure strict separation between proposed plans and physical execution verifi
 - **`CapaPlanning`**: Holds the pre-implementation commitments, including CAPA plan due date, proposed action plan, proposed effectiveness check plan, dual approvers, and planning attachments.
 - **`CapaImplementation`**: Holds the execution records, including implementation date due, action plan execution details, effectiveness check criteria, effectiveness check due date, validation comments, action plan summary, dual approvers, and execution attachments.
 - All phase subrecords maintain a 1:1 relation to the parent `Capa` entity and inherit tenant isolation via `orgId`. Mutative actions emit deep audit trail diffs linking subrecord changes to the parent CAPA history.
+
+### 3.2 Phase Due-Date Immutability & Extension Request Governance
+In compliance with medical device QMS CAPA timeliness and escalation regulations:
+1. **Due-Date Immutability Policy**: Once an initial due date is set and saved for any phase (`Initiation`, `Investigation`, `Planning`, `Implementation`, or `Effectiveness`), the database field becomes immutable against direct updates via the edit form. The UI renders the date input as disabled with a lock icon, and server action `updateCapa` enforces this constraint, blocking direct modifications.
+2. **Formal Extension Requests**: Modifications to set phase due dates must be submitted through an `ExtensionRequest` under the Controls tab. Each request requires:
+   - Target phase specification (`INITIATION`, `INVESTIGATION`, `PLANNING`, `IMPLEMENTATION`, `EFFECTIVENESS`)
+   - Proposed new due date
+   - Root-cause delay justification
+   - Risk evaluation rationale on product quality and patient safety
+   - Designated QA approvers
+3. **Approval Lifecycle & Audit Trail**:
+   - Status flows through `PENDING` $\rightarrow$ `APPROVED` or `REJECTED`.
+   - When approved, the system updates the target phase model's due date inside a database transaction and emits append-only 21 CFR Part 11 audit log records for both the request resolution and the phase date update.
+   - When rejected, the original phase due date remains strictly untouched.

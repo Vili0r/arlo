@@ -2,7 +2,7 @@
 
 **System Name:** Arlo Complaint Management & Vigilance & CAPA Management SaaS  
 **Document ID:** RTM-ARLO-001  
-**Generated At:** `2026-09-15T15:32:21.833Z`  
+**Generated At:** `2026-09-15T17:36:26.749Z`  
 **Status:** ✅ VALIDATED (ALL TESTS PASS)  
 **Standards:** FDA 21 CFR Part 820.198 / Part 11 | ISO 13485:2016 | IEC 62304 Class B
 
@@ -13,11 +13,11 @@
 | Metric | Value |
 | :--- | :--- |
 | **Total User Requirements (URS)** | 13 |
-| **Total Software Requirements (SRS)** | 23 |
-| **Total Design Units (DESIGN)** | 19 |
-| **Traceability Links Verified** | 24 |
-| **Total Automated Tests Executed** | 294 |
-| **Total Automated Tests Passing** | 294 |
+| **Total Software Requirements (SRS)** | 25 |
+| **Total Design Units (DESIGN)** | 21 |
+| **Traceability Links Verified** | 26 |
+| **Total Automated Tests Executed** | 319 |
+| **Total Automated Tests Passing** | 319 |
 | **Requirements Test Coverage** | **100%** |
 | **Verification Gate** | **PASSED** |
 
@@ -51,6 +51,8 @@
 | **URS-012**<br>_Multi-Tenant Isolation & Role-Based Access Control (RBAC)_ | **SRS-006**<br>Multi-Tenant Data Isolation & Query Boundary | **DESIGN-006**<br>Multi-Tenant Partitioning | `lib/auth-guard.ts` | **TEST-005** | [`tests/complaint-multi-tenant-isolation.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/complaint-multi-tenant-isolation.test.ts) | 7/7 | ✅ Pass |
 | **URS-012**<br>_Multi-Tenant Isolation & Role-Based Access Control (RBAC)_ | **SRS-018**<br>Role-Based Access Control (RBAC) Enforcement | **DESIGN-018**<br>RBAC Authorization Guard | `lib/auth-guard.ts` | **TEST-017** | [`tests/new-roles-rbac.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/new-roles-rbac.test.ts) | 13/13 | ✅ Pass |
 | **URS-013**<br>_Data Exports & Regulatory Inspection Support_ | **SRS-019**<br>Regulatory Export Bundle Generation (CSV & JSON) | **DESIGN-019**<br>Regulatory Export Service | `lib/actions/exports.ts` | **TEST-018** | [`tests/exports-generation.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/exports-generation.test.ts) | 10/10 | ✅ Pass |
+| **URS-006**<br>_Corrective and Preventive Actions (CAPA)_ | **SRS-025**<br>CAPA Due-Date Immutability & Stage Extension Governance | **DESIGN-021**<br>Due Date Lock Guard & Extension Request Service | `lib/actions/capa.ts, components/capa-edit-form.tsx` | **TEST-025** | [`tests/capa-extension-requests-due-date-locking.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/capa-extension-requests-due-date-locking.test.ts) | 14/14 | ✅ Pass |
+| **URS-006**<br>_Corrective and Preventive Actions (CAPA)_ | **SRS-026**<br>CAPA Investigation Phase Locking & Approver Gatekeeping | **DESIGN-022**<br>CAPA Phase Locking & Approver Gatekeeper | `components/capa-edit-form.tsx, lib/actions/capa.ts, lib/actions/esignature.ts` | **TEST-026** | [`tests/capa-phase-locking-and-approvals.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/capa-phase-locking-and-approvals.test.ts) | 6/6 | ✅ Pass |
 
 ---
 

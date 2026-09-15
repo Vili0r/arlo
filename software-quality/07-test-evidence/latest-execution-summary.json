@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-15T15:32:21.833Z",
+  "generatedAt": "2026-09-15T17:36:26.749Z",
   "status": "PASSED",
-  "totalRequirements": 23,
-  "totalTestsExecuted": 294,
-  "totalTestsPassed": 294,
+  "totalRequirements": 25,
+  "totalTestsExecuted": 319,
+  "totalTestsPassed": 319,
   "totalTestsFailed": 0,
   "coveragePercent": "100%",
   "suitesRun": [
@@ -174,6 +174,20 @@
       "testFile": "tests/exports-generation.test.ts",
       "result": "PASS",
       "testsRun": "10/10"
+    },
+    {
+      "requirement": "SRS-025",
+      "testId": "TEST-025",
+      "testFile": "tests/capa-extension-requests-due-date-locking.test.ts",
+      "result": "PASS",
+      "testsRun": "14/14"
+    },
+    {
+      "requirement": "SRS-026",
+      "testId": "TEST-026",
+      "testFile": "tests/capa-phase-locking-and-approvals.test.ts",
+      "result": "PASS",
+      "testsRun": "6/6"
     }
   ]
 }

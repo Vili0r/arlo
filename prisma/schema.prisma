@@ -35,6 +35,7 @@ model User {
   summaryCompletedInvestigations   InvestigationSummary[]       @relation("InvestigationSummaryCompletedBy")
   assignedCustomSections           InvestigationCustomSection[] @relation("CustomSectionAssignedTo")
   completedCustomSections          InvestigationCustomSection[] @relation("CustomSectionCompletedBy")
+  noInvestigationDeterminations    Investigation[]              @relation("NoInvestigationDeterminedBy")
   attachments                      Attachment[]
   ownedCapas                       Capa[]                       @relation("CapaOwner")
   primaryApprovedInitiations       CapaInitiation[]             @relation("InitiationPrimaryApprover")
@@ -427,11 +428,17 @@ model Investigation {
   investigationSummaryCompletedAt   DateTime?
   summary                           InvestigationSummary?
 
+  // D. Investigation Determination (FDA 21 CFR 820.198(b) / ISO 13485 8.2.2)
+  noInvestigationReason             String?
+  noInvestigationDeterminedById     String?
+  noInvestigationDeterminedAt       DateTime?
+
   organization                    Organization @relation(fields: [orgId], references: [id])
   complaint                       Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
   investigator                    User?        @relation("InvestigationInvestigator", fields: [investigatorId], references: [id])
   riskReviewCompletedBy           User?        @relation("RiskReviewCompletedBy", fields: [riskReviewCompletedById], references: [id])
   investigationSummaryCompletedBy User?        @relation("InvestigationSummaryCompletedBy", fields: [investigationSummaryCompletedById], references: [id])
+  noInvestigationDeterminedBy     User?        @relation("NoInvestigationDeterminedBy", fields: [noInvestigationDeterminedById], references: [id])
 
   customSections InvestigationCustomSection[]
 
@@ -439,6 +446,7 @@ model Investigation {
   @@index([investigatorId])
   @@index([riskReviewCompletedById])
   @@index([investigationSummaryCompletedById])
+  @@index([noInvestigationDeterminedById])
 }
 
 model InvestigationSummary {

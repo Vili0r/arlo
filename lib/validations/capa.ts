@@ -21,6 +21,27 @@ export const ExtensionRequestInputSchema = z.object({
   secondaryApproverId: z.string().nullable().optional(),
 });
 
+export const CreateExtensionRequestSchema = z.object({
+  capaId: z.string().min(1, "CAPA ID is required"),
+  targetPhase: z.nativeEnum(CapaPhase),
+  requestedDueDate: z.union([z.date(), z.string()]),
+  justification: z.string().min(1, "Justification is required"),
+  riskEvaluationRationale: z.string().nullable().optional(),
+  primaryApproverId: z.string().nullable().optional(),
+  secondaryApproverId: z.string().nullable().optional(),
+});
+
+export type CreateExtensionRequestInput = z.infer<typeof CreateExtensionRequestSchema>;
+
+export const ReviewExtensionRequestSchema = z.object({
+  extensionRequestId: z.string().min(1, "Extension request ID is required"),
+  decision: z.enum(["APPROVED", "REJECTED"]),
+  reviewComments: z.string().nullable().optional(),
+});
+
+export type ReviewExtensionRequestInput = z.infer<typeof ReviewExtensionRequestSchema>;
+
+
 export const CapaInitiationInputSchema = z.object({
   problemStatement: z.string().min(1, "Problem statement is required"),
   containmentAction: z.string().nullable().optional(),

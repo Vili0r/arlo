@@ -5,7 +5,15 @@ import { requireOrgAuth } from "@/lib/auth-guard";
 import { revalidatePath } from "next/cache";
 import { CapaType, CapaPhase, ExtensionRequestStatus, AuditAction, LockEntityType, Prisma } from "@prisma/client";
 import { assertRecordNotLocked } from "@/lib/actions/record-lock";
-import { CreateCapaSchema, type CreateCapaFormValues, type CreateCapaInput } from "@/lib/validations/capa";
+import {
+  CreateCapaSchema,
+  type CreateCapaFormValues,
+  type CreateCapaInput,
+  CreateExtensionRequestSchema,
+  type CreateExtensionRequestInput,
+  ReviewExtensionRequestSchema,
+  type ReviewExtensionRequestInput,
+} from "@/lib/validations/capa";
 import { generateAuditDiff, stripMetadata } from "@/utils/auditDiff";
 
 export interface AttachmentInput {
@@ -313,6 +321,50 @@ export async function updateCapa(capaId: string, data: CreateCapaInput) {
       capaId,
       userId
     );
+
+    // Due Date Immutability Enforcement:
+    // Once a phase due date is established, direct updates via edit form are prohibited.
+    // A formal Extension Request must be submitted under Controls.
+    function isDueDateDirectlyModified(
+      existingDate: Date | null | undefined,
+      incomingDate: Date | string | null | undefined
+    ): boolean {
+      if (!existingDate) return false;
+      if (!incomingDate) return true;
+      const existingIso = new Date(existingDate).toISOString().split("T")[0];
+      const incomingIso = typeof incomingDate === "string" && incomingDate.length === 10
+        ? incomingDate
+        : new Date(incomingDate).toISOString().split("T")[0];
+      return existingIso !== incomingIso;
+    }
+
+    if (isDueDateDirectlyModified(existing.initiation?.dateDue, validated.initiation.dateDue)) {
+      throw new Error(
+        "Direct updates to previously set Initiation due dates are prohibited. A formal Extension Request must be submitted under Controls."
+      );
+    }
+    if (isDueDateDirectlyModified(existing.investigation?.planDueDate, validated.investigation?.planDueDate)) {
+      throw new Error(
+        "Direct updates to previously set Investigation due dates are prohibited. A formal Extension Request must be submitted under Controls."
+      );
+    }
+    if (isDueDateDirectlyModified(existing.planning?.capaPlanDueDate, validated.planning?.capaPlanDueDate)) {
+      throw new Error(
+        "Direct updates to previously set Planning due dates are prohibited. A formal Extension Request must be submitted under Controls."
+      );
+    }
+    const existingImplDue = existing.implementation?.dateDue ?? existing.implementation?.implementationDueDate;
+    const incomingImplDue = validated.implementation?.dateDue ?? validated.implementation?.implementationDueDate;
+    if (isDueDateDirectlyModified(existingImplDue, incomingImplDue)) {
+      throw new Error(
+        "Direct updates to previously set Implementation due dates are prohibited. A formal Extension Request must be submitted under Controls."
+      );
+    }
+    if (isDueDateDirectlyModified(existing.effectiveness?.dateDue, validated.effectiveness?.dateDue)) {
+      throw new Error(
+        "Direct updates to previously set Effectiveness due dates are prohibited. A formal Extension Request must be submitted under Controls."
+      );
+    }
 
     // 1. Update Core Capa
     const updatedCapa = await tx.capa.update({
@@ -629,3 +681,348 @@ export async function getCapaById(capaId: string) {
 
   return capa;
 }
+
+export async function createExtensionRequest(data: CreateExtensionRequestInput) {
+  const { orgId, userId } = await requireOrgAuth();
+  const validated = CreateExtensionRequestSchema.parse(data);
+
+  return await prisma.$transaction(async (tx) => {
+    const capa = await tx.capa.findUnique({
+      where: { id: validated.capaId, orgId },
+    });
+
+    if (!capa) {
+      throw new Error("CAPA record not found");
+    }
+
+    const requestedDueDate = new Date(validated.requestedDueDate);
+
+    const ext = await tx.extensionRequest.create({
+      data: {
+        orgId,
+        capaId: validated.capaId,
+        targetPhase: validated.targetPhase,
+        requestedDueDate,
+        justification: validated.justification,
+        riskEvaluationRationale: validated.riskEvaluationRationale || null,
+        requesterId: userId,
+        primaryApproverId: validated.primaryApproverId || null,
+        secondaryApproverId: validated.secondaryApproverId || null,
+        status: ExtensionRequestStatus.PENDING,
+      },
+    });
+
+    // 21 CFR Part 11 Audit Trail
+    await tx.auditLog.create({
+      data: {
+        orgId,
+        entityType: "ExtensionRequest",
+        entityId: ext.id,
+        action: AuditAction.CREATE,
+        changedById: userId,
+        capaId: validated.capaId,
+        newData: {
+          extensionRequestId: ext.id,
+          targetPhase: ext.targetPhase,
+          requestedDueDate: ext.requestedDueDate.toISOString(),
+          justification: ext.justification,
+          riskEvaluationRationale: ext.riskEvaluationRationale,
+        },
+        reason: `Formal extension request submitted for phase ${ext.targetPhase}`,
+      },
+    });
+
+    revalidatePath("/[orgSlug]/capa/[id]", "page");
+    return { success: true, extensionRequestId: ext.id };
+  });
+}
+
+export async function reviewExtensionRequest(data: ReviewExtensionRequestInput) {
+  const { orgId, userId } = await requireOrgAuth();
+  const validated = ReviewExtensionRequestSchema.parse(data);
+
+  return await prisma.$transaction(async (tx) => {
+    const ext = await tx.extensionRequest.findUnique({
+      where: { id: validated.extensionRequestId, orgId },
+      include: { capa: true },
+    });
+
+    if (!ext) {
+      throw new Error("Extension request not found");
+    }
+
+    if (ext.status !== ExtensionRequestStatus.PENDING) {
+      throw new Error(`Extension request has already been ${ext.status.toLowerCase()}`);
+    }
+
+    const updatedExt = await tx.extensionRequest.update({
+      where: { id: ext.id },
+      data: {
+        status: validated.decision as ExtensionRequestStatus,
+      },
+    });
+
+    // If approved, update target phase due date on the specific subrecord
+    if (validated.decision === "APPROVED") {
+      switch (ext.targetPhase) {
+        case CapaPhase.INITIATION:
+          await tx.capaInitiation.update({
+            where: { capaId: ext.capaId },
+            data: { dateDue: ext.requestedDueDate },
+          });
+          break;
+        case CapaPhase.INVESTIGATION:
+          await tx.capaInvestigation.update({
+            where: { capaId: ext.capaId },
+            data: { planDueDate: ext.requestedDueDate },
+          });
+          break;
+        case CapaPhase.PLANNING:
+          await tx.capaPlanning.update({
+            where: { capaId: ext.capaId },
+            data: { capaPlanDueDate: ext.requestedDueDate },
+          });
+          break;
+        case CapaPhase.IMPLEMENTATION:
+          await tx.capaImplementation.update({
+            where: { capaId: ext.capaId },
+            data: {
+              dateDue: ext.requestedDueDate,
+              implementationDueDate: ext.requestedDueDate,
+            },
+          });
+          break;
+        case CapaPhase.EFFECTIVENESS:
+          await tx.capaEffectiveness.update({
+            where: { capaId: ext.capaId },
+            data: { dateDue: ext.requestedDueDate },
+          });
+          break;
+        default:
+          break;
+      }
+    }
+
+    // 21 CFR Part 11 Audit Trail
+    await tx.auditLog.create({
+      data: {
+        orgId,
+        entityType: "ExtensionRequest",
+        entityId: ext.id,
+        action: AuditAction.UPDATE,
+        changedById: userId,
+        capaId: ext.capaId,
+        previousData: { status: ext.status },
+        newData: {
+          status: validated.decision,
+          reviewComments: validated.reviewComments || null,
+        },
+        reason: `Extension request ${validated.decision.toLowerCase()} for phase ${ext.targetPhase}. ${validated.reviewComments || ""}`.trim(),
+      },
+    });
+
+    revalidatePath("/[orgSlug]/capa/[id]", "page");
+    return { success: true, status: validated.decision };
+  });
+}
+
+export async function approveCapaPhase(capaId: string, phase: CapaPhase) {
+  const { orgId, userId, orgRole } = await requireOrgAuth();
+
+  return await prisma.$transaction(async (tx) => {
+    const capa = await tx.capa.findUnique({
+      where: { id: capaId, orgId },
+      include: {
+        initiation: true,
+        investigation: true,
+        planning: true,
+        implementation: true,
+        effectiveness: true,
+      },
+    });
+
+    if (!capa) {
+      throw new Error("CAPA record not found");
+    }
+
+    let primaryApproverId: string | null | undefined = null;
+    let secondaryApproverId: string | null | undefined = null;
+
+    switch (phase) {
+      case CapaPhase.INITIATION:
+        primaryApproverId = capa.initiation?.primaryApproverId;
+        secondaryApproverId = capa.initiation?.secondaryApproverId;
+        break;
+      case CapaPhase.INVESTIGATION:
+        primaryApproverId = capa.investigation?.primaryApproverId;
+        secondaryApproverId = capa.investigation?.secondaryApproverId;
+        break;
+      case CapaPhase.PLANNING:
+        primaryApproverId = capa.planning?.primaryApproverId;
+        secondaryApproverId = capa.planning?.secondaryApproverId;
+        break;
+      case CapaPhase.IMPLEMENTATION:
+        primaryApproverId = capa.implementation?.primaryApproverId;
+        secondaryApproverId = capa.implementation?.secondaryApproverId;
+        break;
+      case CapaPhase.EFFECTIVENESS:
+        primaryApproverId = capa.effectiveness?.primaryApproverId;
+        secondaryApproverId = capa.effectiveness?.secondaryApproverId;
+        break;
+      default:
+        break;
+    }
+
+    if (!primaryApproverId) {
+      throw new Error(`Cannot approve ${phase} phase: A primary approver must be designated first.`);
+    }
+
+    const isDesignatedApprover = userId === primaryApproverId || userId === secondaryApproverId;
+    const isPrivileged =
+      orgRole === "admin" ||
+      orgRole === "qa_manager" ||
+      orgRole === "org:admin" ||
+      orgRole === "org:qa_manager";
+
+    if (!isDesignatedApprover && !isPrivileged) {
+      throw new Error("Permission denied: Only the designated approver or QA Manager can approve this phase.");
+    }
+
+    if (phase === CapaPhase.INITIATION) {
+      await tx.capaInitiation.update({
+        where: { capaId },
+        data: {
+          completedById: userId,
+          completedAt: new Date(),
+        },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        orgId,
+        entityType: "CapaPhaseApproval",
+        entityId: capa.id,
+        capaId: capa.id,
+        action: AuditAction.UPDATE,
+        changedById: userId,
+        signatureMeaning: "I am approving this change",
+        reason: `Formal approval for ${phase} phase granted by designated approver.`,
+        newData: {
+          phase,
+          status: "APPROVED",
+          approvedById: userId,
+          approvedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    revalidatePath("/[orgSlug]/capa/[id]", "page");
+    return { success: true, phase, status: "APPROVED" };
+  });
+}
+
+export async function isCapaPhaseApproved(
+  tx: any,
+  capaId: string,
+  orgId: string,
+  phase: CapaPhase
+): Promise<boolean> {
+  let approvalLogs: any[] = [];
+  if (tx.auditLog?.findMany) {
+    try {
+      approvalLogs = (await tx.auditLog.findMany({
+        where: {
+          capaId,
+          orgId,
+          entityType: "CapaPhaseApproval",
+        },
+        orderBy: { timestamp: "desc" },
+      })) || [];
+    } catch {
+      approvalLogs = [];
+    }
+  }
+
+  const isApproved = approvalLogs.some((log: any) => {
+    const data = log.newData as Record<string, any> | null;
+    return data?.phase === phase && data?.status === "APPROVED";
+  });
+
+  if (isApproved) return true;
+
+  // Investigation phase strictly requires approval before advancing
+  if (phase === CapaPhase.INVESTIGATION) {
+    return false;
+  }
+
+  // Initiation phase: completedAt counts as sign-off; otherwise require approval if approver is designated
+  if (phase === CapaPhase.INITIATION) {
+    if (tx.capaInitiation?.findUnique) {
+      try {
+        const init = await tx.capaInitiation.findUnique({
+          where: { capaId },
+          select: { primaryApproverId: true, completedAt: true },
+        });
+        if (init) {
+          if (init.completedAt) return true;
+          if (init.primaryApproverId) return false;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  }
+
+  // Planning phase: check if approver is designated
+  if (phase === CapaPhase.PLANNING) {
+    if (tx.capaPlanning?.findUnique) {
+      try {
+        const plan = await tx.capaPlanning.findUnique({
+          where: { capaId },
+          select: { primaryApproverId: true },
+        });
+        if (plan?.primaryApproverId) return false;
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  }
+
+  // Implementation phase: check if approver is designated
+  if (phase === CapaPhase.IMPLEMENTATION) {
+    if (tx.capaImplementation?.findUnique) {
+      try {
+        const impl = await tx.capaImplementation.findUnique({
+          where: { capaId },
+          select: { primaryApproverId: true },
+        });
+        if (impl?.primaryApproverId) return false;
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  }
+
+  // Effectiveness phase: check if approver is designated
+  if (phase === CapaPhase.EFFECTIVENESS) {
+    if (tx.capaEffectiveness?.findUnique) {
+      try {
+        const eff = await tx.capaEffectiveness.findUnique({
+          where: { capaId },
+          select: { primaryApproverId: true },
+        });
+        if (eff?.primaryApproverId) return false;
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  }
+
+  return true;
+}
+

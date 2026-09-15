@@ -139,6 +139,14 @@ interface ComplaintEditFormProps {
     investigation?: {
       id?: string;
       status?: string;
+      noInvestigationReason?: string | null;
+      noInvestigationDeterminedAt?: string | null;
+      noInvestigationDeterminedBy?: {
+        id?: string;
+        email: string;
+        firstName: string | null;
+        lastName: string | null;
+      } | null;
       summary?: {
         id?: string;
         report?: string | null;
@@ -1034,6 +1042,102 @@ export function ComplaintEditForm({
                       )}
                     />
                   </div>
+                </div>
+
+                {/* 21 CFR § 820.198(b) Investigation Determination Card */}
+                <div
+                  className={cn(
+                    "rounded-lg border p-4 transition-all",
+                    complaint.investigation?.status === "NOT_REQUIRED"
+                      ? "border-zinc-500/30 bg-muted/40"
+                      : "border-border bg-card/60"
+                  )}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-semibold text-foreground">
+                          Investigation Determination
+                        </span>
+                        <Badge variant="outline" className="text-[10px] tracking-wider uppercase font-semibold">
+                          21 CFR § 820.198(b)
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Every complaint must be reviewed and evaluated to determine whether an investigation is necessary.
+                      </p>
+                    </div>
+
+                    <div className="shrink-0">
+                      {complaint.investigation?.status === "NOT_REQUIRED" ? (
+                        <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
+                          Not Required
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                          {complaint.investigation?.status ? humanize(complaint.investigation.status) : "Not Started"}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {complaint.investigation?.status === "NOT_REQUIRED" ? (
+                    <div className="mt-3.5 space-y-3 rounded-md border border-border bg-background p-3.5 text-xs">
+                      <div>
+                        <span className="font-semibold text-foreground">Reason No Investigation Was Made:</span>
+                        <p className="mt-1 rounded bg-muted/50 p-2 text-foreground font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                          {complaint.investigation.noInvestigationReason || "Rationale recorded in 21 CFR Part 11 electronic audit log."}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-[11px] text-muted-foreground">
+                        <div>
+                          <span className="font-medium text-foreground">Responsible Individual: </span>
+                          <span>
+                            {complaint.investigation.noInvestigationDeterminedBy
+                              ? [
+                                  complaint.investigation.noInvestigationDeterminedBy.firstName,
+                                  complaint.investigation.noInvestigationDeterminedBy.lastName,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ") || complaint.investigation.noInvestigationDeterminedBy.email
+                              : "Authorized Quality Personnel"}
+                          </span>
+                        </div>
+
+                        {complaint.investigation.noInvestigationDeterminedAt && (
+                          <div>
+                            <span className="font-medium text-foreground">Determined On: </span>
+                            <span>
+                              {new Date(complaint.investigation.noInvestigationDeterminedAt).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {complaint.investigation?.status === "NOT_STARTED"
+                          ? 'Investigation created and awaiting formal evaluation. If not needed, advance stage to "Not Required" with justification.'
+                          : "Investigation is actively progressing through root cause analysis."}
+                      </span>
+                      <Link
+                        href={`/${orgSlug}/complaints/${complaint.id}/investigation`}
+                        className="inline-flex items-center gap-1 font-medium text-primary hover:underline shrink-0 ml-2"
+                      >
+                        <span>Open Investigation</span>
+                        <ChevronRight className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  )}
                 </div>
               </div>
             </SectionCard>

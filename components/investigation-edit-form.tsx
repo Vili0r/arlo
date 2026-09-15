@@ -13,6 +13,7 @@ import {
   Plus,
   Trash2,
   AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 import { InvestigationStatus, ImdrfAnnex, LockEntityType } from "@prisma/client";
 import { useRecordLock } from "@/hooks/useRecordLock";
@@ -106,6 +107,14 @@ interface InvestigationEditFormProps {
     fscaRef?: string | null;
     reportabilityReviewRequired: boolean;
     imdrfCodes?: ImdrfCodeInput[];
+
+    noInvestigationReason?: string | null;
+    noInvestigationDeterminedAt?: string | null;
+    noInvestigationDeterminedBy?: {
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+    } | null;
 
     attachments?: Array<{
       id: string;
@@ -768,6 +777,71 @@ export function InvestigationEditForm({
             >
               <AlertTriangle className="h-4 w-4 shrink-0" />
               {error}
+            </div>
+          )}
+
+          {status === "NOT_REQUIRED" && (
+            <div
+              role="region"
+              aria-label="Investigation Determination"
+              className="rounded-xl border border-zinc-500/30 bg-muted/40 p-5 sm:p-6"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+                    <h2 className="text-sm font-semibold text-foreground">
+                      Investigation Not Required — 21 CFR § 820.198(b) Determination
+                    </h2>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This complaint was evaluated and formally determined not to require an investigation per QMS procedures.
+                  </p>
+                </div>
+                <Badge variant="outline" className="border-border bg-muted text-muted-foreground shrink-0">
+                  Not Required
+                </Badge>
+              </div>
+
+              <div className="mt-4 space-y-3 rounded-lg border border-border bg-background p-4 text-xs">
+                <div>
+                  <span className="font-semibold text-foreground">Reason No Investigation Was Made:</span>
+                  <p className="mt-1.5 rounded-md bg-muted/50 p-2.5 text-foreground font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                    {investigation.noInvestigationReason || "Rationale recorded in 21 CFR Part 11 electronic audit log."}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5 text-[11px] text-muted-foreground">
+                  <div>
+                    <span className="font-medium text-foreground">Responsible Individual: </span>
+                    <span>
+                      {investigation.noInvestigationDeterminedBy
+                        ? [
+                            investigation.noInvestigationDeterminedBy.firstName,
+                            investigation.noInvestigationDeterminedBy.lastName,
+                          ]
+                            .filter(Boolean)
+                            .join(" ") || investigation.noInvestigationDeterminedBy.email
+                        : "Authorized Quality Personnel"}
+                    </span>
+                  </div>
+
+                  {investigation.noInvestigationDeterminedAt && (
+                    <div>
+                      <span className="font-medium text-foreground">Determination Signed: </span>
+                      <span>
+                        {new Date(investigation.noInvestigationDeterminedAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

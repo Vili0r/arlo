@@ -667,6 +667,15 @@ export function isTransitionAllowed(
     (step.allowedPreviousStatuses?.includes(targetStatus) ?? false)
   );
 }
+export function isAdvanceTransition(
+  entityType: EntityType,
+  currentStatus: string,
+  targetStatus: string
+): boolean {
+  if (targetStatus === "CANCELLED") return false;
+  const step = getStepConfig(entityType, currentStatus);
+  return step?.allowedNextStatuses?.includes(targetStatus) ?? false;
+}
 
 export function isRevertTransition(
   entityType: EntityType,

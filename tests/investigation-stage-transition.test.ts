@@ -457,10 +457,12 @@ describe("[TEST-006] Investigation Stage Transitions & E-Signature Verification"
       expect(result.updatedStatus).toBe("IN_PROGRESS");
 
       // Verify status update in database
-      expect(mockTx.investigation.update).toHaveBeenCalledWith({
-        where: { id: "inv_101", orgId: "org_test456" },
-        data: { status: "IN_PROGRESS" },
-      });
+      expect(mockTx.investigation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "inv_101", orgId: "org_test456" },
+          data: expect.objectContaining({ status: "IN_PROGRESS" }),
+        })
+      );
 
       // Verify 21 CFR Part 11 AuditLog entry recorded with stage reversion and rationale
       expect(mockTx.auditLog.create).toHaveBeenCalledWith(

@@ -30,6 +30,8 @@ interface StatusTransitionTrackerProps {
   onStatusChanged?: (newStatus: string) => void;
   onGenerateReport?: () => void;
   disabled?: boolean;
+  isAdvanceDisabled?: boolean;
+  advanceDisabledReason?: string;
 }
 
 function formatEntityLabel(entityType: EntityType): string {
@@ -62,6 +64,8 @@ export function StatusTransitionTracker({
   onStatusChanged,
   onGenerateReport,
   disabled = false,
+  isAdvanceDisabled = false,
+  advanceDisabledReason,
 }: StatusTransitionTrackerProps) {
   const [modalOpen, setModalOpen] = React.useState(false);
   const [selectedTarget, setSelectedTarget] =
@@ -258,14 +262,27 @@ export function StatusTransitionTracker({
 
               {nextStatuses.length > 0 && (
                 <>
-                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1">
-                    Advance Stage
+                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1 flex items-center justify-between">
+                    <span>Advance Stage</span>
+                    {isAdvanceDisabled && (
+                      <span className="text-[9px] lowercase font-normal text-amber-600 dark:text-amber-400">
+                        (approval required)
+                      </span>
+                    )}
                   </DropdownMenuLabel>
                   {nextStatuses.map((target) => (
                     <DropdownMenuItem
                       key={`advance-${target.value}`}
-                      onClick={() => handleAdvanceClick(target, false)}
-                      className="cursor-pointer gap-2 px-2 py-1.5 text-xs font-medium"
+                      onClick={() => {
+                        if (isAdvanceDisabled) return;
+                        handleAdvanceClick(target, false);
+                      }}
+                      disabled={isAdvanceDisabled}
+                      title={isAdvanceDisabled ? advanceDisabledReason : undefined}
+                      className={cn(
+                        "cursor-pointer gap-2 px-2 py-1.5 text-xs font-medium",
+                        isAdvanceDisabled && "opacity-50 cursor-not-allowed text-muted-foreground"
+                      )}
                     >
                       <ArrowRight className="h-3.5 w-3.5 text-primary" />
                       <span>Move to {target.label}</span>

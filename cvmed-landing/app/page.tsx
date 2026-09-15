@@ -1,10 +1,5 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
-import { getOrgSubdomain } from "@/lib/tenant";
-import Nav from "@/components/landing/Nav";
-import ProductMockup from "@/components/landing/ProductMockup";
-import Link from "next/link";
-import { OrganizationSwitcher } from "@clerk/nextjs";
+import Nav from "@/components/Nav";
+import ProductMockup from "@/components/ProductMockup";
 
 const CLOCKS = [
   { j: "EU MDR 87", w: "Serious public health threat", n: "2", u: "days" },
@@ -25,58 +20,16 @@ const STAGES = [
 ];
 
 const VALIDATION = [
-  [
-    "Validation pack included",
-    "Intended use statement, computerised system risk assessment, IQ/OQ/PQ protocols with executed results, requirements traceability matrix.",
-  ],
-  [
-    "Immutable audit trail",
-    "Every create, edit, view and export, with actor, timestamp and reason. No hard deletes, ever.",
-  ],
-  [
-    "Supplier qualification pack",
-    "Quality agreement, completed supplier questionnaire, SLA, backup and recovery, sub-processor list, open-format data export.",
-  ],
-  [
-    "UK and EU hosting",
-    "Complaint records contain health data. Your data stays in the region you choose, under a DPA you can read.",
-  ],
+  ["Validation pack included", "Intended use statement, computerised system risk assessment, IQ/OQ/PQ protocols with executed results, requirements traceability matrix."],
+  ["Immutable audit trail", "Every create, edit, view and export, with actor, timestamp and reason. No hard deletes, ever."],
+  ["Supplier qualification pack", "Quality agreement, completed supplier questionnaire, SLA, backup and recovery, sub-processor list, open-format data export."],
+  ["UK and EU hosting", "Complaint records contain health data. Your data stays in the region you choose, under a DPA you can read."],
 ];
 
-export default async function Home() {
-  const authContext = await auth();
-  const { userId, orgId } = authContext;
-
-  const rootDomain =
-    process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000";
-
-  // If user is authenticated and belongs to an active org, compute name-based subdomain and redirect
-  if (userId && orgId) {
-    const orgSubdomain = await getOrgSubdomain(orgId);
-    if (orgSubdomain) {
-      const workspaceUrl = `http://${orgSubdomain}.${rootDomain}`;
-      redirect(workspaceUrl);
-    }
-  }
-
+export default function Page() {
   return (
-    <div className="landing-page">
+    <>
       <Nav />
-
-      {/* Prompt for signed-in user without active org */}
-      {userId && !orgId && (
-        <div className="relative z-30 bg-amber-500/10 border-b border-amber-500/20 px-4 py-3 text-center text-sm text-amber-900 dark:text-amber-200">
-          <div className="wrap flex items-center justify-center gap-3 flex-wrap">
-            <span>You are signed in. Select or create an organization to enter your workspace:</span>
-            <OrganizationSwitcher
-              hidePersonal
-              afterCreateOrganizationUrl="/"
-              afterSelectOrganizationUrl="/"
-            />
-          </div>
-        </div>
-      )}
-
       <main>
         <section className="hero" id="top">
           <div className="wrap">
@@ -88,17 +41,11 @@ export default async function Home() {
               into the MIR your notified body will actually accept.
             </p>
             <div className="hero-actions">
-              <a className="btn btn-primary" href="#pricing">
-                Book a demo
-              </a>
+              <a className="btn btn-primary" href="#pricing">Book a demo</a>
               <span className="or">or</span>
-              <a className="btn btn-ghost" href="#product">
-                See a sample complaint file
-              </a>
+              <a className="btn btn-ghost" href="#product">See a sample complaint file</a>
             </div>
-            <p className="hero-note">
-              MIR 7.3.1 output · EU MDR Art. 87 and 21 CFR 803 clocks · full audit trail
-            </p>
+            <p className="hero-note">MIR 7.3.1 output · EU MDR Art. 87 and 21 CFR 803 clocks · full audit trail</p>
             <ProductMockup />
           </div>
         </section>
@@ -116,26 +63,17 @@ export default async function Home() {
               <div className="card">
                 <span className="k">awareness_at</span>
                 <h3>Awareness is evidence, not a date field</h3>
-                <p>
-                  Every clock runs from the moment you became aware. cvmed records who, when and from what source — with
-                  the evidence attached — so the timestamp survives an inspection.
-                </p>
+                <p>Every clock runs from the moment you became aware. cvmed records who, when and from what source — with the evidence attached — so the timestamp survives an inspection.</p>
               </div>
               <div className="card">
                 <span className="k">reportability × jurisdiction</span>
                 <h3>One decision per market, every time</h3>
-                <p>
-                  A complaint on a device sold in the EU and US gets two assessments, two clocks and two rationales.
-                  &ldquo;Not reportable&rdquo; is a signed record, never an empty field.
-                </p>
+                <p>A complaint on a device sold in the EU and US gets two assessments, two clocks and two rationales. &ldquo;Not reportable&rdquo; is a signed record, never an empty field.</p>
               </div>
               <div className="card">
                 <span className="k">MIR 7.3.1 · XML</span>
                 <h3>The report writes itself from the record</h3>
-                <p>
-                  Serious incidents generate a MIR in the current form version, PDF and XSD-conformant XML, ready for the
-                  EUDAMED vigilance module when it goes live.
-                </p>
+                <p>Serious incidents generate a MIR in the current form version, PDF and XSD-conformant XML, ready for the EUDAMED vigilance module when it goes live.</p>
               </div>
             </div>
           </div>
@@ -151,9 +89,7 @@ export default async function Home() {
                   days. Owners get escalating alerts at 50, 75 and 90 percent of the window. A breached deadline is never
                   hidden and never auto-closed.
                 </p>
-                <a className="btn btn-primary" href="#pricing">
-                  Book a demo
-                </a>
+                <a className="btn btn-primary" href="#pricing">Book a demo</a>
               </div>
               <div>
                 <div className="rules">
@@ -168,9 +104,7 @@ export default async function Home() {
                     </div>
                   ))}
                 </div>
-                <p className="foot">
-                  UK MHRA timescales configured per your current MORE guidance.
-                </p>
+                <p className="foot">UK MHRA timescales configured per your current MORE guidance.</p>
               </div>
             </div>
           </div>
@@ -206,16 +140,12 @@ export default async function Home() {
                   Your quality system has to validate every piece of software it depends on. cvmed is built as a
                   fixed-workflow product and ships with the documents your validation needs.
                 </p>
-                <a className="btn btn-primary" href="#pricing">
-                  Request the validation pack
-                </a>
+                <a className="btn btn-primary" href="#pricing">Request the validation pack</a>
               </div>
               <ul className="list">
                 {VALIDATION.map(([title, body]) => (
                   <li key={title}>
-                    <div className="tick" aria-hidden="true">
-                      ✓
-                    </div>
+                    <div className="tick" aria-hidden="true">✓</div>
                     <div>
                       <b>{title}</b>
                       <span>{body}</span>
@@ -247,12 +177,8 @@ export default async function Home() {
                 </ul>
               </div>
               <div style={{ display: "grid", gap: 10 }}>
-                <a className="btn btn-primary" href="#pricing">
-                  Book a demo
-                </a>
-                <Link className="btn btn-ghost" href="/sign-in">
-                  Start a 30-day pilot
-                </Link>
+                <a className="btn btn-primary" href="/demo">Book a demo</a>
+                <a className="btn btn-ghost" href="/pilot">Start a 30-day pilot</a>
               </div>
             </div>
           </div>
@@ -261,17 +187,15 @@ export default async function Home() {
 
       <footer>
         <div className="wrap">
+          <div>© {new Date().getFullYear()} cvmed. Built by people who have owned a complaint process.</div>
           <div>
-            © {new Date().getFullYear()} cvmed. Built by people who have owned a complaint process.
-          </div>
-          <div>
-            <a href="#validation">Security</a>
-            <a href="#validation">Privacy</a>
-            <a href="#validation">Validation</a>
-            <a href="mailto:support@cvmed.io">Contact</a>
+            <a href="/security">Security</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/validation">Validation</a>
+            <a href="/contact">Contact</a>
           </div>
         </div>
       </footer>
-    </div>
+    </>
   );
 }

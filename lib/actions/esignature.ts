@@ -5,12 +5,14 @@ import { requireOrgAuth, ROLES, PERMISSIONS } from "@/lib/auth-guard";
 import { generateAuditDiff } from "@/utils/auditDiff";
 import {
   isTransitionAllowed,
+  isAdvanceTransition,
   isRevertTransition,
   isCancelTransition,
   getStatusConfig,
   type EntityType,
 } from "@/lib/constants/status-transitions";
-import { AuditAction, Prisma, LockEntityType, MIRStatus } from "@prisma/client";
+import { isCapaPhaseApproved } from "@/lib/actions/capa";
+import { CapaPhase, AuditAction, Prisma, LockEntityType, MIRStatus } from "@prisma/client";
 import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import { clerkClient, auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
@@ -296,6 +298,28 @@ export async function executeStatusTransition(
         await validateComplaintClosure(tx, entityId, orgId, newStatus);
       }
 
+      // 5b-5. CAPA Phase Approval Gatekeeper
+      if (entityType === "Capa") {
+        const isAdvancing = isAdvanceTransition(
+          "Capa",
+          currentStatus,
+          newStatus
+        );
+        if (isAdvancing) {
+          const approved = await isCapaPhaseApproved(
+            tx,
+            entityId,
+            orgId,
+            currentStatus as CapaPhase
+          );
+          if (!approved) {
+            throw new Error(
+              `Cannot move to the next step: The ${currentStatus} phase has not been approved by the designated approver.`
+            );
+          }
+        }
+      }
+
       const isCancel = isCancelTransition(newStatus);
       const isRevert = isRevertTransition(
         entityType as EntityType,
@@ -312,6 +336,17 @@ export async function executeStatusTransition(
       if (isRevert && (!rationale || rationale.trim().length === 0)) {
         throw new Error(
           `A documented rationale is mandatory when reverting a stage (${currentStatus} → ${newStatus}).`
+        );
+      }
+
+      // 21 CFR 820.198(b) / ISO 13485 8.2.2: Mandatory reason when determining no investigation is needed
+      if (
+        entityType === "Investigation" &&
+        newStatus === "NOT_REQUIRED" &&
+        (!rationale || rationale.trim().length === 0)
+      ) {
+        throw new Error(
+          "A documented rationale is mandatory when determining that an investigation is not required per 21 CFR § 820.198(b)."
         );
       }
 
@@ -333,7 +368,8 @@ export async function executeStatusTransition(
         entityId,
         orgId,
         newStatus,
-        rationale
+        rationale,
+        userId
       );
 
       // --- START AUTO-CREATE MIR LOGIC ---
@@ -609,7 +645,8 @@ async function updateRecord(
   entityId: string,
   orgId: string,
   newStatus: string,
-  rationale?: string | null
+  rationale?: string | null,
+  userId?: string
 ) {
   switch (entityType) {
     case "Complaint":
@@ -620,7 +657,22 @@ async function updateRecord(
     case "Investigation":
       return tx.investigation.update({
         where: { id: entityId, orgId },
-        data: { status: newStatus as Prisma.EnumInvestigationStatusFieldUpdateOperationsInput["set"] },
+        data: {
+          status: newStatus as Prisma.EnumInvestigationStatusFieldUpdateOperationsInput["set"],
+          ...(newStatus === "NOT_REQUIRED"
+            ? {
+                noInvestigationReason: rationale?.trim() || null,
+                noInvestigationDeterminedById: userId || null,
+                noInvestigationDeterminedAt: new Date(),
+              }
+            : newStatus === "NOT_STARTED" || newStatus === "IN_PROGRESS"
+            ? {
+                noInvestigationReason: null,
+                noInvestigationDeterminedById: null,
+                noInvestigationDeterminedAt: null,
+              }
+            : {}),
+        },
       });
     case "Vigilance":
       return tx.vigilanceDecisionTree.update({
@@ -851,7 +903,7 @@ async function validateComplaintClosure(tx: PrismaTx, complaintId: string, orgId
 
     // Check Tasks
     for (const task of fullComplaint.tasks || []) {
-      if (task.status !== "CLOSED" && task.status !== "DONE" && task.status !== "CANCELLED") {
+      if (task.status !== "CLOSED" && task.status !== "CANCELLED") {
         activeFolders.push(`Task (${task.shortDescription || task.id}) is not completed`);
       }
     }

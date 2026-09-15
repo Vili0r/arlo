@@ -272,7 +272,30 @@ export const TRACEABILITY_DEFINITIONS = [
     testId: "TEST-018",
     testFile: "tests/exports-generation.test.ts",
   },
+  {
+    ursId: "URS-006",
+    ursTitle: "Corrective and Preventive Actions (CAPA)",
+    srsId: "SRS-025",
+    srsTitle: "CAPA Due-Date Immutability & Stage Extension Governance",
+    designId: "DESIGN-021",
+    designTitle: "Due Date Lock Guard & Extension Request Service",
+    code: "lib/actions/capa.ts, components/capa-edit-form.tsx",
+    testId: "TEST-025",
+    testFile: "tests/capa-extension-requests-due-date-locking.test.ts",
+  },
+  {
+    ursId: "URS-006",
+    ursTitle: "Corrective and Preventive Actions (CAPA)",
+    srsId: "SRS-026",
+    srsTitle: "CAPA Investigation Phase Locking & Approver Gatekeeping",
+    designId: "DESIGN-022",
+    designTitle: "CAPA Phase Locking & Approver Gatekeeper",
+    code: "components/capa-edit-form.tsx, lib/actions/capa.ts, lib/actions/esignature.ts",
+    testId: "TEST-026",
+    testFile: "tests/capa-phase-locking-and-approvals.test.ts",
+  },
 ];
+
 
 export async function runTraceability() {
   console.log("===============================================================================");

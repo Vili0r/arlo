@@ -57,6 +57,10 @@ This document defines the functional and software requirements for Arlo. Each so
   The system shall record bidirectional relationships between complaints and CAPA records, capturing modifications across all phase subrecords in the audit trail.
 - **SRS-024 (CAPA 6-Phase Lifecycle & Planning-Implementation Separation):**  
   The system shall govern CAPA progression across 6 distinct phases: `INITIATION` $\rightarrow$ `INVESTIGATION` $\rightarrow$ `PLANNING` $\rightarrow$ `IMPLEMENTATION` $\rightarrow$ `EFFECTIVENESS` $\rightarrow$ `CLOSED`. The system shall enforce separate subrecords for `CapaPlanning` (capturing CAPA plan due date, action plan, effectiveness check plan, approvals, and attachments) and `CapaImplementation` (capturing date due, action plan execution, effectiveness check plan, effectiveness date due, validate comments, action plan summary, approvals, and attachments).
+- **SRS-025 (CAPA Due-Date Immutability & Stage Extension Governance):**  
+  The system shall enforce due-date immutability across all CAPA phases: as soon as a due date is established for a phase (`Initiation`, `Investigation`, `Planning`, `Implementation`, or `Effectiveness`), direct modification of that date field via regular form updates shall be strictly blocked. Any modification of a set phase due date shall require a formal extension request under Controls, capturing justification, risk evaluation rationale, and formal approval before updating the target phase due date.
+- **SRS-026 (CAPA Investigation Phase Locking & Approver Gatekeeping):**  
+  When a CAPA is in the `INVESTIGATION` phase, the system shall lock all fields and tabs before (`Initiation`) and after (`Planning`, `Implementation`, `Effectiveness`) that phase, while maintaining `Investigation` and `Controls` active and editable. The system shall enforce designated phase approver verification, strictly prohibiting advancing the CAPA lifecycle to the next phase unless the current phase has received formal approval recorded in the 21 CFR Part 11 audit trail.
 
 ### URS-007: Device Sample Management
 - **SRS-013 (Device Sample Tracking & Condition Evaluation):**  
