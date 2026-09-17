@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { LockEntityType, MIRStatus, AuditAction } from "@prisma/client";
+import { LockEntityType, MIRStatus, AuditAction, MIRClassification } from "@prisma/client";
 
 const { mockAuthCtx, mockTx, mockPrisma } = vi.hoisted(() => {
   const authCtx = {
@@ -24,6 +24,11 @@ const { mockAuthCtx, mockTx, mockPrisma } = vi.hoisted(() => {
     },
     auditLog: {
       create: vi.fn(),
+    },
+    attachment: {
+      findMany: vi.fn(),
+      deleteMany: vi.fn(),
+      createMany: vi.fn(),
     },
   };
 
@@ -70,6 +75,9 @@ describe("MIR Concurrency Control & Record Locking", () => {
     vi.clearAllMocks();
     mockAuthCtx.userId = "user_ra_specialist_1";
     mockAuthCtx.orgId = "org_test456";
+    mockTx.attachment.findMany.mockResolvedValue([]);
+    mockTx.attachment.deleteMany.mockResolvedValue({ count: 0 });
+    mockTx.attachment.createMany.mockResolvedValue({ count: 0 });
   });
 
   const baseInitialMIR = {
@@ -318,6 +326,146 @@ describe("MIR Concurrency Control & Record Locking", () => {
         where: { id: "imir_concurrency_123", orgId: "org_test456" },
         data: { submissionCountry: "FR" },
       });
+    });
+
+    it("should sanitize empty string enum, FK, date and alias fields before passing to update", async () => {
+      mockTx.initialMIR.findUnique.mockResolvedValue(baseInitialMIR);
+      mockTx.recordLock.findUnique.mockResolvedValue(null);
+
+      mockTx.initialMIR.update.mockImplementation(async ({ data }) => ({
+        ...baseInitialMIR,
+        ...data,
+      }));
+
+      await updateInitialMIR("imir_concurrency_123", {
+        eventClassification: "" as any,
+        preparedById: "",
+        reportDate: "" as any,
+        numYears: "" as any,
+        implantFacitlityName: "Hospital St. Jude",
+      } as any);
+
+      expect(mockTx.initialMIR.update).toHaveBeenCalledWith({
+        where: { id: "imir_concurrency_123", orgId: "org_test456" },
+        data: expect.objectContaining({
+          eventClassification: null,
+          preparedById: null,
+          reportDate: null,
+          numYears: null,
+          implantFacilityName: "Hospital St. Jude",
+        }),
+      });
+    });
+
+    it("should preserve valid enum values and sanitize invalid enum values to null", async () => {
+      mockTx.initialMIR.findUnique.mockResolvedValue(baseInitialMIR);
+      mockTx.recordLock.findUnique.mockResolvedValue(null);
+
+      mockTx.initialMIR.update.mockImplementation(async ({ data }) => ({
+        ...baseInitialMIR,
+        ...data,
+      }));
+
+      // Test valid enum
+      await updateInitialMIR("imir_concurrency_123", {
+        eventClassification: MIRClassification.DEATH,
+      } as any);
+
+      expect(mockTx.initialMIR.update).toHaveBeenCalledWith({
+        where: { id: "imir_concurrency_123", orgId: "org_test456" },
+        data: { eventClassification: MIRClassification.DEATH },
+      });
+
+      // Test invalid enum
+      await updateInitialMIR("imir_concurrency_123", {
+        eventClassification: "INVALID_CLASSIFICATION" as any,
+      } as any);
+
+      expect(mockTx.initialMIR.update).toHaveBeenCalledWith({
+        where: { id: "imir_concurrency_123", orgId: "org_test456" },
+        data: { eventClassification: null },
+      });
+    });
+
+    it("should synchronize attachments by adding new and removing missing ones", async () => {
+      mockTx.initialMIR.findUnique.mockResolvedValue(baseInitialMIR);
+      mockTx.recordLock.findUnique.mockResolvedValue(null);
+      mockTx.initialMIR.update.mockResolvedValue(baseInitialMIR);
+
+      mockTx.attachment.findMany.mockResolvedValue([
+        { id: "att_old", fileUrl: "https://blob.example.com/old.pdf" },
+        { id: "att_keep", fileUrl: "https://blob.example.com/keep.pdf" },
+      ]);
+
+      await updateInitialMIR("imir_concurrency_123", {
+        attachments: [
+          {
+            fileName: "keep.pdf",
+            fileUrl: "https://blob.example.com/keep.pdf",
+            fileSize: 1024,
+            mimeType: "application/pdf",
+          },
+          {
+            fileName: "new.pdf",
+            fileUrl: "https://blob.example.com/new.pdf",
+            fileSize: 2048,
+            mimeType: "application/pdf",
+          },
+        ] as any,
+      } as any);
+
+      // Should delete the old unreferenced attachment
+      expect(mockTx.attachment.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["att_old"] } },
+      });
+
+      // Should create the new attachment
+      expect(mockTx.attachment.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            orgId: "org_test456",
+            complaintId: "cmp_concurrency_1",
+            mirId: "imir_concurrency_123",
+            fileUrl: "https://blob.example.com/new.pdf",
+            fileName: "new.pdf",
+            fileSize: 2048,
+            mimeType: "application/pdf",
+            uploadedById: "user_ra_specialist_1",
+          },
+        ],
+      });
+    });
+
+    it("should filter out immutable fields and parse date and number strings", async () => {
+      mockTx.initialMIR.findUnique.mockResolvedValue(baseInitialMIR);
+      mockTx.recordLock.findUnique.mockResolvedValue(null);
+      mockTx.initialMIR.update.mockImplementation(async ({ data }) => ({
+        ...baseInitialMIR,
+        ...data,
+      }));
+
+      await updateInitialMIR("imir_concurrency_123", {
+        id: "attempted_id_override",
+        orgId: "attempted_org_override",
+        complaintId: "attempted_complaint_override",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        unknownField: "ignored",
+        reportDate: "2026-10-15T00:00:00.000Z" as any,
+        numYears: "4" as any,
+        massKG: "72.5" as any,
+      } as any);
+
+      const updateCall = mockTx.initialMIR.update.mock.calls[0][0];
+      expect(updateCall.data.id).toBeUndefined();
+      expect(updateCall.data.orgId).toBeUndefined();
+      expect(updateCall.data.complaintId).toBeUndefined();
+      expect(updateCall.data.createdAt).toBeUndefined();
+      expect(updateCall.data.updatedAt).toBeUndefined();
+      expect(updateCall.data.unknownField).toBeUndefined();
+      expect(updateCall.data.numYears).toBe(4);
+      expect(updateCall.data.massKG).toBe(72.5);
+      expect(updateCall.data.reportDate).toEqual(new Date("2026-10-15T00:00:00.000Z"));
     });
 
     it("should reject updateInitialMIR when record does not exist or belongs to another organization", async () => {

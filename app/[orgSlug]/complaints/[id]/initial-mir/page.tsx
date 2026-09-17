@@ -5,12 +5,19 @@ import { InitialMIREditForm } from "@/components/initial-mir-form";
 
 interface InitialMIRPageProps {
   params: Promise<{ orgSlug: string; id: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }
 
 export default async function InitialMIRPage({
   params,
+  searchParams,
 }: InitialMIRPageProps) {
   const { orgSlug, id } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const initialTab =
+    resolvedSearchParams?.tab === "mir" || resolvedSearchParams?.tab === "general"
+      ? resolvedSearchParams.tab
+      : undefined;
   const { orgId } = await requireOrgAuth();
 
   const complaint = await prisma.complaint.findUnique({
@@ -46,6 +53,7 @@ export default async function InitialMIRPage({
       complaintNumber={complaint.complaintNumber}
       mir={mir}
       users={users}
+      initialTab={initialTab}
     />
   );
 }

@@ -17,9 +17,8 @@ import {
   Info,
   CheckCircle2,
   Paperclip,
-  FileText,
 } from "lucide-react";
-import { MIR, MIRStatus, MIRReportType, LockEntityType } from "@prisma/client";
+import { MIR, MIRStatus, MIRReportType, MIRClassification, LockEntityType } from "@prisma/client";
 import { useRecordLock } from "@/hooks/useRecordLock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +55,7 @@ export interface MIREditFormProps {
   mir: MIR | (Record<string, any> & { id: string; complaintId: string; status: MIRStatus });
   defaultReportType?: MIRReportType | string;
   users?: Array<{ id: string; email: string; firstName: string | null; lastName: string | null }>;
+  initialTab?: "general" | "mir";
 }
 
 const selectClass =
@@ -159,6 +159,37 @@ function SectionCard({
   );
 }
 
+function formatDate(d?: Date | string | null) {
+  if (!d) return "—";
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function PanelCard({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Main Component                                                      */
 /* ------------------------------------------------------------------ */
@@ -169,6 +200,7 @@ export function MIREditForm({
   mir,
   defaultReportType,
   users = [],
+  initialTab,
 }: MIREditFormProps) {
   const router = useRouter();
   const { isReadOnly: isLockReadOnly } = useRecordLock({
@@ -453,8 +485,49 @@ export function MIREditForm({
   const watchApprovedById = watch("approvedById");
   const watchAttachments = watch("attachments");
   const watchAdditionalComments = watch("additionalComments");
+  const watchEventClassification = watch("eventClassification");
 
-  const [activeMainTab, setActiveMainTab] = React.useState<"general" | "mir">("general");
+  const displayedDrafter =
+    allUserOptions.find((u) => u.id === watchPreparedById)?.name || "Unassigned";
+  const displayedApprover =
+    allUserOptions.find((u) => u.id === watchApprovedById)?.name || "Unassigned";
+
+  const [activeMainTab, setActiveMainTab] = React.useState<"general" | "mir">(
+    initialTab || "general"
+  );
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlTab = urlParams.get("tab");
+      const savedTab = sessionStorage.getItem(`mir_active_tab_${mir.id}`);
+      const preferred =
+        urlTab === "mir" || urlTab === "general"
+          ? urlTab
+          : savedTab === "mir" || savedTab === "general"
+          ? savedTab
+          : initialTab || null;
+
+      if (preferred && preferred !== activeMainTab) {
+        setActiveMainTab(preferred as "general" | "mir");
+      }
+    }
+  }, [mir.id, initialTab]);
+
+  const switchTab = React.useCallback(
+    (tab: "general" | "mir") => {
+      setActiveMainTab(tab);
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(`mir_active_tab_${mir.id}`, tab);
+          const url = new URL(window.location.href);
+          url.searchParams.set("tab", tab);
+          window.history.replaceState(null, "", url.toString());
+        } catch {}
+      }
+    },
+    [mir.id]
+  );
 
   const isFinalVariant =
     watchReportType === "FINAL" ||
@@ -535,22 +608,43 @@ export function MIREditForm({
     const target: HTMLElement | Window = scroller ?? window;
 
     const update = () => {
-      const els = SECTIONS.map((s) => document.getElementById(s.id)).filter(
-        Boolean
-      ) as HTMLElement[];
-      if (els.length === 0) return;
+      const els = SECTIONS.map((s) => document.getElementById(s.id)).filter(Boolean) as HTMLElement[];
+      if (!els.length) return;
 
       const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
+      const viewport = scroller ? scroller.clientHeight : window.innerHeight;
       const scrollTop = scroller ? scroller.scrollTop : window.scrollY;
+      const scrollHeight = scroller ? scroller.scrollHeight : document.documentElement.scrollHeight;
+      const maxScroll = Math.max(0, scrollHeight - viewport);
+
       const barBottom = (barRef.current?.getBoundingClientRect().bottom ?? 0) - containerTop;
       const line = barBottom + 16;
 
-      let current: SectionId = els[0].id as SectionId;
-      for (let i = 0; i < els.length; i++) {
-        if (scrollTop >= scrollTop + els[i].getBoundingClientRect().top - containerTop - line - 1) {
-          current = els[i].id as SectionId;
+      // scrollTop at which each section's top would sit on the line
+      const thresholds = els.map(
+        (el) => scrollTop + el.getBoundingClientRect().top - containerTop - line
+      );
+
+      // Compress thresholds the page can't scroll to into the remaining range
+      const MIN_RANGE = 48;
+      let lastFit = -1;
+      for (let i = 0; i < thresholds.length; i++) {
+        if (thresholds[i] <= maxScroll - MIN_RANGE) lastFit = i;
+      }
+      if (lastFit < thresholds.length - 1) {
+        const from = lastFit >= 0 ? thresholds[lastFit] : 0;
+        const span = thresholds[thresholds.length - 1] - from;
+        for (let i = lastFit + 1; i < thresholds.length; i++) {
+          thresholds[i] =
+            span > 0 ? from + ((thresholds[i] - from) / span) * (maxScroll - from) : maxScroll;
         }
       }
+
+      let current: SectionId = els[0].id as SectionId;
+      for (let i = 0; i < els.length; i++) {
+        if (scrollTop >= thresholds[i] - 1) current = els[i].id as SectionId;
+      }
+
       setActiveSection((prev) => (prev === current ? prev : current));
     };
 
@@ -561,11 +655,11 @@ export function MIREditForm({
       target.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };
-  }, []);
+  }, [activeMainTab]);
 
   const scrollTo = (id: SectionId) => {
     if (activeMainTab !== "mir") {
-      setActiveMainTab("mir");
+      switchTab("mir");
       setTimeout(() => {
         document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 50);
@@ -577,8 +671,18 @@ export function MIREditForm({
   const onSubmit = async (data: MIRFormValues) => {
     setIsSubmitting(true);
     setError(null);
+    const tabToKeep = activeMainTab;
 
     try {
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(`mir_active_tab_${mir.id}`, tabToKeep);
+          const url = new URL(window.location.href);
+          url.searchParams.set("tab", tabToKeep);
+          window.history.replaceState(null, "", url.toString());
+        } catch {}
+      }
+
       const selectedAuthority =
         data.ncaName === "OTHER" && data.competentAuthority && data.competentAuthority !== "OTHER"
           ? data.competentAuthority
@@ -586,6 +690,7 @@ export function MIREditForm({
 
       await updateMIR(mir.id, {
         ...data,
+        eventClassification: (data.eventClassification as MIRClassification) || null,
         ncaName: selectedAuthority,
         competentAuthority: selectedAuthority,
         competentAuthorityReference: data.ncaReportNo || data.competentAuthorityReference,
@@ -594,6 +699,7 @@ export function MIREditForm({
 
       toast.success("MIR report changes saved successfully");
       router.refresh();
+      setActiveMainTab(tabToKeep);
     } catch (err: unknown) {
       console.error("[MIR Update Error]", err);
       const message =
@@ -690,7 +796,7 @@ export function MIREditForm({
           <div className="mt-3 flex items-center border-b border-border/60">
             <button
               type="button"
-              onClick={() => setActiveMainTab("general")}
+              onClick={() => switchTab("general")}
               className={cn(
                 "flex items-center gap-2 border-b-2 px-4 py-2 text-xs font-medium transition-colors -mb-px",
                 activeMainTab === "general"
@@ -698,7 +804,6 @@ export function MIREditForm({
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              <Paperclip className="h-3.5 w-3.5" />
               <span>General & Attachments</span>
               {(watchAttachments?.length ?? 0) > 0 && (
                 <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
@@ -709,7 +814,7 @@ export function MIREditForm({
 
             <button
               type="button"
-              onClick={() => setActiveMainTab("mir")}
+              onClick={() => switchTab("mir")}
               className={cn(
                 "flex items-center gap-2 border-b-2 px-4 py-2 text-xs font-medium transition-colors -mb-px",
                 activeMainTab === "mir"
@@ -717,14 +822,13 @@ export function MIREditForm({
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              <FileText className="h-3.5 w-3.5" />
               <span>MIR Form (Sections 1–5)</span>
             </button>
           </div>
 
           {/* Subheader: Sections 1-5 Anchor Navigation (Visible when MIR Form tab is active) */}
           {activeMainTab === "mir" && (
-            <nav className="-mb-px flex gap-1 overflow-x-auto py-1.5" aria-label="MIR Sections">
+            <nav className="-mb-px flex gap-1 overflow-x-auto pt-1" aria-label="MIR Sections">
               {SECTIONS.map((s) => {
                 const active = activeSection === s.id;
                 return (
@@ -733,10 +837,10 @@ export function MIREditForm({
                     type="button"
                     onClick={() => scrollTo(s.id)}
                     className={cn(
-                      "flex items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1 text-xs transition-colors",
+                      "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-xs transition-colors",
                       active
-                        ? "bg-accent font-medium text-foreground"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        ? "border-foreground font-medium text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     )}
                   >
                     <CompletionDot state={completion[s.id]} />
@@ -750,7 +854,7 @@ export function MIREditForm({
       </div>
 
       {/* ---------- Form Body ---------- */}
-      <div className="grid gap-6 p-6 lg:p-8">
+      <div className="grid gap-6 p-6 lg:p-8 xl:grid-cols-[minmax(0,1fr)_280px]">
         <form
           id="mir-unified-form"
           onSubmit={handleSubmit(onSubmit)}
@@ -770,86 +874,6 @@ export function MIREditForm({
             {/* TAB 1: GENERAL & ATTACHMENTS (NOT SUBMITTED TO NCA)           */}
             {/* ============================================================= */}
             <div className={cn("space-y-6", activeMainTab !== "general" && "hidden")}>
-              {/* Business Comments */}
-              <SectionCard
-                id="general-business-comments"
-                title="Business Comments"
-                description="Internal business remarks, management comments, or administrative notes (internal only, not transmitted in EU MIR to NCA)."
-              >
-                <Field label="Business Comments" htmlFor="businessComments">
-                  <Textarea
-                    id="businessComments"
-                    rows={3}
-                    placeholder="Internal business comments, management remarks, or administrative notes..."
-                    {...register("businessComments")}
-                  />
-                </Field>
-              </SectionCard>
-
-              {/* Late Reporting Justification & CAPA */}
-              <SectionCard
-                id="late-reporting"
-                title="Late Reporting Justification & CAPA"
-                description="Required rationale, process stage, and CAPA references if report is submitted past statutory deadline."
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Process Stage for Late Reportable" htmlFor="processStageForLateReportable">
-                    <Input
-                      id="processStageForLateReportable"
-                      placeholder="e.g. Intake / Triage / Investigation"
-                      className={selectClass}
-                      {...register("processStageForLateReportable")}
-                    />
-                  </Field>
-
-                  <Field label="CID / CAPA for Late Reportable" htmlFor="cidCapaForLateReportable">
-                    <Input
-                      id="cidCapaForLateReportable"
-                      placeholder="e.g. CAPA-2026-089 / Deviation-104"
-                      className={selectClass}
-                      {...register("cidCapaForLateReportable")}
-                    />
-                  </Field>
-
-                  <Field label="Late Reason" htmlFor="lateReason">
-                    <Input
-                      id="lateReason"
-                      placeholder="e.g. Delayed foreign distributor notification"
-                      className={selectClass}
-                      {...register("lateReason")}
-                    />
-                  </Field>
-
-                  <Field label="Comments for Late Reportable" htmlFor="commentsForLateReportable">
-                    <Input
-                      id="commentsForLateReportable"
-                      placeholder="Detailed explanation for reporting delay..."
-                      className={selectClass}
-                      {...register("commentsForLateReportable")}
-                    />
-                  </Field>
-                </div>
-              </SectionCard>
-
-              {/* MIR Attachments */}
-              <SectionCard
-                id="mir-attachments"
-                title="MIR Attachments"
-                description="Upload supporting teardown analyses, testing reports, or regulatory correspondence."
-              >
-                <Controller
-                  control={control}
-                  name="attachments"
-                  render={({ field }) => (
-                    <FileUploader
-                      attachments={field.value || []}
-                      onChange={(atts) => field.onChange(atts)}
-                      disabled={isLockReadOnly}
-                    />
-                  )}
-                />
-              </SectionCard>
-
               {/* Regulatory Roles & Approvals */}
               <SectionCard
                 id="regulatory-roles"
@@ -919,6 +943,67 @@ export function MIREditForm({
                           disabled={isLockReadOnly}
                         />
                       )}
+                    />
+                  </Field>
+                </div>
+              </SectionCard>
+              
+              {/* Business Comments */}
+              <SectionCard
+                id="general-business-comments"
+                title="Business Comments"
+                description="Internal business remarks, management comments, or administrative notes (internal only, not transmitted in EU MIR to NCA)."
+              >
+                <Field label="Business Comments" htmlFor="businessComments">
+                  <Textarea
+                    id="businessComments"
+                    rows={3}
+                    placeholder="Internal business comments, management remarks, or administrative notes..."
+                    {...register("businessComments")}
+                  />
+                </Field>
+              </SectionCard>
+
+              {/* Late Reporting Justification & CAPA */}
+              <SectionCard
+                id="late-reporting"
+                title="Late Reporting Justification & CAPA"
+                description="Required rationale, process stage, and CAPA references if report is submitted past statutory deadline."
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="Process Stage for Late Reportable" htmlFor="processStageForLateReportable">
+                    <Input
+                      id="processStageForLateReportable"
+                      placeholder="e.g. Intake / Triage / Investigation"
+                      className={selectClass}
+                      {...register("processStageForLateReportable")}
+                    />
+                  </Field>
+
+                  <Field label="CID / CAPA for Late Reportable" htmlFor="cidCapaForLateReportable">
+                    <Input
+                      id="cidCapaForLateReportable"
+                      placeholder="e.g. CAPA-2026-089 / Deviation-104"
+                      className={selectClass}
+                      {...register("cidCapaForLateReportable")}
+                    />
+                  </Field>
+
+                  <Field label="Late Reason" htmlFor="lateReason">
+                    <Input
+                      id="lateReason"
+                      placeholder="e.g. Delayed foreign distributor notification"
+                      className={selectClass}
+                      {...register("lateReason")}
+                    />
+                  </Field>
+
+                  <Field label="Comments for Late Reportable" htmlFor="commentsForLateReportable">
+                    <Input
+                      id="commentsForLateReportable"
+                      placeholder="Detailed explanation for reporting delay..."
+                      className={selectClass}
+                      {...register("commentsForLateReportable")}
                     />
                   </Field>
                 </div>
@@ -2096,6 +2181,130 @@ export function MIREditForm({
             </div>
           </fieldset>
         </form>
+
+        {/* ---------- Right context panel ---------- */}
+        <aside className="space-y-4 xl:sticky xl:top-[120px] xl:self-start">
+          <PanelCard title="Assessment details">
+            <dl className="divide-y divide-border text-sm">
+              <div className="flex items-start justify-between gap-3 py-2 first:pt-0">
+                <dt className="shrink-0 text-xs text-muted-foreground">Complaint</dt>
+                <dd className="text-right text-xs font-mono">
+                  <Link
+                    href={complaintDetailHref}
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                  >
+                    {complaintNumber}
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 py-2">
+                <dt className="shrink-0 text-xs text-muted-foreground">Status</dt>
+                <dd className="text-right text-xs font-medium text-foreground">
+                  {humanize(currentStatus)}
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 py-2">
+                <dt className="shrink-0 text-xs text-muted-foreground">Reportable</dt>
+                <dd
+                  className={cn(
+                    "text-right text-xs font-medium",
+                    watchReportType !== "FINAL_NON_REPORTABLE"
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  )}
+                >
+                  {watchReportType !== "FINAL_NON_REPORTABLE" ? "Yes (Mandatory)" : "No (Exempt)"}
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 py-2">
+                <dt className="shrink-0 text-xs text-muted-foreground">Decision</dt>
+                <dd className="text-right text-xs text-foreground">
+                  {CLASSIFICATION_OPTIONS.find((c) => c.value === watchEventClassification)?.label || humanize(watchEventClassification) || "—"}
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 py-2">
+                <dt className="shrink-0 text-xs text-muted-foreground">Report type</dt>
+                <dd className="text-right text-xs text-foreground">
+                  {REPORT_TYPE_OPTIONS.find((r) => r.value === watchReportType)?.label || humanize(watchReportType) || "—"}
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 py-2">
+                <dt className="shrink-0 text-xs text-muted-foreground">Jurisdiction</dt>
+                <dd className="text-right text-xs text-foreground break-words">
+                  {watchNcaName || watchCompetentAuthority || "—"}
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 py-2">
+                <dt className="shrink-0 text-xs text-muted-foreground">Due date</dt>
+                <dd className="text-right text-xs font-mono text-foreground">
+                  {formatDate(watchReportNextDate || watchDueDate)}
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 py-2">
+                <dt className="shrink-0 text-xs text-muted-foreground">Drafter</dt>
+                <dd className="text-right text-xs text-foreground break-words">
+                  {displayedDrafter}
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 py-2">
+                <dt className="shrink-0 text-xs text-muted-foreground">Approver</dt>
+                <dd className="text-right text-xs text-foreground break-words">
+                  {displayedApprover}
+                </dd>
+              </div>
+
+              <div className="flex items-center justify-between py-2 last:pb-0">
+                <dt className="text-xs text-muted-foreground">Lock</dt>
+                <dd
+                  className={cn(
+                    "flex items-center gap-1.5 text-xs",
+                    isLockReadOnly
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  )}
+                >
+                  {isLockReadOnly ? (
+                    <>
+                      <Lock className="h-3 w-3" /> Held by another user
+                    </>
+                  ) : (
+                    <>
+                      <LockOpen className="h-3 w-3" /> Yours
+                    </>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </PanelCard>
+
+          <PanelCard title={`Attachments · ${watchAttachments?.length ?? 0}`}>
+            <Controller
+              control={control}
+              name="attachments"
+              render={({ field }) => (
+                <FileUploader
+                  attachments={field.value || []}
+                  onChange={(atts) => field.onChange(atts)}
+                  disabled={isLockReadOnly}
+                />
+              )}
+            />
+            {(watchAttachments?.length ?? 0) === 0 && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Paperclip className="h-3 w-3" /> Attach regulatory correspondence, forms, or decisions.
+              </p>
+            )}
+          </PanelCard>
+        </aside>
       </div>
     </div>
   );
