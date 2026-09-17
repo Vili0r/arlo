@@ -16,11 +16,18 @@ export default async function InitialMIRPage({
   const complaint = await prisma.complaint.findUnique({
     where: { id, orgId, deletedAt: null },
     include: {
-      initialMIR: true,
+      mirs: {
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 
-  if (!complaint || !complaint.initialMIR) {
+  const mir =
+    complaint?.mirs.find(
+      (m) => m.reportType === "INITIAL" || m.reportType === "COMBINED"
+    ) || complaint?.mirs[0];
+
+  if (!complaint || !mir) {
     notFound();
   }
 
@@ -28,16 +35,16 @@ export default async function InitialMIRPage({
   const users = await prisma.user.findMany({
     where: {
       memberships: {
-        some: { orgId }
-      }
-    }
+        some: { orgId },
+      },
+    },
   });
 
   return (
     <InitialMIREditForm
       orgSlug={orgSlug}
       complaintNumber={complaint.complaintNumber}
-      mir={complaint.initialMIR}
+      mir={mir}
       users={users}
     />
   );

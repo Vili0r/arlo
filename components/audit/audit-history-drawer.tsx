@@ -162,6 +162,7 @@ export function AuditHistoryDrawer({
     "complaintTaskId",
     "initialMIRId",
     "finalMIRId",
+    "mirId",
     "capaInitiationId",
     "capaInvestigationId",
     "capaImplementationId",

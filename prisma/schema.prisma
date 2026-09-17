@@ -97,8 +97,7 @@ model Organization {
   auditLogs                     AuditLog[]
   investigationSummaries        InvestigationSummary[]
   recordLocks                   RecordLock[]
-  initialMIRs                   InitialMIR[]
-  finalMIRs                     FinalMIR[]
+  mirs                          MIR[]
 
   @@index([slug])
 }
@@ -149,6 +148,21 @@ enum MIRStatus {
   IN_REVIEW
   SUBMITTED
   CANCELLED
+}
+
+enum MIRReportType {
+  INITIAL
+  FOLLOW_UP
+  COMBINED
+  FINAL
+  FINAL_NON_REPORTABLE
+}
+
+enum MIRClassification {
+  SERIOUS_PUBLIC_HEALTH_THREAT
+  DEATH
+  UNANTICIPATED_DETERIORATION
+  ALL_OTHER_REPORTABLE
 }
 
 enum ComplaintStatus {
@@ -292,8 +306,7 @@ model Complaint {
   sampleManagement       SampleManagement?
   investigation          Investigation?
   vigilanceDecisionTrees VigilanceDecisionTree[]
-  initialMIR             InitialMIR?
-  finalMIR               FinalMIR?
+  mirs                   MIR[]
   attachments            Attachment[]
   tasks                  ComplaintTask[]
   auditLogs              AuditLog[]
@@ -429,9 +442,9 @@ model Investigation {
   summary                           InvestigationSummary?
 
   // D. Investigation Determination (FDA 21 CFR 820.198(b) / ISO 13485 8.2.2)
-  noInvestigationReason             String?
-  noInvestigationDeterminedById     String?
-  noInvestigationDeterminedAt       DateTime?
+  noInvestigationReason         String?
+  noInvestigationDeterminedById String?
+  noInvestigationDeterminedAt   DateTime?
 
   organization                    Organization @relation(fields: [orgId], references: [id])
   complaint                       Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
@@ -550,6 +563,8 @@ model Attachment {
   capaImplementation   CapaImplementation?    @relation(fields: [capaImplementationId], references: [id], onDelete: Cascade)
   capaEffectivenessId  String?
   capaEffectiveness    CapaEffectiveness?     @relation(fields: [capaEffectivenessId], references: [id], onDelete: Cascade)
+  mirId                String?
+  mir                  MIR?                   @relation(fields: [mirId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
   @@index([complaintId])
@@ -564,6 +579,7 @@ model Attachment {
   @@index([capaPlanningId])
   @@index([capaImplementationId])
   @@index([capaEffectivenessId])
+  @@index([mirId])
 }
 
 // -------------------------------------------------------------
@@ -1065,26 +1081,24 @@ model RecordLock {
 // Manufacturer Incident Report (MIR) Sub-Models
 // -------------------------------------------------------------
 
-model InitialMIR {
-  id             String    @id @default(cuid())
+model MIR {
+  id             String        @id @default(cuid())
   orgId          String
-  complaintId    String    @unique
+  complaintId    String
   mirNumber      String?
-  reportType     String?   @default("INITIAL")
-  status         MIRStatus @default(DRAFT)
+  reportType     MIRReportType @default(INITIAL)
+  status         MIRStatus     @default(DRAFT)
   submissionDate DateTime?
   dueDate        DateTime?
 
-  // Manufacturer & Submission Details
-  manufacturerReference       String?
-  previousMirReference        String?
-  competentAuthority          String?
-  competentAuthorityReference String?
-  submissionCountry           String?
-  submissionMethod            String?
-  submittedBy                 String?
-
-  // Initial Assessment
+  // Legacy / Form Compatibility Fields
+  manufacturerReference        String?
+  previousMirReference         String?
+  competentAuthority           String?
+  competentAuthorityReference  String?
+  submissionCountry            String?
+  submissionMethod             String?
+  submittedBy                  String?
   initialDeviceRelatedness     String?
   initialCausalityAssessment   String?
   initialSeriousnessAssessment String?
@@ -1092,8 +1106,300 @@ model InitialMIR {
   preliminaryConclusion        String?   @db.Text
   investigationStarted         Boolean   @default(false)
   investigationStartDate       DateTime?
+  finalDeviceRelatedness       String?
+  finalCausalityAssessment     String?
+  finalCausalityRationale      String?   @db.Text
+  manufacturerConclusion       String?   @db.Text
+  incidentConfirmed            Boolean   @default(false)
+  deviceContributionConfirmed  Boolean   @default(false)
+  recurrencePotential          String?
+  finalRiskAssessmentSummary   String?   @db.Text
+  manufacturerFinalStatement   String?   @db.Text
 
-  // Approval
+  // =============================================================
+  // SECTION 1: ADMINISTRATIVE INFORMATION
+  // =============================================================
+
+  // 1.1 Responsible competent authority in which country the incident occurred
+  ncaName       String? // 1.1.a Name of receiving national competent authority (NCA)
+  ncaEudamedNum String? // 1.1.b EUDAMED Number of NCA
+  ncaReportNo   String? // 1.1.c Reference number assigned by NCA for this incident
+  refNumEudamed String? // 1.1.d Reference number assigned by EUDAMED for this incident
+
+  // 1.2 Date, type, and classification of incident report
+  reportDate             DateTime? // 1.2.a Date of report submission (YYYY-MM-DD)
+  adverseEventDateFrom   DateTime? // 1.2.b Date of incident (or start date of range)
+  adverseEventDateTo     DateTime? // 1.2.b Date of incident (end date of range if timeframe)
+  mfrAwarenessDate       DateTime? // 1.2.c Manufacturer awareness date of the incident
+  mfrAwarenessReportDate DateTime? // 1.2.d Manufacturer awareness date of reportability
+  reportNextDate                  DateTime? // 1.2.f Expected date of next report (for initial/follow-up)
+  expectedDayOfNextReport         DateTime? // 1.2.f Expected day of next report
+  eventClassification             MIRClassification? // 1.2.g Classification of serious incident
+
+  // 1.3 Submitter information
+  // 1.3.1 Submitter of the report
+  statusReporter                  String? // 1.3.1.a Submitter of report (Manufacturer, Authorised Representative, Other)
+  reporterOtherText               String? // 1.3.1.a Submitter of the report Other text
+  authorizedRepresentativeContact String? // 1.3 Authorized representative contact
+  submitterContact                String? // 1.3 Submitter contact
+  mfrRef             String? // 1.3.1.b Manufacturer's reference number for this incident (unique per manufacturer)
+  ncaRefMultiDev     String? // 1.3.1.c Multiple devices: NCA reference numbers (semicolon separated)
+  eudamedRefMultiDev String? // 1.3.1.c Multiple devices: EUDAMED reference numbers (semicolon separated)
+  mfrRefMultiDev     String? // 1.3.1.c Multiple devices: Manufacturer reference numbers (semicolon separated)
+  ncaRefFSCA         String? // 1.3.1.d FSCA: NCA's local FSCA reference number
+  eudamedRefFSCA     String? // 1.3.1.d FSCA: EUDAMED's FSCA reference number
+  mfrRefFSCA         String? // 1.3.1.d FSCA: Manufacturer FSCA reference number
+  psrId              String? // 1.3.1.e Periodic Summary Report (PSR) ID
+  pmcfpmpfQuestion   Boolean? // 1.3.1.f Did incident occur within PMCF/PMPF investigation?
+  pmcfpmpfId         String? // 1.3.1.f EUDAMED ID of PMCF/PMPF investigation
+
+  // 1.3.2 Manufacturer information
+  mfrName                    String? // 1.3.2.a Manufacturer Organisation name
+  mfrSRN                     String? // 1.3.2.b Single Registration Number (SRN)
+  mfrContactPersonFirstName  String? // 1.3.2.c Contact's first name
+  mfrContactPersonSecondName String? // 1.3.2.d Contact's last name
+  mfrEmailAddress            String? // 1.3.2.e Email
+  mfrPhone                   String? // 1.3.2.f Phone
+  mfrCountry                 String? // 1.3.2.g Country (2-letter code or dropdown)
+  mfrOrgStreet               String? // 1.3.2.h Street
+  mfrOrgStreetNum            String? // 1.3.2.i Street number
+  mfrAddress                 String? // 1.3.2.j Address complement (e.g. building name)
+  mfrOrgPOBox                String? // 1.3.2.k PO Box
+  mfrCity                    String? // 1.3.2.l City name
+  mfrPostcode                String? // 1.3.2.m Postal code
+
+  // 1.3.3 Authorized representative information
+  arName                    String? // 1.3.3.a Authorised representative organisation name
+  arSRN                     String? // 1.3.3.b Single Registration Number (SRN)
+  arContactPersonFirstName  String? // 1.3.3.c Contact's first name
+  arContactPersonSecondName String? // 1.3.3.d Contact's last name
+  arEmailAddress            String? // 1.3.3.e Email
+  arPhone                   String? // 1.3.3.f Phone
+  arCountry                 String? // 1.3.3.g Country
+  arStreet                  String? // 1.3.3.h Street
+  arStreetNum               String? // 1.3.3.i Street number
+  arAddress                 String? // 1.3.3.j Address complement
+  arPOBox                   String? // 1.3.3.k PO Box
+  arCity                    String? // 1.3.3.l City name
+  arPostcode                String? // 1.3.3.m Postal code
+
+  // 1.3.4 Submitter’s details if not also manufacturer or authorised representative
+  reporterOrgName                 String? // 1.3.4.a Registered commercial name of company
+  reporterContactPersonFirstName  String? // 1.3.4.b Contact's first name
+  reporterContactPersonSecondName String? // 1.3.4.c Contact's last name
+  reporterOrgEmailAddress         String? // 1.3.4.d Email
+  reporterOrgPhone                String? // 1.3.4.e Phone
+  reporterOrgCountry              String? // 1.3.4.f Country
+  reporterOrgStreet               String? // 1.3.4.g Street
+  reporterOrgStreetNum            String? // 1.3.4.h Street number
+  reporterOrgAddress              String? // 1.3.4.i Address complement
+  reporterOrgPOBox                String? // 1.3.4.j PO Box
+  reporterOrgCity                 String? // 1.3.4.k City name
+  reporterOrgPostcode             String? // 1.3.4.l Postal code
+
+  // =============================================================
+  // SECTION 2: MEDICAL DEVICE INFORMATION
+  // =============================================================
+
+  // 2.1 Unique Device Identification (UDI)
+  udiDI           String? // 2.1.a (Master) UDI-DI / EUDAMED ID
+  udiDIEntity     String? // 2.1.a Issuing entity for UDI-DI (GS1, HIBCC, ICCBBA, IFA)
+  udiPI           String? // 2.1.b UDI production identifier
+  udiDIBasic      String? // 2.1.c Basic UDI-DI / EUDAMED DI
+  basicEntity     String? // 2.1.c Basic UDI-DI issuing entity
+  udiDIUnitUse    String? // 2.1.d Unit of use UDI-DI
+  unitOfUseEntity String? // 2.1.d Unit of use issuing entity
+
+  // 2.2 Categorisation of device
+  nomenclatureSystem      String? // 2.2.a Medical device nomenclature system (e.g. EMDN, other)
+  nomenclatureSystemOther String? // 2.2.a Other nomenclature system name
+  nomenclatureCode        String? // 2.2.b Medical device nomenclature code
+
+  // 2.3 Description of device and commercial information
+  brandName            String? // 2.3.a Medical device name (Brand/Trade/Proprietary or Common name)
+  deviceDescription    String?   @db.Text // 2.3.b Description of device and its intended purpose
+  deviceNomenclature   String? // 2.3.b Nomenclature text associated with code
+  modelNum             String? // 2.3.c Model
+  catalogNum           String? // 2.3.d Catalogue / Reference number
+  serialNum            String? // 2.3.e Serial number
+  batchNum             String? // 2.3.f Lot / batch number
+  deviceSoftwareVer    String? // 2.3.g Software version
+  deviceFirmwareVer    String? // 2.3.h Firmware version
+  deviceMfrDate             DateTime? // 2.3.i Device manufacturing date
+  dateLotReleased           DateTime? // 2.3 Date lot released
+  deviceExpiryDate          DateTime? // 2.3.j Device expiry date
+  expiryDate                DateTime? // 2.3 Expiry date
+  implantedDateFrom         DateTime? // 2.3.k Date when device was implanted (start)
+  dateOfImplantFrom         DateTime? // 2.3 Date of implant from
+  implantedDateTo           DateTime? // 2.3.k Date when device was implanted (end/timeframe)
+  dateOfImplantTo           DateTime? // 2.3 Date of implant to
+  explantedDateFrom         DateTime? // 2.3.l Date when device was explanted (start)
+  dateOfExplantFrom         DateTime? // 2.3 Date of explant from
+  explantedDateTo           DateTime? // 2.3.l Date when device was explanted (end/timeframe)
+  dateOfExplantTo           DateTime? // 2.3 Date of explant to
+  numYears                  Int?      // 2.3.m Duration of implantation: years
+  numMonths                 Int?      // 2.3.m Duration of implantation: months
+  numDays                   Int?      // 2.3.m Duration of implantation: days
+  implantDuration           String?   // 2.3 Implant duration
+  implantFacilityName       String?   // 2.3.n Healthcare facility where implanted
+  explantFacilityName       String?   // 2.3.o Healthcare facility where explanted
+  nbIdNum                   String?   // 2.3.p Notified body (NB) ID number
+  nbIdNum2                  String?   // 2.3.p Second Notified body ID number (if kit)
+  notifiedBodyId            String?   // 2.3 Notified body ID
+  nbCertNum                 String?   // 2.3.p Notified body certificate number
+  nbCertNum2                String?   // 2.3.p Second Notified body certificate number
+  notifiedBodyCerNoOfDevice String?   // 2.3 Notified body certificate number of device
+  deviceMarketDateType      String?   // 2.3.q Date type (Declaration of Conformity, CE mark, placed on market)
+  deviceMarketDate          DateTime? // 2.3.q Date indicated
+
+  // 2.4 Risk class of device when placed on market
+  appLegislationUnknown Boolean? @default(false) // 2.4.a Applicable legislation unknown
+  deviceClass           Boolean? @default(false) // 2.4.b Placed on market before MDD/AIMDD/IVDD
+  devicePlacedMarket    Boolean? // 2.4.e Continued to be placed on EU market after MDR/IVDR DoA?
+  devicePlacedOnMarket  Boolean? // 2.4 Device placed on the market
+  deviceClassMDD        String?  // 2.4.c MDD/AIMDD risk class
+  mddClass              String?  // 2.4 MDD class
+  deviceClassIVDD       String?  // 2.4.c IVDD risk class
+  ivddClass             String?  // 2.4 IVDD class
+  deviceClassMDR        String?  // 2.4.d MDR risk class (Class I, IIa, IIb, III)
+  mdrClass              String?  // 2.4 MDR class
+  deviceClassIVDR       String?  // 2.4.d IVDR risk class (Class A, B, C, D)
+  ivdrClass             String?  // 2.4 IVDR class
+  deviceClassMDRType    Json?    // 2.4.d MDR device types (implantable, activedevice, software...)
+  deviceClassIVDRType   Json?    // 2.4.d IVDR device types (selftesting, nearpatienttesting, reagent...)
+  deviceFulfill         Boolean? // 2.4.f Fulfills Art 52(9)/52(10) MDR or CD Art 48(3)/48(4) IVDR?
+  competentAuthName     String?  // 2.4.f Competent authority or EMA consulted
+  relevantName          String?  // 2.4.f Medicinal substance / human tissue / cell name or INN
+
+  // 2.5 Market distribution of device (region/country)
+  distributionEEA            Boolean? // 2.5.a All EEA countries
+  distributionAll            Boolean? // 2.5.a All EEA, Turkey and Northern Ireland
+  marketDistributionOfDevice String?  @db.Text // 2.5 Market distribution of device
+  otherCountries             String?  @db.Text // 2.5.a Other countries
+  countriesDistributedTo     String?  @db.Text // 2.5 Countries distributed to
+
+  // 2.6 Use of accessories, associated devices or other devices
+  deviceAccessories         String?  @db.Text // 2.6.a Relevant accessories used with device
+  relevantAccessories       String?  @db.Text // 2.6 Relevant accessories
+  deviceAssociated          String?  @db.Text // 2.6.b Relevant associated devices used with device
+  relevantAssociatedDevices String?  @db.Text // 2.6 Relevant associated devices
+
+  // =============================================================
+  // SECTION 3: INCIDENT INFORMATION DERIVED FROM INITIAL REPORTER
+  // =============================================================
+
+  // 3.1 Nature of incident
+  eventDescription String? @db.Text // 3.1.a Comprehensive incident description (what went wrong & health effects)
+
+  // 3.2 Medical device problem information
+  imdrfProblemCodes              Json?    // 3.2.a IMDRF Medical device problem codes (Annex A choices 1-6)
+  imdrfA                         Json?    // 3.2 IMDRF Annex A
+  imdrfCodeMissing               String?  @db.Text // 3.2.a If A27 / missing code rationale
+  numPatientsInvolved            Int?     // 3.2.b Number of patients involved
+  currentDeviceLocation          String?  // 3.2.c Current location of the device
+  currentDeviceLocationOtherText String?  // 3.2.c Other location description
+  deviceOperatorAtEvent          String?  // 3.2.d Operator of device at time of incident
+  deviceOperatorAtEventOther     String?  // 3.2.d Other operator description
+  deviceUsage                    String?  // 3.2.e Usage of device (as intended)
+  deviceUsageOther               String?  // 3.2.e Other usage description
+  patientRemedialAction          String?  @db.Text // 3.2.f Remedial actions taken by facility, patient or user
+  patientStatusIntervention      String?  @db.Text // 3.2 Patient status / intervention
+  patientStatus                  String?  @db.Text // 3.2 Patient status
+  patientIntervention            String?  @db.Text // 3.2 Patient intervention
+
+  // 3.3 Clinical information
+  imdrfClinicalCodes           Json?    // 3.3.a IMDRF Annex E (clinical signs, symptoms, conditions choices 1-6)
+  imdrfHealthCodes             Json?    // 3.3.a IMDRF Annex F (health impact choices 1-6)
+  imdrf3                       Json?    // 3.3 IMDRF 3 / Annex E
+  imdrfE                       Json?    // 3.3 IMDRF Annex E
+  imdrfF                       Json?    // 3.3 IMDRF Annex F
+  imdrfMissingCodeHealthEffect String?  @db.Text // 3.3.a If E2402/F28 explanation
+  patientAgeYears              Int?     // 3.3.b Patient age in years
+  patientAgeMonths             Int?     // 3.3.b Patient age in months
+  patientAgeDays               Int?     // 3.3.b Patient age in days
+  gender                       String?  // 3.3.c Gender (Female, Male, Other, Not specified)
+  massKG                       Float?   // 3.3.d Body Weight (Kg)
+  heightCM                     Float?   // 3.3.e Height (cm)
+  patientPriorMedication       String?  @db.Text // 3.3.f Prior health condition or medication relevant
+
+  // 3.4 Initial reporter details
+  initialReporterRole                String?  // 3.4.a Role of initial reporter
+  initialReporterRoleOther           String?  // 3.4.a Other role description
+  healthcareFacilityName             String?  // 3.4.b Name of the health care facility
+  healthcareFacilityRepNum           String?  // 3.4.c Healthcare facility report number
+  healthcareFacilityContactFirstName String?  // 3.4.d Contact first name
+  healthcareFacilityContactLastName  String?  // 3.4.e Contact last name
+  healthcareFacilityEmail            String?  // 3.4.f Email
+  healthcareFacilityPhone            String?  // 3.4.g Phone
+  healthcareFacilityCountry          String?  // 3.4.h Country
+  healthcareFacilityCountryOther     String?  // 3.4.h Country other text
+  healthcareFacilityStreet           String?  // 3.4.i Street
+  healthcareFacilityStreetNum        String?  // 3.4.j Street number
+  healthcareFacilityAddress          String?  // 3.4.k Address complement
+  healthcareFacilityPOBox            String?  // 3.4.l PO Box
+  healthcareFacilityCity             String?  // 3.4.m City name
+  healthcareFacilityPostcode         String?  // 3.4.n Postal code
+
+  // =============================================================
+  // SECTION 4: MANUFACTURER ANALYSIS
+  // =============================================================
+
+  // 4.1 Manufacturer’s preliminary comments
+  manufacturersPrelimAnalysis      String?  @db.Text // 4.1.a Preliminary results & conclusions of investigation
+  suspicionRelationship            Boolean? // 4.1.b Suspicion of relationship with medicinal substance/tissue/cells
+  manufacturersInitialCorrecAction String?  @db.Text // 4.1.c Initial corrective/preventive actions implemented
+  initialManufacturerCapa          String?  @db.Text // 4.1 Initial manufacturer CAPA
+  furtherInvestigations            String?  @db.Text // 4.1.d Further investigations intended
+
+  // 4.2 Cause investigation and conclusion
+  rootCauses                         String?  @db.Text // 4.2.a Evaluation of root causes/causative factors and conclusion
+  manufacturersWhyNotReportable      String?  @db.Text // 4.2.b Rationale why considered not reportable (Final non-reportable)
+  reasonForNotReportable             String?  @db.Text // 4.2 Reason for not reportable
+  rootCauseConfirmed                 Boolean? // 4.2.c Is root cause confirmed?
+  relationshipIncidentSubstance      String?  // 4.2.c Relationship with medicinal substance/tissue/cells
+  riskAssReviewed                    Boolean? // 4.2.d Has risk assessment been reviewed?
+  rationaleNoReview                  String?  @db.Text // 4.2.d Rationale why no review required
+  riskAssAdequate                    Boolean? // 4.2.d If reviewed, is it still adequate?
+  riskAssResults                     String?  @db.Text // 4.2.d Results of the assessment
+  imdrfTypeInvestigationCodes        Json?    // 4.2.e IMDRF Annex B (Type of investigation choices 1-8)
+  imdrfInvestigationFindingsCodes    Json?    // 4.2.e IMDRF Annex C (Investigation findings choices 1-6)
+  imdrfInvestigationConclusionCodes  Json?    // 4.2.e IMDRF Annex D (Investigation conclusion choices 1-6)
+  imdrfMissingCodeCauseInvestigation String?  @db.Text // 4.2.e D17 explanation
+  imdrfComponentCodes                Json?    // 4.2.f IMDRF Annex G (Component codes choices 1-6)
+  imdrfG                             Json?    // 4.2 IMDRF Annex G
+  imdrfMissingComponentCodes         String?  @db.Text // 4.2.f G07002 explanation
+  correctiveAction                   String?  @db.Text // 4.2.g Remedial / corrective / preventive / FSCA description & ref #
+  anyActionTaken                     String?  @db.Text // 4.2 Any action taken
+  correctiveActionSchedule           String?  @db.Text // 4.2.h Time schedule for implementation
+  actionImplementationSchedule       String?  @db.Text // 4.2 Action implementation schedule
+  manufacturersFinalComments         String?  @db.Text // 4.2.i Final comments on cause investigation & conclusion
+  finalManufacturerComments          String?  @db.Text // 4.2 Final manufacturer comments
+
+  // 4.3 Similar serious incidents
+  similarIncImdrfCodesAnnexA        Json? // 4.3.1.a IMDRF Annex A codes for similar incidents
+  similarIncImdrfCodesAnnexC        Json? // 4.3.1.a IMDRF Annex C codes for similar incidents
+  similarIncOtherReportingCodes     String? // 4.3.1.a Other reporting codes
+  similarIncOtherReportingCodesText String? @db.Text // 4.3.1.a Other reporting codes rationale
+  similarIncInHouseCodes            Json? // 4.3.2.a In-house terms/codes (historic)
+  similarVariant                    String? // 4.3.3.a Basis similar incidents identified (model, batches...)
+  similarVariantDetails             String? @db.Text // 4.3.3.a Basis details
+  numberBasedOn                     String? // 4.3.3.b Denominator criteria (Active installed base, units distributed...)
+  numberBasedOnOther                String? @db.Text // 4.3.3.b Other denominator details
+  similarIncidentsHistory           Json? // 4.3.3.c Annual/period data: start/end dates, country/EEA/world counts
+  howWereDetermined                 String? @db.Text // 4.3.3.d Explanation how similar incidents and devices were determined
+
+  // =============================================================
+  // SECTION 5: GENERAL COMMENTS & SUBMISSION
+  // =============================================================
+  additionalComments            String?   @db.Text // 5. General Comments
+  businessComments              String?   @db.Text // Business comments
+  lateReason                    String?   @db.Text // Late reason
+  cidCapaForLateReportable      String?   // CID/CAPA for late reportable
+  commentsForLateReportable     String?   @db.Text // Comments for late reportable
+  processStageForLateReportable String?   // Process stage for late reportable
+  sCreateTimeStamp              DateTime? // Submission timestamp / Date when signed
+
+  // System & Approval Workflow
   preparedById String?
   reviewedById String?
   approvedById String?
@@ -1103,49 +1409,10 @@ model InitialMIR {
 
   organization Organization @relation(fields: [orgId], references: [id])
   complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  attachments  Attachment[]
 
   @@index([orgId])
-}
-
-model FinalMIR {
-  id             String    @id @default(cuid())
-  orgId          String
-  complaintId    String    @unique
-  mirNumber      String?
-  reportType     String?   @default("FINAL")
-  status         MIRStatus @default(DRAFT)
-  submissionDate DateTime?
-
-  manufacturerReference       String?
-  previousMirReference        String?
-  competentAuthority          String?
-  competentAuthorityReference String?
-  submissionCountry           String?
-  submissionMethod            String?
-  submittedBy                 String?
-
-  finalDeviceRelatedness   String?
-  finalCausalityAssessment String?
-  finalCausalityRationale  String? @db.Text
-  manufacturerConclusion   String? @db.Text
-
-  incidentConfirmed           Boolean @default(false)
-  deviceContributionConfirmed Boolean @default(false)
-  rootCauseConfirmed          Boolean @default(false)
-  recurrencePotential         String?
-  finalRiskAssessmentSummary  String? @db.Text
-  manufacturerFinalStatement  String? @db.Text
-
-  // Approval
-  preparedById String?
-  reviewedById String?
-  approvedById String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization Organization @relation(fields: [orgId], references: [id])
-  complaint    Complaint    @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-
-  @@index([orgId])
+  @@index([complaintId])
+  @@index([orgId, status])
+  @@index([orgId, reportType])
 }

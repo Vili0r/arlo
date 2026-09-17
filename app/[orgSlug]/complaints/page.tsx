@@ -13,7 +13,7 @@ export default async function ComplaintsPage({
   const { orgId } = await requireOrgAuth();
   
   // Query up to 100 complaints (10 pages max) strictly for this tenant excluding cancelled records
-  const complaints = await prisma.complaint.findMany({
+  const rawComplaints = await prisma.complaint.findMany({
     where: {
       orgId,
       deletedAt: null,
@@ -44,8 +44,7 @@ export default async function ComplaintsPage({
       },
       productInformation: true,
       vigilanceDecisionTrees: true,
-      initialMIR: true,
-      finalMIR: true,
+      mirs: true,
       customerCommunications: {
         where: { status: { not: "CANCELLED" } },
         orderBy: { communicationDate: "desc" },
@@ -86,6 +85,25 @@ export default async function ComplaintsPage({
         },
       },
     },
+  });
+
+  const complaints = rawComplaints.map((c) => {
+    const activeMirs = (c.mirs || []).filter((m) => m.status !== "CANCELLED");
+    const initialMIR =
+      activeMirs.find(
+        (m) => m.reportType === "INITIAL" || m.reportType === "COMBINED"
+      ) || null;
+    const finalMIR =
+      activeMirs.find(
+        (m) =>
+          m.reportType === "FINAL" || m.reportType === "FINAL_NON_REPORTABLE"
+      ) || null;
+
+    return {
+      ...c,
+      initialMIR,
+      finalMIR,
+    };
   });
 
   return (

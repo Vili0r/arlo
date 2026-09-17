@@ -16,27 +16,35 @@ export default async function FinalMIRPage({
   const complaint = await prisma.complaint.findUnique({
     where: { id, orgId, deletedAt: null },
     include: {
-      finalMIR: true,
+      mirs: {
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 
-  if (!complaint || !complaint.finalMIR) {
+  const mir =
+    complaint?.mirs.find(
+      (m) =>
+        m.reportType === "FINAL" || m.reportType === "FINAL_NON_REPORTABLE"
+    ) || complaint?.mirs[0];
+
+  if (!complaint || !mir) {
     notFound();
   }
 
   const users = await prisma.user.findMany({
     where: {
       memberships: {
-        some: { orgId }
-      }
-    }
+        some: { orgId },
+      },
+    },
   });
 
   return (
     <FinalMIREditForm
       orgSlug={orgSlug}
       complaintNumber={complaint.complaintNumber}
-      mir={complaint.finalMIR}
+      mir={mir}
       users={users}
     />
   );

@@ -655,7 +655,7 @@ describe("[TEST-009] MIR Sub-Folder Lifecycle & Complaint Closure Integration", 
         initialMIR: { id: "imir_100", status: MIRStatus.DRAFT },
         finalMIR: { id: "fmir_100", status: MIRStatus.IN_REVIEW },
         customerCommunications: [{ id: "comm_2", status: CommunicationStatus.OPEN }],
-        tasks: [{ id: "task_2", status: TaskStatus.TODO, shortDescription: "Sample inspection" }],
+        tasks: [{ id: "task_2", status: TaskStatus.OPEN, shortDescription: "Sample inspection" }],
       });
 
       const formData = new FormData();

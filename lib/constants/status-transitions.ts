@@ -24,7 +24,8 @@ export type EntityType =
   | "ComplaintTask"
   | "Capa"
   | "InitialMIR"
-  | "FinalMIR";
+  | "FinalMIR"
+  | "MIR";
 
 export interface StatusStepConfig {
   /** The enum value stored in the database */
@@ -54,7 +55,8 @@ export interface EntityStatusConfig {
     | "complaintTask"
     | "capa"
     | "initialMIR"
-    | "finalMIR";
+    | "finalMIR"
+    | "mIR";
   /** The field name that holds the status */
   statusField: "status" | "currentPhase";
   /** Ordered array of steps for the horizontal stepper */
@@ -566,6 +568,52 @@ export const FINAL_MIR_STATUS_CONFIG: EntityStatusConfig = {
 };
 
 // -----------------------------------------------------------------------------
+export const MIR_STATUS_CONFIG: EntityStatusConfig = {
+  entityType: "MIR",
+  modelName: "mIR",
+  statusField: "status",
+  steps: [
+    {
+      value: MIRStatus.DRAFT,
+      label: "Draft",
+      description:
+        "MIR report is in draft preparation and assessment data is being collected.",
+      color: "bg-blue-500",
+      allowedNextStatuses: [MIRStatus.IN_REVIEW],
+      allowedPreviousStatuses: [],
+    },
+    {
+      value: MIRStatus.IN_REVIEW,
+      label: "In Review",
+      description:
+        "MIR report is undergoing regulatory and QA review.",
+      color: "bg-amber-500",
+      allowedNextStatuses: [MIRStatus.SUBMITTED],
+      allowedPreviousStatuses: [MIRStatus.DRAFT],
+    },
+    {
+      value: MIRStatus.SUBMITTED,
+      label: "Submitted",
+      description:
+        "MIR report has been officially submitted to the competent authority.",
+      color: "bg-purple-500",
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [MIRStatus.IN_REVIEW],
+    },
+    {
+      value: MIRStatus.CANCELLED,
+      label: "Cancelled",
+      description:
+        "MIR report has been cancelled with documented rationale.",
+      color: "bg-red-500",
+      isBranch: true,
+      allowedNextStatuses: [],
+      allowedPreviousStatuses: [],
+    },
+  ],
+};
+
+// -----------------------------------------------------------------------------
 // Lookup helpers
 // -----------------------------------------------------------------------------
 
@@ -578,6 +626,7 @@ const CONFIG_MAP: Record<EntityType, EntityStatusConfig> = {
   Capa: CAPA_STATUS_CONFIG,
   InitialMIR: INITIAL_MIR_STATUS_CONFIG,
   FinalMIR: FINAL_MIR_STATUS_CONFIG,
+  MIR: MIR_STATUS_CONFIG,
 };
 
 export function getStatusConfig(entityType: EntityType): EntityStatusConfig {

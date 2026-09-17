@@ -36,6 +36,7 @@ const ExecuteStatusTransitionSchema = z.object({
     "Capa",
     "InitialMIR",
     "FinalMIR",
+    "MIR",
   ]),
   entityId: z.string().min(1, "Entity ID is required"),
   newStatus: z.string().min(1, "Target status is required"),
@@ -177,6 +178,7 @@ export async function executeStatusTransition(
         Capa: LockEntityType.Capa,
         InitialMIR: LockEntityType.Vigilance,
         FinalMIR: LockEntityType.Vigilance,
+        MIR: LockEntityType.Vigilance,
       };
 
       const lockType = lockEntityTypeMap[entityType as EntityType];
@@ -376,30 +378,40 @@ export async function executeStatusTransition(
       if (entityType === "Vigilance" && newStatus === "REPORTABLE") {
         const vigilance = updatedRecord as any;
         if (vigilance.complaintId) {
-          const existingInitial = await tx.initialMIR.findUnique({
-            where: { complaintId: vigilance.complaintId }
-          });
-          if (!existingInitial) {
-            const newInitial = await tx.initialMIR.create({
-              data: {
-                orgId,
-                complaintId: vigilance.complaintId,
-                status: "DRAFT",
-                reportType: "INITIAL",
-              }
-            });
-            await tx.auditLog.create({
-              data: {
-                orgId,
-                entityType: "InitialMIR",
-                entityId: newInitial.id,
-                action: AuditAction.CREATE,
-                changedById: userId,
-                newData: newInitial as unknown as Prisma.InputJsonValue,
-                reason: "Initial MIR record created upon Reportable Vigilance determination",
-                complaintId: vigilance.complaintId,
-              },
-            });
+          const mirDelegate = (tx as any).mIR || (tx as any).initialMIR;
+          if (mirDelegate) {
+            const existingInitial = mirDelegate.findFirst
+              ? await mirDelegate.findFirst({
+                  where: {
+                    complaintId: vigilance.complaintId,
+                    reportType: { in: ["INITIAL", "COMBINED"] },
+                  },
+                })
+              : await mirDelegate.findUnique?.({
+                  where: { complaintId: vigilance.complaintId },
+                });
+            if (!existingInitial) {
+              const newInitial = await mirDelegate.create({
+                data: {
+                  orgId,
+                  complaintId: vigilance.complaintId,
+                  status: "DRAFT",
+                  reportType: "INITIAL",
+                },
+              });
+              await tx.auditLog.create({
+                data: {
+                  orgId,
+                  entityType: "InitialMIR",
+                  entityId: newInitial.id,
+                  action: AuditAction.CREATE,
+                  changedById: userId,
+                  newData: newInitial as unknown as Prisma.InputJsonValue,
+                  reason: "Initial MIR record created upon Reportable Vigilance determination",
+                  complaintId: vigilance.complaintId,
+                },
+              });
+            }
           }
         }
       }
@@ -412,21 +424,29 @@ export async function executeStatusTransition(
             where: {
               complaintId: investigation.complaintId,
               orgId,
-              status: { in: ["REPORTABLE", "SUBMITTED"] }
-            }
+              status: { in: ["REPORTABLE", "SUBMITTED"] },
+            },
           });
-          if (vigilance && typeof tx.finalMIR?.findUnique === "function") {
-            const existingFinal = await tx.finalMIR.findUnique({
-              where: { complaintId: investigation.complaintId }
-            });
+          const mirDelegate = (tx as any).mIR || (tx as any).finalMIR;
+          if (vigilance && mirDelegate) {
+            const existingFinal = mirDelegate.findFirst
+              ? await mirDelegate.findFirst({
+                  where: {
+                    complaintId: investigation.complaintId,
+                    reportType: { in: ["FINAL", "FINAL_NON_REPORTABLE"] },
+                  },
+                })
+              : await mirDelegate.findUnique?.({
+                  where: { complaintId: investigation.complaintId },
+                });
             if (!existingFinal) {
-              const newFinal = await tx.finalMIR.create({
+              const newFinal = await mirDelegate.create({
                 data: {
                   orgId,
                   complaintId: investigation.complaintId,
                   status: "DRAFT",
                   reportType: "FINAL",
-                }
+                },
               });
               await tx.auditLog.create({
                 data: {
@@ -627,13 +647,19 @@ async function fetchRecord(
         where: { id: entityId, orgId },
       });
     case "InitialMIR":
-      return tx.initialMIR.findUnique({
-        where: { id: entityId, orgId },
-      });
+      return (tx as any).mIR?.findFirst
+        ? (tx as any).mIR.findFirst({ where: { id: entityId, orgId } })
+        : (tx as any).initialMIR?.findUnique({ where: { id: entityId, orgId } });
     case "FinalMIR":
-      return tx.finalMIR.findUnique({
-        where: { id: entityId, orgId },
-      });
+      return (tx as any).mIR?.findFirst
+        ? (tx as any).mIR.findFirst({ where: { id: entityId, orgId } })
+        : (tx as any).finalMIR?.findUnique({ where: { id: entityId, orgId } });
+    case "MIR":
+      return (tx as any).mIR?.findFirst
+        ? (tx as any).mIR.findFirst({ where: { id: entityId, orgId } })
+        : (tx as any).initialMIR?.findUnique
+        ? (tx as any).initialMIR.findUnique({ where: { id: entityId, orgId } })
+        : (tx as any).finalMIR?.findUnique({ where: { id: entityId, orgId } });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);
   }
@@ -702,21 +728,61 @@ async function updateRecord(
         },
       });
     case "InitialMIR":
-      return tx.initialMIR.update({
-        where: { id: entityId, orgId },
-        data: {
-          status: newStatus as MIRStatus,
-          ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
-        },
-      });
+      return (tx as any).mIR?.update
+        ? (tx as any).mIR.update({
+            where: { id: entityId, orgId },
+            data: {
+              status: newStatus as MIRStatus,
+              ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
+            },
+          })
+        : (tx as any).initialMIR?.update({
+            where: { id: entityId, orgId },
+            data: {
+              status: newStatus as MIRStatus,
+              ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
+            },
+          });
     case "FinalMIR":
-      return tx.finalMIR.update({
-        where: { id: entityId, orgId },
-        data: {
-          status: newStatus as MIRStatus,
-          ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
-        },
-      });
+      return (tx as any).mIR?.update
+        ? (tx as any).mIR.update({
+            where: { id: entityId, orgId },
+            data: {
+              status: newStatus as MIRStatus,
+              ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
+            },
+          })
+        : (tx as any).finalMIR?.update({
+            where: { id: entityId, orgId },
+            data: {
+              status: newStatus as MIRStatus,
+              ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
+            },
+          });
+    case "MIR":
+      return (tx as any).mIR?.update
+        ? (tx as any).mIR.update({
+            where: { id: entityId, orgId },
+            data: {
+              status: newStatus as MIRStatus,
+              ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
+            },
+          })
+        : (tx as any).initialMIR?.update
+        ? (tx as any).initialMIR.update({
+            where: { id: entityId, orgId },
+            data: {
+              status: newStatus as MIRStatus,
+              ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
+            },
+          })
+        : (tx as any).finalMIR?.update({
+            where: { id: entityId, orgId },
+            data: {
+              status: newStatus as MIRStatus,
+              ...(newStatus === "SUBMITTED" ? { submissionDate: new Date() } : {}),
+            },
+          });
     default:
       throw new Error(`Unsupported entity type: ${entityType}`);
   }
@@ -858,8 +924,7 @@ async function validateComplaintClosure(tx: PrismaTx, complaintId: string, orgId
     include: {
       investigation: true,
       vigilanceDecisionTrees: true,
-      initialMIR: true,
-      finalMIR: true,
+      mirs: true,
       tasks: true,
       customerCommunications: true,
     }
@@ -870,6 +935,14 @@ async function validateComplaintClosure(tx: PrismaTx, complaintId: string, orgId
   }
 
   const activeFolders: string[] = [];
+
+  const mirs = (fullComplaint as any).mirs || [];
+  const initialMIR =
+    (fullComplaint as any).initialMIR ||
+    mirs.find((m: any) => m.reportType === "INITIAL" || m.reportType === "COMBINED");
+  const finalMIR =
+    (fullComplaint as any).finalMIR ||
+    mirs.find((m: any) => m.reportType === "FINAL" || m.reportType === "FINAL_NON_REPORTABLE");
 
   if (newStatus === "CLOSED") {
     // Check Investigation
@@ -885,13 +958,13 @@ async function validateComplaintClosure(tx: PrismaTx, complaintId: string, orgId
     }
 
     // Check Initial MIR
-    if (fullComplaint.initialMIR && fullComplaint.initialMIR.status !== "SUBMITTED" && fullComplaint.initialMIR.status !== "CANCELLED") {
-      activeFolders.push(`Initial MIR is currently in ${fullComplaint.initialMIR.status} status (must be SUBMITTED)`);
+    if (initialMIR && initialMIR.status !== "SUBMITTED" && initialMIR.status !== "CANCELLED") {
+      activeFolders.push(`Initial MIR is currently in ${initialMIR.status} status (must be SUBMITTED)`);
     }
 
     // Check Final MIR
-    if (fullComplaint.finalMIR && fullComplaint.finalMIR.status !== "SUBMITTED" && fullComplaint.finalMIR.status !== "CANCELLED") {
-      activeFolders.push(`Final MIR is currently in ${fullComplaint.finalMIR.status} status (must be SUBMITTED)`);
+    if (finalMIR && finalMIR.status !== "SUBMITTED" && finalMIR.status !== "CANCELLED") {
+      activeFolders.push(`Final MIR is currently in ${finalMIR.status} status (must be SUBMITTED)`);
     }
 
     // Check Follow-ups / Communications
@@ -915,10 +988,10 @@ async function validateComplaintClosure(tx: PrismaTx, complaintId: string, orgId
     for (const tree of fullComplaint.vigilanceDecisionTrees || []) {
       if (tree.status !== "CANCELLED") activeFolders.push(`Vigilance Decision Tree must be CANCELLED`);
     }
-    if (fullComplaint.initialMIR && fullComplaint.initialMIR.status !== "CANCELLED") {
+    if (initialMIR && initialMIR.status !== "CANCELLED") {
       activeFolders.push(`Initial MIR must be CANCELLED`);
     }
-    if (fullComplaint.finalMIR && fullComplaint.finalMIR.status !== "CANCELLED") {
+    if (finalMIR && finalMIR.status !== "CANCELLED") {
       activeFolders.push(`Final MIR must be CANCELLED`);
     }
     for (const comm of fullComplaint.customerCommunications || []) {

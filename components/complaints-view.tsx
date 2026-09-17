@@ -242,6 +242,7 @@ export interface ComplaintRecord {
   vigilanceDecisionTrees?: RelatedVigilance[] | null;
   initialMIR?: any;
   finalMIR?: any;
+  mirs?: any[];
   productInformation?: RelatedProduct[];
   patientInformation?: RelatedPatient[];
   customerCommunications?: RelatedCommunication[];
@@ -1017,13 +1018,29 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                 activeVigilanceList.length > 0
                   ? activeVigilanceList[activeVigilanceList.length - 1]
                   : null;
-              const initialMIR = c.initialMIR && c.initialMIR.status !== "CANCELLED" ? c.initialMIR : null;
-                    const finalMIR = c.finalMIR && c.finalMIR.status !== "CANCELLED" ? c.finalMIR : null;
-                    const totalRelations =
+              const activeMirs = (c.mirs || []).filter((m: any) => m.status !== "CANCELLED");
+              const initialMIR =
+                (c.initialMIR && c.initialMIR.status !== "CANCELLED" ? c.initialMIR : null) ||
+                activeMirs.find(
+                  (m: any) => m.reportType === "INITIAL" || m.reportType === "COMBINED"
+                ) ||
+                null;
+              const finalMIR =
+                (c.finalMIR && c.finalMIR.status !== "CANCELLED" ? c.finalMIR : null) ||
+                activeMirs.find(
+                  (m: any) =>
+                    m.reportType === "FINAL" || m.reportType === "FINAL_NON_REPORTABLE"
+                ) ||
+                null;
+              const otherMirs = activeMirs.filter(
+                (m: any) => m.id !== initialMIR?.id && m.id !== finalMIR?.id
+              );
+              const totalRelations =
                       (investigation ? 1 : 0) +
                       (vigilance ? 1 : 0) +
                       (initialMIR ? 1 : 0) +
                       (finalMIR ? 1 : 0) +
+                      otherMirs.length +
                       communications.length +
                       tasks.length;
 
@@ -1254,6 +1271,24 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                     icon: <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" />,
                                   }
                                 : null,
+                              ...otherMirs.map((mir: any) => ({
+                                id: `grid-mir-${mir.id}`,
+                                rawId: mir.id,
+                                entityType: "MIR",
+                                href: `/${orgSlug}/complaints/${c.id}/${
+                                  mir.reportType === "FINAL" || mir.reportType === "FINAL_NON_REPORTABLE"
+                                    ? "final-mir"
+                                    : "initial-mir"
+                                }`,
+                                title: `${(mir.reportType || "MIR").replace(/_/g, " ")} MIR`,
+                                badge: (
+                                  <Badge variant="outline" className="text-[10px] bg-sky-500/10 text-sky-600 border-sky-500/20">
+                                    {mir.status}
+                                  </Badge>
+                                ),
+                                desc: `Manufacturer Incident Report • MIR #${mir.id.slice(-6)}`,
+                                icon: <FileSpreadsheet className="h-3.5 w-3.5 text-sky-500" />,
+                              })),
                               ...tasks.map((task) => {
                                 const assigneeName = resolveUserDisplayName(task.assignedTo, task.assignedToId, "Unassigned");
                                 return {
@@ -1473,13 +1508,29 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                       activeVigilanceList.length > 0
                         ? activeVigilanceList[activeVigilanceList.length - 1]
                         : null;
-                    const initialMIR = c.initialMIR && c.initialMIR.status !== "CANCELLED" ? c.initialMIR : null;
-                    const finalMIR = c.finalMIR && c.finalMIR.status !== "CANCELLED" ? c.finalMIR : null;
+                    const activeMirs = (c.mirs || []).filter((m: any) => m.status !== "CANCELLED");
+                    const initialMIR =
+                      (c.initialMIR && c.initialMIR.status !== "CANCELLED" ? c.initialMIR : null) ||
+                      activeMirs.find(
+                        (m: any) => m.reportType === "INITIAL" || m.reportType === "COMBINED"
+                      ) ||
+                      null;
+                    const finalMIR =
+                      (c.finalMIR && c.finalMIR.status !== "CANCELLED" ? c.finalMIR : null) ||
+                      activeMirs.find(
+                        (m: any) =>
+                          m.reportType === "FINAL" || m.reportType === "FINAL_NON_REPORTABLE"
+                      ) ||
+                      null;
+                    const otherMirs = activeMirs.filter(
+                      (m: any) => m.id !== initialMIR?.id && m.id !== finalMIR?.id
+                    );
                     const totalRelations =
                       (investigation ? 1 : 0) +
                       (vigilance ? 1 : 0) +
                       (initialMIR ? 1 : 0) +
                       (finalMIR ? 1 : 0) +
+                      otherMirs.length +
                       communications.length +
                       tasks.length;
 
@@ -1721,6 +1772,30 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                             ),
                                           }
                                         : null,
+                                      ...otherMirs.map((mir: any) => ({
+                                        id: `table-mir-${mir.id}`,
+                                        rawId: mir.id,
+                                        entityType: "MIR",
+                                        href: `/${orgSlug}/complaints/${c.id}/${
+                                          mir.reportType === "FINAL" || mir.reportType === "FINAL_NON_REPORTABLE"
+                                            ? "final-mir"
+                                            : "initial-mir"
+                                        }`,
+                                        icon: <FileSpreadsheet className="h-3.5 w-3.5" />,
+                                        iconColor: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+                                        title: `${(mir.reportType || "MIR").replace(/_/g, " ")} MIR`,
+                                        badge: (
+                                          <Badge variant="outline" className="text-[9px] bg-sky-500/10 text-sky-600 border-sky-500/20 py-0">
+                                            {mir.status}
+                                          </Badge>
+                                        ),
+                                        desc: `Manufacturer Incident Report (${mir.reportType})`,
+                                        rightMeta: (
+                                          <span className="font-mono text-[10px]">
+                                            MIR #{mir.id.slice(-6)}
+                                          </span>
+                                        ),
+                                      })),
                                       ...tasks.map((task) => {
                                         const assigneeName = resolveUserDisplayName(task.assignedTo, task.assignedToId, "Unassigned");
                                         return {
