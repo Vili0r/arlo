@@ -1,9 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/blob";
 import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
+
+function isAllowedStorageUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    // Only allow secure HTTPS protocols
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return false;
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    // Block internal network and metadata service addresses (SSRF mitigation)
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "169.254.169.254" ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("192.168.") ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
+    ) {
+      return false;
+    }
+
+    // Permit trusted blob domains or vercel storage hosts
+    return (
+      hostname.endsWith(".blob.vercel-storage.com") ||
+      hostname.endsWith(".vercel-storage.com") ||
+      hostname.endsWith("blob.core.windows.net") ||
+      hostname.endsWith("amazonaws.com")
+    );
+  } catch {
+    return false;
+  }
+}
 
 export async function GET(request: NextRequest) {
-  const { userId } = await auth();
+  const { userId, orgId } = await auth();
   if (!userId) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
@@ -15,6 +49,23 @@ export async function GET(request: NextRequest) {
 
   if (!fileUrl) {
     return new NextResponse("Missing url parameter", { status: 400 });
+  }
+
+  // Security: Guard against arbitrary SSRF URLs
+  if (!isAllowedStorageUrl(fileUrl)) {
+    return new NextResponse("Forbidden file host or invalid URL protocol", { status: 403 });
+  }
+
+  // Multi-tenant check: If an attachment record exists for this URL, verify tenant ownership
+  if (orgId) {
+    const attachmentRecord = await prisma.attachment.findFirst({
+      where: { fileUrl },
+      select: { orgId: true },
+    });
+
+    if (attachmentRecord && attachmentRecord.orgId !== orgId) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
   }
 
   try {
@@ -34,6 +85,7 @@ export async function GET(request: NextRequest) {
             "Content-Type": contentType,
             "Content-Disposition": disposition,
             "Cache-Control": "private, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
           },
         });
       }
@@ -44,7 +96,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Direct fetch fallback for public blobs or other URLs
+    // 2. Direct fetch fallback for public blobs
     const response = await fetch(fileUrl);
     if (!response.ok) {
       return new NextResponse(
@@ -67,6 +119,7 @@ export async function GET(request: NextRequest) {
         "Content-Type": contentType,
         "Content-Disposition": disposition,
         "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (error: unknown) {
@@ -76,3 +129,4 @@ export async function GET(request: NextRequest) {
     return new NextResponse(message, { status: 500 });
   }
 }
+

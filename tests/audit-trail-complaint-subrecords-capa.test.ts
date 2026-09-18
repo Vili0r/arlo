@@ -339,6 +339,16 @@ describe("[TEST-015] Requirement: The system shall maintain an audit trail for c
         shortDescription: "Updated high priority description",
         priority: Priority.HIGH,
         awarenessDate: new Date("2026-09-01T10:00:00Z").toISOString(),
+        customerName: "Memorial Regional Hospital",
+        customerType: "HOSPITAL",
+        initialReporterName: "Jane",
+        initialReporterSurname: "Doe",
+        email: "jane.doe@memorial.org",
+        address: "123 Health Ave",
+        country: "United States",
+        telNumber: "+1-555-0199",
+        countryEventOccurred: "United States",
+        region: "NORTH_AMERICA",
       });
 
       expect(mockTx.auditLog.create).toHaveBeenCalledWith(
@@ -1488,7 +1498,7 @@ describe("[TEST-015] Requirement: The system shall maintain an audit trail for c
         (call: any) => call[0]?.data?.entityId === "capa_rel_001"
       );
       expect(auditLogCall).toBeDefined();
-      const fieldChanges = auditLogCall[0].data.fieldChanges as Array<{ field: string; oldValue: any; newValue: any }>;
+      const fieldChanges = auditLogCall![0].data.fieldChanges as Array<{ field: string; oldValue: any; newValue: any }>;
 
       // 1. None of the top-level changes should be capaId, investigationId, or id
       const changedFieldNames = fieldChanges.map((f) => f.field);

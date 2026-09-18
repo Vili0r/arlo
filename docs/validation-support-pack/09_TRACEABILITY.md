@@ -2,7 +2,7 @@
 
 **System Name:** Arlo Complaint Management & Vigilance & CAPA Management SaaS  
 **Document ID:** RTM-ARLO-001  
-**Generated At:** `2026-09-15T17:36:26.749Z`  
+**Generated At:** `2026-09-18T19:00:13.139Z`  
 **Status:** ✅ VALIDATED (ALL TESTS PASS)  
 **Standards:** FDA 21 CFR Part 820.198 / Part 11 | ISO 13485:2016 | IEC 62304 Class B
 
@@ -16,8 +16,8 @@
 | **Total Software Requirements (SRS)** | 25 |
 | **Total Design Units (DESIGN)** | 21 |
 | **Traceability Links Verified** | 26 |
-| **Total Automated Tests Executed** | 319 |
-| **Total Automated Tests Passing** | 319 |
+| **Total Automated Tests Executed** | 416 |
+| **Total Automated Tests Passing** | 416 |
 | **Requirements Test Coverage** | **100%** |
 | **Verification Gate** | **PASSED** |
 
@@ -36,7 +36,7 @@
 | **URS-003**<br>_Investigation Lifecycle & Template Support_ | **SRS-008**<br>Investigation Concurrency Lock Management | **DESIGN-008**<br>Concurrency Lock Engine | `lib/record-lock.ts` | **TEST-007** | [`tests/investigation-concurrency-lock.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/investigation-concurrency-lock.test.ts) | 8/8 | ✅ Pass |
 | **URS-004**<br>_Vigilance Decision Tree & Regulatory Incident Reporting (MIR)_ | **SRS-009**<br>Vigilance Decision Tree & Reportability Transitions | **DESIGN-009**<br>Vigilance Decision Service | `lib/actions/vigilance.ts` | **TEST-008** | [`tests/mir-stage-transition.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/mir-stage-transition.test.ts) | 23/23 | ✅ Pass |
 | **URS-004**<br>_Vigilance Decision Tree & Regulatory Incident Reporting (MIR)_ | **SRS-010**<br>MIR Subfolder Lifecycle & Closure Validation | **DESIGN-010**<br>MIR Lifecycle Controller | `lib/actions/mir.ts` | **TEST-009** | [`tests/mir-subfolder-lifecycle-and-closure.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/mir-subfolder-lifecycle-and-closure.test.ts) | 15/15 | ✅ Pass |
-| **URS-004**<br>_Vigilance Decision Tree & Regulatory Incident Reporting (MIR)_ | **SRS-023**<br>MIR Form Concurrency Locking | **DESIGN-008**<br>Concurrency Lock Engine | `lib/record-lock.ts` | **TEST-022** | [`tests/mir-concurrency-lock.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/mir-concurrency-lock.test.ts) | 12/12 | ✅ Pass |
+| **URS-004**<br>_Vigilance Decision Tree & Regulatory Incident Reporting (MIR)_ | **SRS-023**<br>MIR Form Concurrency Locking | **DESIGN-008**<br>Concurrency Lock Engine | `lib/record-lock.ts` | **TEST-022** | [`tests/mir-concurrency-lock.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/mir-concurrency-lock.test.ts) | 16/16 | ✅ Pass |
 | **URS-005**<br>_Customer Communication & Follow-up_ | **SRS-011**<br>Customer Communication Stage Progression | **DESIGN-011**<br>Communication Manager | `lib/actions/communications.ts` | **TEST-010** | [`tests/communication-stage-transition.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/communication-stage-transition.test.ts) | 19/19 | ✅ Pass |
 | **URS-005**<br>_Customer Communication & Follow-up_ | **SRS-012**<br>Customer Summary Report Generation | **DESIGN-012**<br>Customer Report Generator | `lib/actions/customer-report.ts` | **TEST-011** | [`tests/customer-report-generation.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/customer-report-generation.test.ts) | 3/3 | ✅ Pass |
 | **URS-005**<br>_Customer Communication & Follow-up_ | **SRS-021**<br>Communication Update & Notes Maintenance | **DESIGN-011**<br>Communication Manager | `lib/actions/communications.ts` | **TEST-020** | [`tests/communication-update.test.ts`](file:////Users/viliorcuni/Desktop/arlo/tests/communication-update.test.ts) | 8/8 | ✅ Pass |

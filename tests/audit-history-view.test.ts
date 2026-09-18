@@ -239,6 +239,16 @@ describe("[TEST-014] View History & Audit Trail Logging - Complaint Sub-Folders 
         shortDescription: "Updated complaint description with new serial batch info",
         priority: Priority.HIGH,
         awarenessDate: new Date("2026-08-01T00:00:00Z").toISOString(),
+        customerName: "Memorial Regional Hospital",
+        customerType: "HOSPITAL",
+        initialReporterName: "Jane",
+        initialReporterSurname: "Doe",
+        email: "jane.doe@memorial.org",
+        address: "123 Health Ave",
+        country: "United States",
+        telNumber: "+1-555-0199",
+        countryEventOccurred: "United States",
+        region: "NORTH_AMERICA",
       });
 
       expect(mockTx.auditLog.create).toHaveBeenCalledWith(

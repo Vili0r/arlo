@@ -173,7 +173,7 @@ export interface AuditLogExportRecord {
   reason?: string | null;
   complaint?: { complaintNumber: string } | null;
   capa?: { capaNumber: string } | null;
-  newData?: Record<string, unknown> | null;
+  newData?: unknown;
   [key: string]: unknown;
 }
 

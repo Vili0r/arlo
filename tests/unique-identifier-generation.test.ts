@@ -163,7 +163,10 @@ describe("[TEST-002] Requirement Verification: Unique Complaint Identification N
       existingCapa: false,
       capaRequired: true,
       fscaRequired: false,
+      attachments: [],
     },
+    extensionRequests: [],
+    attachments: [],
   };
 
   // ---------------------------------------------------------------------------
