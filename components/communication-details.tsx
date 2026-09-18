@@ -918,27 +918,6 @@ export function CommunicationDetail({
               </p>
             )}
           </PanelCard>
-
-          <PanelCard title="Compliance & Audit">
-            <div className="space-y-3">
-              <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 shrink-0 text-primary mt-0.5" />
-                <span>
-                  All changes are cryptographically tracked under 21 CFR Part 11 for FDA/ISO audit readiness.
-                </span>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setIsAuditDrawerOpen(true)}
-                className="w-full gap-1.5 text-xs h-8"
-              >
-                <History className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>View audit history</span>
-              </Button>
-            </div>
-          </PanelCard>
         </aside>
       </div>
 

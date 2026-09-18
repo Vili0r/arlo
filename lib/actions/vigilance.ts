@@ -6,6 +6,7 @@ import { AuditAction, Prisma, LockEntityType } from "@prisma/client";
 import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import { revalidatePath } from "next/cache";
 import { generateAuditDiff } from "@/utils/auditDiff";
+import { isRegulatoryRole } from "@/lib/utils";
 
 export async function updateVigilance(data: any) {
   const { orgId, userId } = await requireOrgAuth();
@@ -90,5 +91,59 @@ export async function updateVigilance(data: any) {
 
   revalidatePath(`/${data.orgSlug}/complaints/${result.complaintId}/vigilance`);
   return result;
+}
+
+export async function createDecisionTree(complaintId: string, orgSlug?: string) {
+  const { orgId, userId, orgRole } = await requireOrgAuth();
+
+  if (!isRegulatoryRole(orgRole)) {
+    throw new Error(
+      "403 Forbidden: Only Admin, QA Manager, or Vigilance Lead can create a Vigilance Decision Tree."
+    );
+  }
+
+  const complaint = await prisma.complaint.findUnique({
+    where: { id: complaintId, orgId, deletedAt: null },
+    include: {
+      vigilanceDecisionTrees: {
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  if (!complaint) {
+    throw new Error("Complaint not found or access denied.");
+  }
+
+  const existingCount = complaint.vigilanceDecisionTrees.length;
+  const newVigilance = await prisma.vigilanceDecisionTree.create({
+    data: {
+      complaintId: complaint.id,
+      orgId,
+      status: "PENDING",
+      assessmentStage: existingCount > 0 ? "POST_INVESTIGATION" : "INITIAL",
+      ownerId: userId,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      orgId,
+      entityType: "VigilanceDecisionTree",
+      entityId: newVigilance.id,
+      action: AuditAction.CREATE,
+      changedById: userId,
+      newData: newVigilance as unknown as Prisma.InputJsonValue,
+      reason: `Manual Vigilance Decision Tree created for complaint ${complaint.complaintNumber}`,
+      complaintId: complaint.id,
+    },
+  });
+
+  if (orgSlug) {
+    revalidatePath(`/${orgSlug}/complaints`);
+    revalidatePath(`/${orgSlug}/complaints/${complaint.id}/vigilance`);
+  }
+
+  return { success: true, decisionTree: newVigilance };
 }
 

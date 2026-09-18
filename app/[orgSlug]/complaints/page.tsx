@@ -10,7 +10,7 @@ export default async function ComplaintsPage({
   params,
 }: ComplaintsPageProps) {
   const { orgSlug } = await params;
-  const { orgId } = await requireOrgAuth();
+  const { orgId, orgRole } = await requireOrgAuth();
   
   // Query up to 100 complaints (10 pages max) strictly for this tenant excluding cancelled records
   const rawComplaints = await prisma.complaint.findMany({
@@ -120,7 +120,11 @@ export default async function ComplaintsPage({
       </div>
 
       {/* Complaints Action Toolbar & Dynamic Grid/List View with pagination */}
-      <ComplaintsView orgSlug={orgSlug} complaints={complaints} />
+      <ComplaintsView
+        orgSlug={orgSlug}
+        complaints={complaints}
+        currentUserRole={orgRole}
+      />
     </div>
   );
 }

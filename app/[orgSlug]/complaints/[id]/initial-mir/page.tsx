@@ -29,13 +29,27 @@ export default async function InitialMIRPage({
     },
   });
 
-  const mir =
-    complaint?.mirs.find(
-      (m) => m.reportType === "INITIAL" || m.reportType === "COMBINED"
-    ) || complaint?.mirs[0];
-
-  if (!complaint || !mir) {
+  if (!complaint) {
     notFound();
+  }
+
+  let mir =
+    complaint.mirs.find(
+      (m) => m.reportType === "INITIAL" || m.reportType === "COMBINED"
+    ) || complaint.mirs[0];
+
+  if (!mir) {
+    const count = await prisma.mIR.count({ where: { orgId } });
+    const mirNumber = `MIR-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
+    mir = await prisma.mIR.create({
+      data: {
+        orgId,
+        complaintId: complaint.id,
+        status: "DRAFT",
+        reportType: "INITIAL",
+        mirNumber,
+      },
+    });
   }
 
   // Get users for dropdowns (even if not used heavily yet)

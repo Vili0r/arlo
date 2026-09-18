@@ -29,14 +29,28 @@ export default async function FinalMIRPage({
     },
   });
 
-  const mir =
-    complaint?.mirs.find(
+  if (!complaint) {
+    notFound();
+  }
+
+  let mir =
+    complaint.mirs.find(
       (m) =>
         m.reportType === "FINAL" || m.reportType === "FINAL_NON_REPORTABLE"
-    ) || complaint?.mirs[0];
+    ) || complaint.mirs[0];
 
-  if (!complaint || !mir) {
-    notFound();
+  if (!mir) {
+    const count = await prisma.mIR.count({ where: { orgId } });
+    const mirNumber = `MIR-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
+    mir = await prisma.mIR.create({
+      data: {
+        orgId,
+        complaintId: complaint.id,
+        status: "DRAFT",
+        reportType: "FINAL",
+        mirNumber,
+      },
+    });
   }
 
   const users = await prisma.user.findMany({

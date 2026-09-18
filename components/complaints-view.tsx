@@ -72,8 +72,12 @@ import {
 } from "@/components/ui/context-menu";
 import { AuditHistoryDrawer } from "@/components/audit/audit-history-drawer";
 import { CustomerReportModal } from "@/components/customer-report-modal";
+import { CreateMirModal } from "@/components/create-mir-modal";
+import { createDecisionTree } from "@/lib/actions/vigilance";
 import { cn, formatUserName } from "@/lib/utils";
 import { useOrganization } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 
 export interface RelatedProduct {
@@ -263,15 +267,35 @@ export interface ComplaintRecord {
 interface ComplaintsViewProps {
   orgSlug: string;
   complaints: ComplaintRecord[];
+  currentUserRole?: string;
 }
 
-export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
-  const { memberships } = useOrganization({
+export function ComplaintsView({
+  orgSlug,
+  complaints,
+  currentUserRole,
+}: ComplaintsViewProps) {
+  const router = useRouter();
+  const { memberships, membership } = useOrganization({
     memberships: {
       pageSize: 100,
       keepPreviousData: true,
     },
   });
+
+  const effectiveRole = (currentUserRole || membership?.role || "").toLowerCase().trim();
+  const canCreateRegulatoryRecords = React.useMemo(() => {
+    return (
+      effectiveRole === "org:admin" ||
+      effectiveRole === "admin" ||
+      effectiveRole === "org:qa_manager" ||
+      effectiveRole === "qa_manager" ||
+      effectiveRole === "qa manager" ||
+      effectiveRole === "org:vigilance_lead" ||
+      effectiveRole === "vigilance_lead" ||
+      effectiveRole === "vigilance lead"
+    );
+  }, [effectiveRole]);
 
   // Map of userId or email -> formatted Full Name (First + Last Name)
   const memberNameMap = React.useMemo(() => {
@@ -323,6 +347,31 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
     React.useState<ComplaintRecord | null>(null);
   const [activeReportComplaint, setActiveReportComplaint] =
     React.useState<ComplaintRecord | null>(null);
+  const [activeMirComplaint, setActiveMirComplaint] =
+    React.useState<ComplaintRecord | null>(null);
+  const [isRegulatoryActionPending, setIsRegulatoryActionPending] =
+    React.useState(false);
+
+  const handleCreateDecisionTree = async (c: ComplaintRecord) => {
+    setIsRegulatoryActionPending(true);
+    const toastId = toast.loading(`Creating decision tree for ${c.complaintNumber}...`);
+    try {
+      const res = await createDecisionTree(c.id, orgSlug);
+      if (res && res.success) {
+        toast.success(`Vigilance decision tree created successfully!`, { id: toastId });
+        router.push(`/${orgSlug}/complaints/${c.id}/vigilance`);
+      } else {
+        toast.error("Failed to create decision tree.", { id: toastId });
+      }
+    } catch (error: any) {
+      toast.error(error.message || "An unexpected error occurred while creating the decision tree.", {
+        id: toastId,
+      });
+    } finally {
+      setIsRegulatoryActionPending(false);
+    }
+  };
+
   const [activeSubWorkflowHistory, setActiveSubWorkflowHistory] =
     React.useState<{
       entityType: string;
@@ -1137,6 +1186,30 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                               <History className="h-3.5 w-3.5 text-amber-500" />
                               <span>View History</span>
                             </DropdownMenuItem>
+                            {canCreateRegulatoryRecords && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
+                                  Regulatory Actions
+                                </DropdownMenuLabel>
+                                <DropdownMenuItem
+                                  onClick={() => handleCreateDecisionTree(c)}
+                                  disabled={isRegulatoryActionPending}
+                                  className="flex items-center gap-2 cursor-pointer font-medium"
+                                >
+                                  <GitMerge className="h-3.5 w-3.5 text-purple-600" />
+                                  <span>Create Decision Tree</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => setActiveMirComplaint(c)}
+                                  disabled={isRegulatoryActionPending}
+                                  className="flex items-center gap-2 cursor-pointer font-medium"
+                                >
+                                  <FileSpreadsheet className="h-3.5 w-3.5 text-sky-600" />
+                                  <span>Create MIR</span>
+                                </DropdownMenuItem>
+                              </>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={() => copyToClipboard(c.complaintNumber)}
@@ -1650,6 +1723,30 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
                                   <History className="h-3.5 w-3.5 text-amber-500" />
                                   <span>View History</span>
                                 </DropdownMenuItem>
+                                {canCreateRegulatoryRecords && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuLabel className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
+                                      Regulatory Actions
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuItem
+                                      onClick={() => handleCreateDecisionTree(c)}
+                                      disabled={isRegulatoryActionPending}
+                                      className="flex items-center gap-2 cursor-pointer font-medium"
+                                    >
+                                      <GitMerge className="h-3.5 w-3.5 text-purple-600" />
+                                      <span>Create Decision Tree</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => setActiveMirComplaint(c)}
+                                      disabled={isRegulatoryActionPending}
+                                      className="flex items-center gap-2 cursor-pointer font-medium"
+                                    >
+                                      <FileSpreadsheet className="h-3.5 w-3.5 text-sky-600" />
+                                      <span>Create MIR</span>
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => copyToClipboard(c.complaintNumber)}
@@ -2413,6 +2510,16 @@ export function ComplaintsView({ orgSlug, complaints }: ComplaintsViewProps) {
             investigation: activeReportComplaint.investigation,
           }}
           orgName={orgSlug}
+        />
+      )}
+
+      {/* Create MIR Modal */}
+      {activeMirComplaint && (
+        <CreateMirModal
+          isOpen={Boolean(activeMirComplaint)}
+          onClose={() => setActiveMirComplaint(null)}
+          complaint={activeMirComplaint}
+          orgSlug={orgSlug}
         />
       )}
     </div>

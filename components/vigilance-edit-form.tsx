@@ -35,6 +35,10 @@ import { FileUploader } from "@/components/file-uploader";
 import { StatusTransitionTracker } from "@/components/status-transition-tracker";
 import { formatUserName, cn } from "@/lib/utils";
 
+import { QuestionnaireFlow } from "@/components/vigilance/questionnaire-flow";
+import { JurisdictionMatrix } from "@/components/vigilance/jurisdiction-matrix";
+import { StoredQuestionAnswer } from "@/lib/vigilance/question-bank";
+
 /* ------------------------------------------------------------------ */
 /* Types & Schema                                                      */
 /* ------------------------------------------------------------------ */
@@ -67,6 +71,8 @@ type VigilanceFormValues = z.infer<typeof vigilanceSchema>;
 export interface VigilanceEditFormProps {
   orgSlug: string;
   complaintNumber: string;
+  initialQuestionAnswers?: StoredQuestionAnswer[];
+  initialJurisdictionAssessments?: any[];
   vigilance: {
     id: string;
     complaintId: string;
@@ -279,6 +285,8 @@ function PanelCard({
 export function VigilanceEditForm({
   orgSlug,
   complaintNumber,
+  initialQuestionAnswers = [],
+  initialJurisdictionAssessments = [],
   vigilance,
 }: VigilanceEditFormProps) {
   const router = useRouter();
@@ -287,6 +295,7 @@ export function VigilanceEditForm({
     recordId: vigilance.id,
   });
 
+  const [activeTab, setActiveTab] = React.useState<"facts" | "global-matrix" | "legacy-form">("facts");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [activeSection, setActiveSection] = React.useState<SectionId>("section-decision");
@@ -554,7 +563,8 @@ export function VigilanceEditForm({
     <div ref={rootRef} className="-m-6 lg:-m-8">
       {/* ---------- Sticky record bar ---------- */}
       <div ref={barRef} className="sticky -top-10 z-20 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="px-6 pt-3 lg:px-8">
+        {/* Top breadcrumb & action bar */}
+        <div className="border-b border-border/50 px-6 py-3 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Link
@@ -591,7 +601,7 @@ export function VigilanceEditForm({
               </Badge>
             </div>
 
-            <div className="flex items-center gap-2 lg:mt-2">
+            <div className="flex items-center gap-2">
               <StatusTransitionTracker
                 entityType="Vigilance"
                 entityId={vigilance.id}
@@ -618,25 +628,62 @@ export function VigilanceEditForm({
               </Button>
             </div>
           </div>
+        </div>
 
-          {/* Anchor tabs */}
-          <nav className="-mb-px mt-2 flex gap-1 overflow-x-auto" aria-label="Sections">
+        {/* Header: Primary View Navigation */}
+        <div className="border-b border-border/60 px-6 lg:px-8">
+          <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label="Vigilance Header Navigation">
+            {[
+              { id: "legacy-form", label: "Decision Record" },
+              { id: "facts", label: "Canonical Facts" },
+              { id: "global-matrix", label: "Global Determinations" },
+            ].map((t) => {
+              const active = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActiveTab(t.id as any)}
+                  className={cn(
+                    "flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-xs font-medium transition-colors",
+                    active
+                      ? "border-foreground font-semibold text-foreground"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                  )}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Subheader: Reportability, Timeline, Rationale */}
+        <div className="px-6 lg:px-8">
+          <nav className="-mb-px flex items-center gap-1 overflow-x-auto" aria-label="Subheader Navigation">
             {SECTIONS.map((s) => {
-              const active = activeSection === s.id;
+              const active = activeTab === "legacy-form" && activeSection === s.id;
               return (
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => scrollTo(s.id)}
+                  onClick={() => {
+                    if (activeTab !== "legacy-form") {
+                      setActiveTab("legacy-form");
+                      setTimeout(() => scrollTo(s.id), 50);
+                    } else {
+                      scrollTo(s.id);
+                    }
+                  }}
                   className={cn(
-                    "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors",
+                    "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-xs transition-colors bg-transparent",
                     active
                       ? "border-foreground font-medium text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
                   )}
                 >
                   <CompletionDot state={completion[s.id]} />
-                  {s.label}
+                  <span>{s.label}</span>
                 </button>
               );
             })}
@@ -646,12 +693,35 @@ export function VigilanceEditForm({
 
       {/* ---------- Body ---------- */}
       <div className="grid gap-6 p-6 lg:p-8 xl:grid-cols-[minmax(0,1fr)_280px]">
-        {/* Main form column */}
-        <form
-          id="vigilance-form"
-          onSubmit={handleSubmit(onSubmit)}
-          className="min-w-0 max-w-5xl space-y-4"
-        >
+        {/* Main column */}
+        <div className="min-w-0 max-w-5xl space-y-6">
+          {activeTab === "facts" && (
+            <QuestionnaireFlow
+              complaintId={vigilance.complaintId}
+              vigilanceId={vigilance.id}
+              orgSlug={orgSlug}
+              initialAnswers={initialQuestionAnswers}
+              isReadOnly={isLockReadOnly}
+              onAssessmentsUpdated={() => router.refresh()}
+            />
+          )}
+
+          {activeTab === "global-matrix" && (
+            <JurisdictionMatrix
+              complaintId={vigilance.complaintId}
+              orgSlug={orgSlug}
+              assessments={initialJurisdictionAssessments}
+              isReadOnly={isLockReadOnly}
+              onRefresh={() => router.refresh()}
+            />
+          )}
+
+          {activeTab === "legacy-form" && (
+            <form
+              id="vigilance-form"
+              onSubmit={handleSubmit(onSubmit)}
+              className="space-y-4"
+            >
           {error && (
             <div
               role="alert"
@@ -937,6 +1007,8 @@ export function VigilanceEditForm({
             </div>
           </fieldset>
         </form>
+        )}
+      </div>
 
         {/* ---------- Right context panel ---------- */}
         <aside className="space-y-4 xl:sticky xl:top-[120px] xl:self-start">

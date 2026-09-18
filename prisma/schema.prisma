@@ -98,6 +98,8 @@ model Organization {
   investigationSummaries        InvestigationSummary[]
   recordLocks                   RecordLock[]
   mirs                          MIR[]
+  vigilanceQuestionAnswers      VigilanceQuestionAnswer[]
+  vigilanceJurisdictionAssessments VigilanceJurisdictionAssessment[]
 
   @@index([slug])
 }
@@ -306,6 +308,8 @@ model Complaint {
   sampleManagement       SampleManagement?
   investigation          Investigation?
   vigilanceDecisionTrees VigilanceDecisionTree[]
+  vigilanceQuestionAnswers VigilanceQuestionAnswer[]
+  vigilanceJurisdictionAssessments VigilanceJurisdictionAssessment[]
   mirs                   MIR[]
   attachments            Attachment[]
   tasks                  ComplaintTask[]
@@ -522,10 +526,119 @@ model VigilanceDecisionTree {
   approver     User?        @relation("VigilanceApprover", fields: [approverId], references: [id])
   attachments  Attachment[]
 
+  questionAnswers         VigilanceQuestionAnswer[]
+  jurisdictionAssessments VigilanceJurisdictionAssessment[]
+
   @@index([orgId])
   @@index([complaintId])
   @@index([ownerId])
   @@index([approverId])
+}
+
+// -------------------------------------------------------------
+// Global Medical Device Vigilance & Reportability Engine Models
+// -------------------------------------------------------------
+
+enum CanonicalAnswer {
+  YES
+  NO
+  UNKNOWN
+  NOT_APPLICABLE
+  NOT_YET_DETERMINED
+}
+
+enum FactSourceType {
+  USER
+  AI_SUGGESTED
+  INTEGRATION
+  INVESTIGATION_SUMMARY
+}
+
+enum FactReviewStateType {
+  DRAFT
+  SUGGESTED
+  APPROVED
+  REJECTED
+}
+
+model VigilanceQuestionAnswer {
+  id              String              @id @default(cuid())
+  orgId           String
+  complaintId     String
+  vigilanceId     String?
+  questionId      String              // Stable canonical ID, e.g., CAUSALITY_001
+  answer          CanonicalAnswer     @default(NOT_YET_DETERMINED)
+  structuredValue String?             // Optional causality or severity value
+  rationale       String?             @db.Text
+  evidence        Json?               @default("[]") // Array of evidence string identifiers / references
+  source          FactSourceType      @default(USER)
+  confidence      Float?              // AI extraction confidence (0.0 to 1.0)
+  reviewStatus    FactReviewStateType @default(APPROVED)
+  answeredById    String?
+  answeredAt      DateTime            @default(now())
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  organization Organization           @relation(fields: [orgId], references: [id])
+  complaint    Complaint              @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  vigilance    VigilanceDecisionTree? @relation(fields: [vigilanceId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, complaintId, questionId])
+  @@index([orgId, complaintId])
+  @@index([vigilanceId])
+  @@index([questionId])
+}
+
+enum GlobalReportabilityStatus {
+  REPORTABLE
+  NOT_REPORTABLE
+  PENDING_INFORMATION
+  REQUIRES_REVIEW
+  EXEMPT
+  NOT_APPLICABLE
+}
+
+model VigilanceJurisdictionAssessment {
+  id                  String                    @id @default(cuid())
+  orgId               String
+  complaintId         String
+  vigilanceId         String?
+  jurisdiction        String                    // EU, US_FDA, CA_HEALTH_CANADA, AU_TGA, CN_NMPA, JP_PMDA, etc.
+  regulator           String
+  regulatoryFramework String
+  rulesetVersion      String
+  status              GlobalReportabilityStatus @default(PENDING_INFORMATION)
+  reportingCategory   String?
+  reportingReason     String?                   @db.Text
+
+  awarenessDate       DateTime?
+  deadline            DateTime?
+  deadlineType        String?                   // CALENDAR_DAYS, BUSINESS_DAYS, HOURS
+  deadlineDays        Int?
+  requiredForm        String?
+  submissionMethod    String?
+
+  triggeredRules      Json?                     @default("[]") // Array of rule IDs
+  supportingQuestions Json?                     @default("[]") // Array of question IDs
+  unresolvedQuestions Json?                     @default("[]") // Array of missing question IDs
+  reviewerRequired    Boolean                   @default(false)
+
+  approvedById        String?
+  approvedAt          DateTime?
+  assessedAt          DateTime                  @default(now())
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  organization Organization           @relation(fields: [orgId], references: [id])
+  complaint    Complaint              @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  vigilance    VigilanceDecisionTree? @relation(fields: [vigilanceId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, complaintId, jurisdiction])
+  @@index([orgId, complaintId])
+  @@index([vigilanceId])
+  @@index([jurisdiction])
 }
 
 model Attachment {

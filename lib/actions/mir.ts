@@ -14,6 +14,7 @@ import {
 import { assertRecordNotLocked } from "@/lib/actions/record-lock";
 import { generateAuditDiff } from "@/utils/auditDiff";
 import { revalidatePath } from "next/cache";
+import { isRegulatoryRole } from "@/lib/utils";
 
 const MIR_DATE_FIELDS = new Set([
   "submissionDate",
@@ -311,5 +312,68 @@ export async function updateFinalMIR(
   reason?: string
 ) {
   return updateMIR(mirId, newData, reason || "Updated Final MIR report", "FinalMIR");
+}
+
+export async function createMIR(
+  complaintId: string,
+  reportType: "INITIAL" | "FINAL" = "INITIAL",
+  orgSlug?: string
+) {
+  const { orgId, userId, orgRole } = await requireOrgAuth();
+
+  if (!isRegulatoryRole(orgRole)) {
+    throw new Error(
+      "403 Forbidden: Only Admin, QA Manager, or Vigilance Lead can create an MIR."
+    );
+  }
+
+  const complaint = await prisma.complaint.findUnique({
+    where: { id: complaintId, orgId, deletedAt: null },
+  });
+
+  if (!complaint) {
+    throw new Error("Complaint not found or access denied.");
+  }
+
+  const count = await prisma.mIR.count({
+    where: { orgId },
+  });
+  const mirNumber = `MIR-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
+
+  const mirDelegate = (prisma as any).mIR || (prisma as any).initialMIR;
+  const newMIR = await mirDelegate.create({
+    data: {
+      orgId,
+      complaintId: complaint.id,
+      reportType: reportType as MIRReportType,
+      status: "DRAFT",
+      mirNumber,
+      preparedById: userId,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      orgId,
+      entityType: reportType === "FINAL" ? "FinalMIR" : "InitialMIR",
+      entityId: newMIR.id,
+      action: AuditAction.CREATE,
+      changedById: userId,
+      newData: newMIR as unknown as Prisma.InputJsonValue,
+      reason: `Manual ${reportType === "FINAL" ? "Final" : "Initial"} MIR created for complaint ${complaint.complaintNumber}`,
+      complaintId: complaint.id,
+    },
+  });
+
+  if (orgSlug) {
+    revalidatePath(`/${orgSlug}/complaints`);
+    revalidatePath(
+      `/${orgSlug}/complaints/${complaint.id}/${
+        reportType === "FINAL" ? "final-mir" : "initial-mir"
+      }`
+    );
+  }
+
+  return { success: true, mir: newMIR };
 }
 

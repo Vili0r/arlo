@@ -56,4 +56,22 @@ export function formatRoleName(
     .join(" ");
 }
 
+export const REGULATORY_ROLES = new Set([
+  "org:admin",
+  "admin",
+  "org:qa_manager",
+  "qa_manager",
+  "org:vigilance_lead",
+  "vigilance_lead",
+]);
+
+export function isRegulatoryRole(role?: string | null): boolean {
+  if (!role) return false;
+  const normalized = role.toLowerCase().trim().replace(/\s+/g, "_");
+  return (
+    REGULATORY_ROLES.has(normalized) ||
+    REGULATORY_ROLES.has(`org:${normalized}`)
+  );
+}
+
 
